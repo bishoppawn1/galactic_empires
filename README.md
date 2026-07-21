@@ -2,6 +2,8 @@
 
 A React, TypeScript, and Vite strategy prototype with deterministic game rules and automated UI/rules tests.
 
+Play the current build at [bishoppawn1.github.io/galactic_empires](https://bishoppawn1.github.io/galactic_empires/).
+
 ## Project map
 
 - `src/app/` — application state, persistence, and top-level orchestration
@@ -17,3 +19,7 @@ A React, TypeScript, and Vite strategy prototype with deterministic game rules a
 - `npm test` — run all tests
 - `npm run build` — type-check and build the production bundle
 - `npm run check` — run tests and build together
+
+## Deployment
+
+Pushes to `main` run the test and production build, then publish `dist/` to GitHub Pages. The deployment can also be started manually from the repository's Actions tab.

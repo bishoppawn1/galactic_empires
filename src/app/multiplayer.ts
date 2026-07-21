@@ -1,5 +1,5 @@
 import type { DataConnection, Peer } from 'peerjs';
-import { isGameCommand, swapPlayerPerspective, type GameCommand, type GameConfig, type GameState } from '../game';
+import { isGameCommand, migrateGameState, swapPlayerPerspective, type GameCommand, type GameConfig, type GameState } from '../game';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PEER_PREFIX = 'galactic-empires-';
@@ -7,9 +7,18 @@ const MAX_PLAYERS = 2;
 export const MULTIPLAYER_SERIALIZATION = 'binary';
 export const STATE_SYNC_INTERVAL_MS = 250;
 export const MAX_BUFFERED_STATE_MESSAGES = 2;
+export const PEER_OPEN_TIMEOUT_MS = 10000;
 
 export const canSendStateUpdate = (lastSentAt: number, now: number, bufferedMessages = 0) =>
   now - lastSentAt >= STATE_SYNC_INTERVAL_MS && bufferedMessages < MAX_BUFFERED_STATE_MESSAGES;
+
+export function prepareIncomingState(payload: unknown): GameState | undefined {
+  try {
+    return swapPlayerPerspective(migrateGameState(payload as GameState));
+  } catch {
+    return undefined;
+  }
+}
 
 export interface LobbyPlayer {
   id: string;
@@ -73,8 +82,9 @@ async function loadPeer() {
 
 function waitForPeerOpen(peer: Peer): Promise<void> {
   return new Promise((resolve, reject) => {
-    peer.once('open', () => resolve());
-    peer.once('error', error => reject(error));
+    const timeout = window.setTimeout(() => reject(new Error('The multiplayer service did not answer.')), PEER_OPEN_TIMEOUT_MS);
+    peer.once('open', () => { window.clearTimeout(timeout); resolve(); });
+    peer.once('error', error => { window.clearTimeout(timeout); reject(error); });
   });
 }
 
@@ -133,7 +143,9 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
       }
     });
     connection.on('close', () => {
-      if (connections.delete(connection.peer) && !playing) publishLobby();
+      const wasParticipant = connections.delete(connection.peer);
+      if (wasParticipant && !playing) publishLobby();
+      else if (wasParticipant && playing && !closed) callbacks.onClosed('The rival commander disconnected from the match.');
     });
     connection.on('error', error => callbacks.onError(peerErrorMessage(error)));
   });
@@ -176,8 +188,12 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
   connection.on('data', payload => {
     const message = payload as HostMessage;
     if (message?.type === 'lobby') callbacks.onLobby(message.lobby);
-    else if (message?.type === 'start') callbacks.onStart(swapPlayerPerspective(message.state));
-    else if (message?.type === 'state') callbacks.onState(swapPlayerPerspective(message.state));
+    else if (message?.type === 'start' || message?.type === 'state') {
+      const state = prepareIncomingState(message.state);
+      if (!state) { callbacks.onError('The host sent an invalid campaign snapshot.'); return; }
+      if (message.type === 'start') callbacks.onStart(state);
+      else callbacks.onState(state);
+    }
     else if (message?.type === 'error') callbacks.onError(message.message);
   });
   await new Promise<void>((resolve, reject) => {
@@ -196,7 +212,11 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
     code,
     start() {},
     sendState() {},
-    sendCommand(command) { if (connection.open) connection.send({ type: 'command', command } satisfies GuestMessage); },
+    sendCommand(command) {
+      if (!connection.open) { callbacks.onError('The rival command link is not open.'); return; }
+      try { connection.send({ type: 'command', command } satisfies GuestMessage); }
+      catch (error) { callbacks.onError(peerErrorMessage(error)); }
+    },
     close() { closed = true; connection.close(); peer.destroy(); },
   };
 }

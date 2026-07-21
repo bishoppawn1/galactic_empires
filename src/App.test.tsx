@@ -217,6 +217,20 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('3 SHIPS SELECTED')).toBeInTheDocument();
   });
 
+  it('shows a prominent capacity badge on transports and marks a full hold', () => {
+    const state = stateWithPlayerForces();
+    const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;
+    transport.cargo = Array.from({ length: 4 }, (_, index) => makeUnit(`cargo-${index}`, 'infantry', 'player'));
+    saveState(state);
+    render(<App />);
+
+    const marker = screen.getByRole('button', { name: 'Transport orbiting Terra Nova' });
+    const badge = marker.querySelector('.transport-capacity');
+    expect(badge).toHaveTextContent('4/4');
+    expect(badge).toHaveClass('full');
+    expect(badge).toHaveAttribute('aria-label', 'Cargo 4 of 4');
+  });
+
   it('lets a selected ship cross a phase lane by clicking the lane', () => {
     saveState(stateWithPlayerForces());
     render(<App />);

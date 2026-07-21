@@ -11,6 +11,7 @@ const CANVAS_WIDTH = 12800;
 const CANVAS_HEIGHT = 8800;
 const EDGE_PAN_THRESHOLD = 72;
 const EDGE_PAN_STEP = 22;
+const PLANET_HIT_SIZE = 160;
 
 const systemBorderPoint = (from: Planet, to: Planet) => {
   const fromX = CANVAS_WIDTH * from.x / 100, fromY = CANVAS_HEIGHT * from.y / 100;
@@ -187,7 +188,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
           const hostileOrbit = p.orbitUnits.some(u => u.faction === 'enemy') && p.orbitUnits.some(u => u.faction === 'player');
-          return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': p.color, '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${55 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }}>
+          return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': p.color, '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }}>
             {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" /><span className="planet-sphere" />
             <span className="faction-badge">{planetFactionBadge(p.owner)}</span><span className="planet-name">{p.name}</span><span className="planet-status">{factionName(p.owner)}</span>{!!p.orbitUnits.length && <span className="orbit-count">◈ {p.orbitUnits.length}</span>}
           </button>;
@@ -224,7 +225,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const selectable = ship.faction === 'player' && (!ship.phaseArrival || !!ship.pendingLanding);
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small>{ship.pendingLanding ? 'LANDING · ' : ship.docked ? 'DOCKED · ' : ''}{ship.cargo?.length ?? 0}/{capacity}</small>}</button>;
+          const cargoCount = ship.cargo?.length ?? 0;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.map((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);

@@ -19,6 +19,8 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   dreadnought,
 };
 
+export const shipImageSource = (kind: SpaceUnitKind) => SHIP_IMAGES[kind];
+
 export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   transport: 68,
   escortFrigate: 78,

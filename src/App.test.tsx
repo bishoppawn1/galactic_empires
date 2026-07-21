@@ -293,10 +293,10 @@ describe('Galactic Empires interface', () => {
     fireEvent.contextMenu(destination);
 
     expect(screen.getByText('1 ship routed across 1 phase lane to Nyx.')).toBeInTheDocument();
-    const transitShip = document.querySelector('.transit-ship') as HTMLElement;
-    expect(transitShip).not.toBeNull();
-    expect(transitShip.style.getPropertyValue('--ship-heading')).toMatch(/deg$/);
-    expect(screen.getAllByText(/CLEARING WELL/).length).toBeGreaterThan(0);
+    const transitLayer = document.querySelector('.ship-canvas-layer');
+    expect(transitLayer).toHaveAttribute('data-transit-count', '1');
+    expect(transitLayer?.querySelector('small')).toBeNull();
+    expect(screen.queryByText(/CLEARING WELL/)).not.toBeInTheDocument();
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
 
@@ -322,7 +322,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Vesta UNCHARTED' }));
 
     expect(screen.getByText(`1 ship routed across ${path.length - 1} phase lanes to Vesta.`)).toBeInTheDocument();
-    expect(document.querySelector('.transit-ship')).not.toBeNull();
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '1');
   });
 
   it('opens research as a top-level empire tab and renders prerequisite branches', () => {
@@ -396,7 +396,8 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbital-fire .weapon-fire.weapon-laser')).toHaveLength(2);
     expect(document.querySelectorAll('.orbital-fire .weapon-laser .weapon-projectile')).toHaveLength(6);
     expect(document.querySelector('.orbital-fire .weapon-laser .weapon-projectile')?.getAttribute('href')).toContain('laser');
-    expect(document.querySelectorAll('img.ship-image').length).toBeGreaterThanOrEqual(2);
+    expect(document.querySelectorAll('img.ship-image')).toHaveLength(1);
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
   });
 
   it('renders a missile frigate salvo as one occasional missile image', () => {
@@ -437,14 +438,38 @@ describe('Galactic Empires interface', () => {
     const escort = screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' });
     const missile = screen.getByRole('button', { name: 'Missile Frigate orbiting Terra Nova' });
     const dreadnought = screen.getByRole('button', { name: 'Titan Dreadnought orbiting Terra Nova' });
-    const hostile = screen.getByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' });
     expect(transport).toHaveStyle({ '--ship-display-size': '68px' });
     expect(escort).toHaveStyle({ '--ship-display-size': '78px' });
     expect(missile).toHaveStyle({ '--ship-display-size': '82px' });
     expect(dreadnought).toHaveStyle({ '--ship-display-size': '140px' });
     expect(transport.querySelector('.ship-control-frame')).toBeInTheDocument();
     expect(escort.querySelector('.ship-control-frame')).toBeInTheDocument();
-    expect(hostile.querySelector('.ship-control-frame')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).not.toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
+  });
+
+  it('batches dense hostile fleets into one canvas layer', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.orbitUnits = Array.from({ length: 500 }, (_, index) => ({ ...makeUnit(`dense-enemy-${index}`, 'escortFrigate', 'enemy'), orbitX: index % 25 * 8, orbitY: Math.floor(index / 25) * 8 }));
+    saveState(state);
+    render(<App />);
+
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '500');
+    expect(document.querySelectorAll('.orbit-ship.enemy')).toHaveLength(0);
+  });
+
+  it('caps rendered orbital salvos without reducing combatants', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = Array.from({ length: 80 }, (_, index) => ({
+      ...makeUnit(`salvo-${index}`, 'escortFrigate', index % 2 ? 'enemy' : 'player'),
+      orbitX: 100 + index % 10 * 4, orbitY: 100 + Math.floor(index / 10) * 4,
+    }));
+    saveState(state);
+    render(<App />);
+
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(32);
+    expect(document.querySelectorAll('.orbit-ship.player')).toHaveLength(40);
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '40');
   });
 
 

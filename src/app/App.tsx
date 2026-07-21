@@ -39,6 +39,7 @@ export default function App() {
   const installState = (next: GameState, broadcast = false) => {
     stateRef.current = next;
     setState(next);
+    if (!controllerRef.current) localStorage.setItem(SAVE_KEY, JSON.stringify(next));
     if (broadcast) controllerRef.current?.sendState(next);
   };
   remoteCommandRef.current = (command, faction) => {
@@ -61,7 +62,15 @@ export default function App() {
     }, 100);
     return () => clearInterval(timer);
   }, []);
-  useEffect(() => { if (state && !controllerRef.current) localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
+  useEffect(() => {
+    const persistLatestState = () => {
+      const current = stateRef.current;
+      if (current && !controllerRef.current) localStorage.setItem(SAVE_KEY, JSON.stringify(current));
+    };
+    const timer = window.setInterval(persistLatestState, 1000);
+    window.addEventListener('pagehide', persistLatestState);
+    return () => { clearInterval(timer); window.removeEventListener('pagehide', persistLatestState); persistLatestState(); };
+  }, []);
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(undefined), 2400); return () => clearTimeout(timer); } }, [toast]);
   useEffect(() => { if (battleId && state && !state.battles.some(candidate => candidate.planetId === battleId)) setBattleId(undefined); }, [state, battleId]);
   useEffect(() => {

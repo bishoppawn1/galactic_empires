@@ -1,51 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BUILDINGS, GRAVITY_WELL_RADIUS, MAX_SHIP_ORBIT_RADIUS, UNITS, headingForVector, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
-  type Fleet, type GameState, type Planet, type Unit,
+  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
+  type GameState, type Planet,
 } from '../../game';
 import { factionName, fleetPhaseLabel } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
 import { WeaponFire } from '../shared/WeaponFire';
 import { FleetSelectionHud } from './FleetSelectionHud';
+import { ShipCanvasLayer } from './ShipCanvasLayer';
+import {
+  GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, defenseMapPosition, fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, yardMapPosition,
+} from './geometry';
+import { useGalaxyViewport } from './useGalaxyViewport';
 
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'RIVAL A' : owner === 'rival2' ? 'RIVAL B' : owner === 'rival3' ? 'RIVAL C' : 'NEUTRAL';
 
-const CANVAS_WIDTH = 12800;
-const CANVAS_HEIGHT = 8800;
 const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 160;
 
-const systemBorderPoint = (from: Planet, to: Planet) => {
-  const fromX = CANVAS_WIDTH * from.x / 100, fromY = CANVAS_HEIGHT * from.y / 100;
-  const dx = CANVAS_WIDTH * (to.x - from.x) / 100, dy = CANVAS_HEIGHT * (to.y - from.y) / 100;
-  const distance = Math.hypot(dx, dy) || 1;
-  const radius = MAX_SHIP_ORBIT_RADIUS;
-  return { x: fromX + dx / distance * radius, y: fromY + dy / distance * radius };
-};
-
-const fleetMapPosition = (fleet: Fleet, planets: Planet[]) => {
-  const from = planets.find(planet => planet.id === fleet.originId)!;
-  const to = planets.find(planet => planet.id === fleet.destinationId)!;
-  const phase = fleet.phase ?? 'tunnel';
-  const originBorder = systemBorderPoint(from, to);
-  const destinationBorder = systemBorderPoint(to, from);
-  const start = phase === 'exiting'
-    ? { x: CANVAS_WIDTH * from.x / 100 + (fleet.departureX ?? 0), y: CANVAS_HEIGHT * from.y / 100 + (fleet.departureY ?? 0) }
-    : originBorder;
-  const end = phase === 'tunnel' ? destinationBorder : originBorder;
-  const progress = fleet.travelTime ? Math.min(1, fleet.progress / fleet.travelTime) : 1;
-  return { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress, phase };
-};
-
-const orbitShipHeading = (ship: Unit) => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number'
-  ? headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading)
-  : ship.heading ?? 0;
-
-const fleetHeading = (fleet: Fleet, planets: Planet[]) => {
-  const from = planets.find(planet => planet.id === fleet.originId)!;
-  const to = planets.find(planet => planet.id === fleet.destinationId)!;
-  return headingForVector(to.x - from.x, to.y - from.y, fleet.unit.heading);
-};
+export const MAX_VISIBLE_ORBITAL_SALVOS = 32;
 
 export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
@@ -63,18 +36,19 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     rival3: state.planets.filter(planet => planet.owner === 'rival3').length,
     neutral: state.planets.filter(planet => planet.owner === null).length,
   };
-  const scrollRef = useRef<HTMLDivElement>(null);
   const pressedPanKeysRef = useRef(new Set<string>());
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>();
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number }>();
   const [zoom, setZoom] = useState(1);
+  const { scrollRef, viewportBounds, scheduleViewportMeasure } = useGalaxyViewport(zoom);
   useEffect(() => {
     const viewport = scrollRef.current; if (!viewport) return;
     const initialPlanet = state.planets.find(planet => planet.id === selectedId) ?? state.planets[0];
-    const left = Math.max(0, CANVAS_WIDTH * initialPlanet.x / 100 * zoom - viewport.clientWidth / 2);
-    const top = Math.max(0, CANVAS_HEIGHT * initialPlanet.y / 100 * zoom - viewport.clientHeight / 2);
+    const left = Math.max(0, GALAXY_CANVAS_WIDTH * initialPlanet.x / 100 * zoom - viewport.clientWidth / 2);
+    const top = Math.max(0, GALAXY_CANVAS_HEIGHT * initialPlanet.y / 100 * zoom - viewport.clientHeight / 2);
     if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ left, top });
     else { viewport.scrollLeft = left; viewport.scrollTop = top; }
+    scheduleViewportMeasure();
   }, [selectedId]);
   useEffect(() => {
     const panKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
@@ -130,20 +104,6 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       viewport.scrollTop = logicalY * next - y;
     });
   };
-  const shipPosition = (p: Planet, ship: Unit, index: number) => {
-    const angle = -Math.PI / 2 + index * (Math.PI * 2 / Math.max(3, p.orbitUnits.length));
-    const radius = 155 + (index % 2) * 35;
-    return { x: CANVAS_WIDTH * p.x / 100 + (ship.orbitX ?? Math.cos(angle) * radius), y: CANVAS_HEIGHT * p.y / 100 + (ship.orbitY ?? Math.sin(angle) * radius) };
-  };
-  const yardPosition = (p: Planet, index: number, count: number) => {
-    const angle = Math.PI / 4 + index * (Math.PI * 2 / Math.max(1, count));
-    const radius = 295 + (index % 2) * 28;
-    return { x: CANVAS_WIDTH * p.x / 100 + Math.cos(angle) * radius, y: CANVAS_HEIGHT * p.y / 100 + Math.sin(angle) * radius };
-  };
-  const defensePosition = (p: Planet, index: number, count: number) => {
-    const offset = orbitalDefenseOffset(index, count);
-    return { x: CANVAS_WIDTH * p.x / 100 + offset.x, y: CANVAS_HEIGHT * p.y / 100 + offset.y };
-  };
   const interruptibleFleets = state.fleets.filter(fleet => fleet.faction === 'player' && (fleet.phase === 'exiting' || fleet.phase === 'charging'));
   const selectedOriginIds = new Set(selectedShipIds.flatMap(id => {
     const orbit = state.planets.find(planet => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'));
@@ -158,8 +118,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return ship ? [ship] : [];
   });
   const gatePosition = (origin: Planet, destination: Planet) => {
-    const originX = CANVAS_WIDTH * origin.x / 100, originY = CANVAS_HEIGHT * origin.y / 100;
-    const dx = CANVAS_WIDTH * (destination.x - origin.x) / 100, dy = CANVAS_HEIGHT * (destination.y - origin.y) / 100;
+    const originX = GALAXY_CANVAS_WIDTH * origin.x / 100, originY = GALAXY_CANVAS_HEIGHT * origin.y / 100;
+    const dx = GALAXY_CANVAS_WIDTH * (destination.x - origin.x) / 100, dy = GALAXY_CANVAS_HEIGHT * (destination.y - origin.y) / 100;
     const distance = Math.hypot(dx, dy), offset = GRAVITY_WELL_RADIUS + 100;
     return { x: originX + dx / distance * offset, y: originY + dy / distance * offset };
   };
@@ -170,8 +130,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         event.preventDefault();
         if (!selectedOrigin) return;
         const rect = event.currentTarget.getBoundingClientRect();
-        const x = (event.clientX - rect.left) / zoom - CANVAS_WIDTH * selectedOrigin.x / 100;
-        const y = (event.clientY - rect.top) / zoom - CANVAS_HEIGHT * selectedOrigin.y / 100;
+        const x = (event.clientX - rect.left) / zoom - GALAXY_CANVAS_WIDTH * selectedOrigin.x / 100;
+        const y = (event.clientY - rect.top) / zoom - GALAXY_CANVAS_HEIGHT * selectedOrigin.y / 100;
         if (Math.hypot(x, y) <= GRAVITY_WELL_RADIUS) onManeuver(selectedOrigin.id, x, y);
       }} onMouseDown={event => { if (event.button !== 0 || (event.target as Element).closest('button')) return; const rect = event.currentTarget.getBoundingClientRect(); const point = { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }; setDragStart(point); setDragEnd(point); }} onMouseMove={event => { if (!dragStart) return; const rect = event.currentTarget.getBoundingClientRect(); setDragEnd({ x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }); }} onMouseUp={event => {
         if (event.button !== 0) return;
@@ -179,14 +139,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         const distance = Math.hypot(dragEnd.x - dragStart.x, dragEnd.y - dragStart.y);
         if (distance > 8) {
           const left = Math.min(dragStart.x, dragEnd.x), right = Math.max(dragStart.x, dragEnd.x), top = Math.min(dragStart.y, dragEnd.y), bottom = Math.max(dragStart.y, dragEnd.y);
-          const orbitItems = state.planets.flatMap(p => p.orbitUnits.map((ship, index) => ({ ship, ...shipPosition(p, ship, index) })));
+          const orbitItems = state.planets.flatMap(p => p.orbitUnits.map((ship, index) => ({ ship, ...shipMapPosition(p, ship, index) })));
           const fleetItems = interruptibleFleets.map(fleet => ({ ship: fleet.unit, ...fleetMapPosition(fleet, state.planets) }));
           const ids = [...orbitItems, ...fleetItems].filter(item => item.ship.faction === 'player' && !item.ship.phaseArrival && item.x >= left && item.x <= right && item.y >= top && item.y <= bottom).map(item => item.ship.id);
           onGroupSelect(ids);
         } else if (selectedShipIds.length) {
           if (selectedOrigin) {
-            const localX = dragEnd.x - CANVAS_WIDTH * selectedOrigin.x / 100;
-            const localY = dragEnd.y - CANVAS_HEIGHT * selectedOrigin.y / 100;
+            const localX = dragEnd.x - GALAXY_CANVAS_WIDTH * selectedOrigin.x / 100;
+            const localY = dragEnd.y - GALAXY_CANVAS_HEIGHT * selectedOrigin.y / 100;
             if (Math.hypot(localX, localY) > GRAVITY_WELL_RADIUS) onGroupSelect([]);
           }
         }
@@ -199,21 +159,28 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             return <line key={`${from.id}-${to.id}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`local-route ${active ? 'active' : ''}`} />;
           })}
         </svg>
-        <svg className="orbital-fire" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
+        <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} />
+        <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
             const mapPosition = (id: string, type: 'ship' | 'defense' | 'battery') => {
-              if (type === 'battery') return { x: CANVAS_WIDTH * p.x / 100, y: CANVAS_HEIGHT * p.y / 100 };
+              if (type === 'battery') return { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 };
               if (type === 'defense') {
                 const index = defenses.findIndex(defense => defense.id === id);
-                return index < 0 ? undefined : defensePosition(p, index, defenses.length);
+                return index < 0 ? undefined : defenseMapPosition(p, index, defenses.length);
               }
               const ship = p.orbitUnits.find(unit => unit.id === id);
-              return ship ? shipPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === id)) : undefined;
+              return ship ? shipMapPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === id)) : undefined;
             };
-            return orbitalCombatShots(p).flatMap((shot, index) => {
+            const firingShots = orbitalCombatShots(p).filter(shot => {
               const firingShip = shot.attackerType === 'ship' ? p.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
-              if (firingShip && typeof firingShip.weaponFlash === 'number' && firingShip.weaponFlash <= 0) return [];
+              return !firingShip || typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0;
+            });
+            const visibleShotCount = Math.min(MAX_VISIBLE_ORBITAL_SALVOS, firingShots.length);
+            const start = firingShots.length ? Math.floor(state.elapsed * 4) * visibleShotCount % firingShots.length : 0;
+            const visibleShots = Array.from({ length: visibleShotCount }, (_, index) => firingShots[(start + index) % firingShots.length]);
+            return visibleShots.flatMap((shot, index) => {
+              const firingShip = shot.attackerType === 'ship' ? p.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
               const source = mapPosition(shot.attackerId, shot.attackerType);
               const target = mapPosition(shot.targetId, shot.targetType);
               if (!source || !target) return [];
@@ -240,7 +207,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           if (!p.owner) return [];
           const yards = spaceYards(p);
           return yards.map((yard, index) => {
-            const position = yardPosition(p, index, yards.length);
+            const position = yardMapPosition(p, index, yards.length);
             const advanced = yard.kind === 'advancedSpaceFactory';
             const content = <><span>{advanced ? 'A' : 'Y'}{index + 1}</span><small>{p.owner !== 'player' ? `HOSTILE ${advanced ? 'ADV YARD' : 'YARD'}` : advanced ? 'ADV YARD' : 'SPACE YARD'}</small></>;
             const className = `orbit-yard ${p.owner} ${advanced ? 'advanced' : ''} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`;
@@ -252,7 +219,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {state.planets.flatMap(p => {
           const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
           return defenses.map((defense, index) => {
-            const position = defensePosition(p, index, defenses.length);
+            const position = defenseMapPosition(p, index, defenses.length);
             const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');
             const focused = p.orbitFocusTargetId === defense.id;
             const content = <><span>⌾</span><i /><div className="defense-health"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small>{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
@@ -263,29 +230,29 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               : <div key={defense.id} role="img" aria-label={`Orbital Defense Platform ${index + 1} at ${p.name}`} className={className} style={style}>{content}</div>;
           });
         })}
-        {state.planets.flatMap(p => p.orbitUnits.map((ship, index) => {
-          const position = shipPosition(p, ship, index);
+        {state.planets.flatMap(p => p.orbitUnits.flatMap((ship, index) => {
+          const selectable = ship.faction === 'player';
+          if (!selectable && !ship.pendingLanding && !ship.pendingEmbark) return [];
+          const position = shipMapPosition(p, ship, index);
+          if (!selectedShipIds.includes(ship.id) && !pointInViewport(viewportBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
-          const selectable = ship.faction === 'player';
           const cargoCount = ship.cargo?.length ?? 0;
           const weapon = UNITS[ship.kind].weapon;
           const displaySize = shipDisplaySize(ship.kind);
           return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
-        {state.fleets.map((fleet, index) => {
+        {state.fleets.flatMap((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
           const displaySize = shipDisplaySize(fleet.unit.kind);
           const selectable = fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging');
+          if (!selectable || (!selectedShipIds.includes(fleet.unit.id) && !pointInViewport(viewportBounds, x, y, displaySize))) return [];
           const origin = state.planets.find(planet => planet.id === fleet.originId)!;
           const destination = state.planets.find(planet => planet.id === fleet.destinationId)!;
-          const className = `transit-ship ${fleet.faction} ${position.phase} ${selectable ? 'interruptible' : ''} ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
+          const className = `transit-ship player ${position.phase} interruptible ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
           const style = { left: x, top: y, '--ship-heading': `${fleetHeading(fleet, state.planets)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 7}px` } as React.CSSProperties;
-          const content = <><ShipImage kind={fleet.unit.kind} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></>;
-          return selectable
-            ? <button key={fleet.id} aria-label={`${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, event.shiftKey); }}>{content}</button>
-            : <div className={className} style={style} key={fleet.id}>{content}</div>;
+          return <button key={fleet.id} aria-label={`${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, event.shiftKey); }}><ShipImage kind={fleet.unit.kind} /><i className="ship-control-frame" aria-hidden="true" /></button>;
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>

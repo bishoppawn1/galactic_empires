@@ -1089,28 +1089,6 @@ describe('transport and colonization', () => {
     expect(intercepted.messages.some(message => message.includes('destroyed during landing approach'))).toBe(true);
   });
 
-  it('lets an enemy escort intercept a player transport throughout its landing approach', () => {
-    const state = createInitialState(); const terra = state.planets[0];
-    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    terra.owner = 'enemy';
-    terra.orbitUnits.push({ ...makeUnit('enemy-interceptor', 'escortFrigate', 'enemy'), orbitX: -MAX_SHIP_ORBIT_RADIUS, orbitY: 0 });
-    terra.orbitUnits.push({
-      ...makeUnit('player-landing-transport', 'transport', 'player'),
-      orbitX: MAX_SHIP_ORBIT_RADIUS, orbitY: 0, orbitTargetX: 0, orbitTargetY: 0,
-      phaseArrival: true, pendingLanding: true, cargo: [makeUnit('embarked-player', 'infantry', 'player')], loadedUnitIds: ['embarked-player'],
-    });
-    expect(Math.hypot(MAX_SHIP_ORBIT_RADIUS * 2, 0)).toBeGreaterThan(UNITS.escortFrigate.range);
-    expect(orbitalCombatShots(terra)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ attackerId: 'enemy-interceptor', targetId: 'player-landing-transport' }),
-    ]));
-
-    let intercepted = state;
-    for (let elapsed = 0; elapsed < fullLandingApproachSeconds && intercepted.planets[0].orbitUnits.some(unit => unit.id === 'player-landing-transport'); elapsed += .1) intercepted = tick(intercepted, .1);
-    expect(intercepted.planets[0].orbitUnits.some(unit => unit.id === 'player-landing-transport')).toBe(false);
-    expect(intercepted.battles).toHaveLength(0);
-    expect(intercepted.messages.some(message => message.includes('Friendly Transport destroyed during landing approach'))).toBe(true);
-  });
-
   it('starts a ground battle when troops land on an enemy colony', () => {
     let state = createInitialState(); seedPlayerForces(state); state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     const q = queueUnit(state, 'terra', 'lightTank'); expectOk(q); state = tick(q.state, 30);

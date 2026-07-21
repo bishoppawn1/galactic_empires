@@ -1025,7 +1025,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   for (const attacker of combatants) {
     const faction = attacker.faction as EmpireFaction;
     const hostileShips = hostileShipsByFaction.get(faction) ?? [];
-    const vulnerableTarget = hostileShips.find(target => target.pendingLanding || target.pendingEmbark);
+    const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
     const hostileDefenses = p.owner && p.owner !== faction ? defenses : [];
     const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : p.orbitFocusTargetIds?.[faction];
     const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);

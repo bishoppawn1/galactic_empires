@@ -27,7 +27,7 @@ import {
   type UnitKind,
   type WeaponEffect,
 } from './types';
-import { findPlanetPath } from './navigation';
+import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
@@ -78,6 +78,7 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
   const position = nextOpenOrbitPosition(otherShips.filter(other => other.id !== ship.id));
   ship.orbitTargetX = position.orbitX;
   ship.orbitTargetY = position.orbitY;
+  ship.heading = headingForVector(position.orbitX - (ship.orbitX ?? 0), position.orbitY - (ship.orbitY ?? 0), ship.heading);
 }
 
 function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
@@ -89,6 +90,7 @@ function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   const radius = GRAVITY_WELL_RADIUS - 18;
   ship.orbitX = Math.cos(angle) * radius;
   ship.orbitY = Math.sin(angle) * radius;
+  ship.heading = headingForVector(destination.x - origin.x, destination.y - origin.y, ship.heading);
   delete ship.phaseArrival;
   delete ship.orbitTargetX;
   delete ship.orbitTargetY;
@@ -439,6 +441,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     const maximumRadius = GRAVITY_WELL_RADIUS - 24;
     const length = Math.hypot(targetX, targetY); const scale = length > maximumRadius ? maximumRadius / length : 1;
     ship.orbitTargetX = targetX * scale; ship.orbitTargetY = targetY * scale;
+    ship.heading = headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading);
   });
   addMessage(state, `${ships.length} ship${ships.length === 1 ? '' : 's'} maneuvering inside ${p.name} gravity well.`);
   return pass(state);
@@ -851,6 +854,7 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
+  ship.heading = headingForVector(dx, dy, ship.heading);
   const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;

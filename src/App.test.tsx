@@ -293,7 +293,9 @@ describe('Galactic Empires interface', () => {
     fireEvent.contextMenu(destination);
 
     expect(screen.getByText('1 ship routed across 1 phase lane to Nyx.')).toBeInTheDocument();
-    expect(document.querySelector('.transit-ship')).not.toBeNull();
+    const transitShip = document.querySelector('.transit-ship') as HTMLElement;
+    expect(transitShip).not.toBeNull();
+    expect(transitShip.style.getPropertyValue('--ship-heading')).toMatch(/deg$/);
     expect(screen.getAllByText(/CLEARING WELL/).length).toBeGreaterThan(0);
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
@@ -393,6 +395,17 @@ describe('Galactic Empires interface', () => {
     expect(marker.querySelector('img.ship-image')).not.toBeNull();
     expect(marker.querySelector('.ship-range-ring')).toHaveStyle({ '--ship-range': `${UNITS.escortFrigate.range * 2}px` });
     expect(marker).toHaveAttribute('title', expect.stringContaining('Triple Laser Array'));
+  });
+
+  it('turns an orbiting ship toward its maneuver target', () => {
+    const state = stateWithPlayerForces();
+    const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;
+    transport.orbitTargetX = 180;
+    transport.orbitTargetY = -180;
+    saveState(state);
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' })).toHaveStyle({ '--ship-heading': '90deg' });
   });
 
   it('starts non-instant movement toward an open point inside its gravity well', () => {

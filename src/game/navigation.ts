@@ -4,6 +4,10 @@ export const formatCost = (cost: ResourcePool) => [cost.metal && `${cost.metal}M
 
 export const ownerLabel = (owner: Faction) => owner === 'player' ? 'COLONY' : owner ? 'HOSTILE' : 'UNCHARTED';
 
+export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.hypot(dx, dy) < .001
+  ? fallback
+  : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
+
 export function localPlanetConnections(planets: Planet[], maxDistance = 42): PlanetConnection[] {
   const connections: PlanetConnection[] = [];
   for (let i = 0; i < planets.length; i += 1) {

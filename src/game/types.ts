@@ -48,6 +48,7 @@ export interface Unit {
   orbitY?: number;
   orbitTargetX?: number;
   orbitTargetY?: number;
+  heading?: number;
   phaseArrival?: boolean;
   pendingLanding?: boolean;
   pendingEmbark?: boolean;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
@@ -577,6 +577,7 @@ describe('transport and colonization', () => {
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 40, 25); expectOk(moved);
     expect(moved.state.planets[0].orbitUnits[0]).toMatchObject({ orbitTargetX: 40, orbitTargetY: 25 });
+    expect(moved.state.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
     expect(moved.state.planets[0].orbitUnits[0].orbitY).toBe(-180);
     const underway = tick(moved.state, 1);
     expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeCloseTo(ORBIT_MANEUVER_SPEED);
@@ -584,6 +585,7 @@ describe('transport and colonization', () => {
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeLessThan(25);
     const positioned = tick(underway, 20);
     expect(positioned.planets[0].orbitUnits[0]).toMatchObject({ orbitX: 40, orbitY: 25 });
+    expect(positioned.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
     const docked = dockSpaceUnit(positioned, 'terra', transport.id); expectOk(docked);
     expect(docked.state.planets[0].orbitUnits[0]).toMatchObject({ pendingEmbark: true, orbitTargetX: 0, orbitTargetY: 0 });
     expect(docked.state.planets[0].orbitUnits[0].cargo).toBeUndefined();

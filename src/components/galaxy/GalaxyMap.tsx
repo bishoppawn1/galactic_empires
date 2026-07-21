@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
+  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, headingForVector, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
   type Fleet, type GameState, type Planet, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel } from '../shared/presentation';
@@ -34,6 +34,16 @@ const fleetMapPosition = (fleet: Fleet, planets: Planet[]) => {
   const end = phase === 'tunnel' ? destinationBorder : originBorder;
   const progress = fleet.travelTime ? Math.min(1, fleet.progress / fleet.travelTime) : 1;
   return { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress, phase };
+};
+
+const orbitShipHeading = (ship: Unit) => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number'
+  ? headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading)
+  : ship.heading ?? 0;
+
+const fleetHeading = (fleet: Fleet, planets: Planet[]) => {
+  const from = planets.find(planet => planet.id === fleet.originId)!;
+  const to = planets.find(planet => planet.id === fleet.destinationId)!;
+  return headingForVector(to.x - from.x, to.y - from.y, fleet.unit.heading);
 };
 
 export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
@@ -250,12 +260,12 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const selectable = ship.faction === 'player';
           const cargoCount = ship.cargo?.length ?? 0;
           const weapon = UNITS[ship.kind].weapon;
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} /><ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg` } as React.CSSProperties} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} /><ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.map((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
-          return <div className={`transit-ship ${fleet.faction} ${position.phase}`} style={{ left: x, top: y }} key={fleet.id}><ShipImage kind={fleet.unit.kind} /><small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></div>;
+          return <div className={`transit-ship ${fleet.faction} ${position.phase}`} style={{ left: x, top: y, '--ship-heading': `${fleetHeading(fleet, state.planets)}deg` } as React.CSSProperties} key={fleet.id}><ShipImage kind={fleet.unit.kind} /><small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></div>;
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>

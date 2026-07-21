@@ -83,3 +83,7 @@ export const PHASE_GATE_CHARGE_SECONDS = 2;
 export const GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
 export const SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought'];
 export const BUILDING_KINDS = Object.keys(BUILDINGS) as BuildingKind[];
+export const UNLIMITED_BUILDING_KINDS: ReadonlySet<BuildingKind> = new Set([
+  'groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory',
+]);
+export const hasUnlimitedBuildingCapacity = (kind: BuildingKind) => UNLIMITED_BUILDING_KINDS.has(kind);

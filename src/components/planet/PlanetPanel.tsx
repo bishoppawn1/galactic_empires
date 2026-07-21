@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, GROUND_KINDS, LANDING_APPROACH_SPEED, SPACE_KINDS, UNITS,
-  formatCost, groundProductionMultiplier, spaceYards,
+  formatCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
@@ -53,10 +53,11 @@ function Construction({ state, planet, act }: { state: GameState; planet: Planet
     <div className="card-list">
       {BUILDING_KINDS.map(kind => {
         const def = BUILDINGS[kind]; const count = planet.buildings.filter(building => building.kind === kind).length; const maximum = planet.buildingLimits[kind];
+        const unlimited = hasUnlimitedBuildingCapacity(kind);
         const locked = !!def.requires && !state.completedResearch.includes(def.requires);
         return <article className={`build-card ${locked ? 'locked-card' : ''}`} key={kind}>
-          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {maximum} BUILT · {formatCost(def.cost)}</em></div>
-          <button disabled={locked || count >= maximum} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : count >= maximum ? 'MAX' : 'BUILD +1'}</button>
+          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {unlimited ? '∞' : maximum} BUILT · {formatCost(def.cost)}</em></div>
+          <button disabled={locked || (!unlimited && count >= maximum)} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : !unlimited && count >= maximum ? 'MAX' : 'BUILD +1'}</button>
         </article>;
       })}
     </div>

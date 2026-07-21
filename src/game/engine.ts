@@ -34,7 +34,7 @@ import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
   ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  orbitalDefenseOffset,
+  hasUnlimitedBuildingCapacity, orbitalDefenseOffset,
 } from './definitions';
 
 export * from './types';
@@ -341,7 +341,8 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
   const state = clone(input); const p = getPlanet(state, planetId); const def = BUILDINGS[kind];
   if (!p || p.owner !== 'player') return fail(input, 'Select one of your colonies.');
   const count = p.buildings.filter(b => b.kind === kind).length;
-  if (count >= p.buildingLimits[kind]) return fail(input, `${p.name} has reached its ${def.label} limit.`);
+  const unlimited = hasUnlimitedBuildingCapacity(kind);
+  if (!unlimited && count >= p.buildingLimits[kind]) return fail(input, `${p.name} has reached its ${def.label} limit.`);
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
   if (!canAfford(state.resources, def.cost)) return fail(input, 'Insufficient resources.');
   spend(state.resources, def.cost);
@@ -349,7 +350,7 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
   p.buildings.push(building);
-  addMessage(state, `${def.label} ${count + 1}/${p.buildingLimits[kind]} constructed on ${p.name}.`);
+  addMessage(state, `${def.label} ${count + 1}/${unlimited ? '∞' : p.buildingLimits[kind]} constructed on ${p.name}.`);
   return pass(state);
 }
 
@@ -1076,9 +1077,12 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
 
 const enemyHasResearch = (state: GameState, id?: ResearchId) => !id || state.enemyCompletedResearch.includes(id);
 
-function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount = p.buildingLimits[kind]) {
+function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount?: number) {
   const def = BUILDINGS[kind];
-  if (p.buildings.filter(building => building.kind === kind).length >= Math.min(targetCount, p.buildingLimits[kind])
+  const unlimited = hasUnlimitedBuildingCapacity(kind);
+  const desiredCount = targetCount ?? (unlimited ? Number.POSITIVE_INFINITY : p.buildingLimits[kind]);
+  const maximum = unlimited ? desiredCount : Math.min(desiredCount, p.buildingLimits[kind]);
+  if (p.buildings.filter(building => building.kind === kind).length >= maximum
     || !enemyHasResearch(state, def.requires) || !canAfford(state.enemyResources, def.cost)) return false;
   spend(state.enemyResources, def.cost);
   const building: Building = { id: `eb${state.nextId++}`, kind };

@@ -185,6 +185,18 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText(/1 \/ 5 BUILT/)).toBeInTheDocument();
   });
 
+  it('shows unlimited capacity for factories and space yards', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'construction' }));
+    const groundFactoryCard = screen.getByText('Ground Factory', { selector: '.card-copy b' }).closest('article')!;
+    const spaceYardCard = screen.getByText('Space Yard', { selector: '.card-copy b' }).closest('article')!;
+
+    expect(groundFactoryCard).toHaveTextContent('1 / ∞ BUILT');
+    expect(spaceYardCard).toHaveTextContent('1 / ∞ BUILT');
+    expect(within(groundFactoryCard).getByRole('button', { name: 'BUILD +1' })).toBeEnabled();
+    expect(within(spaceYardCard).getByRole('button', { name: 'BUILD +1' })).toBeEnabled();
+  });
+
   it('renders every Space Yard in orbit and opens ship production from the yard', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Space Yard 1 orbiting Terra Nova — open ship production' }));

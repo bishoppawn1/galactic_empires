@@ -116,6 +116,21 @@ describe('economy and construction', () => {
     expect(constructBuilding(state, 'terra', 'metalMine').ok).toBe(false);
     expect('tier' in state.planets[0].buildings[0]).toBe(false);
   });
+
+  it('allows unlimited factories and space yards on every planet', () => {
+    let state = createInitialState();
+    state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
+    state.completedResearch.push('advancedIndustry');
+    const kinds = ['groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory'] as const;
+
+    for (const kind of kinds) {
+      const legacyMaximum = state.planets[0].buildingLimits[kind];
+      while (state.planets[0].buildings.filter(building => building.kind === kind).length <= legacyMaximum) {
+        const built = constructBuilding(state, 'terra', kind); expectOk(built); state = built.state;
+      }
+      expect(state.planets[0].buildings.filter(building => building.kind === kind)).toHaveLength(legacyMaximum + 1);
+    }
+  });
 });
 
 describe('campaign configuration', () => {

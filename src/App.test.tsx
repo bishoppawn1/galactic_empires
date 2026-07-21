@@ -134,6 +134,22 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
   });
 
+  it('pans the galaxy camera with WASD controls', () => {
+    render(<App />);
+    const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
+    Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 500 });
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 500 });
+
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd' });
+    fireEvent.keyUp(window, { code: 'KeyD', key: 'd' });
+    expect(viewport.scrollLeft).toBeGreaterThan(500);
+
+    fireEvent.keyDown(window, { code: 'KeyW', key: 'w' });
+    fireEvent.keyUp(window, { code: 'KeyW', key: 'w' });
+    expect(viewport.scrollTop).toBeLessThan(500);
+    expect(screen.getByText('WASD PAN')).toBeInTheDocument();
+  });
+
   it('recenters the galaxy camera when another planet is selected', () => {
     render(<App />);
     const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;

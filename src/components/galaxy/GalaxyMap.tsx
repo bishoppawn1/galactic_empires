@@ -11,8 +11,7 @@ const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU
 
 const CANVAS_WIDTH = 12800;
 const CANVAS_HEIGHT = 8800;
-const EDGE_PAN_THRESHOLD = 72;
-const EDGE_PAN_STEP = 22;
+const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 160;
 
 const systemBorderPoint = (from: Planet, to: Planet) => {
@@ -53,7 +52,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     neutral: state.planets.filter(planet => planet.owner === null).length,
   };
   const scrollRef = useRef<HTMLDivElement>(null);
-  const edgePanRef = useRef({ x: 0, y: 0 });
+  const pressedPanKeysRef = useRef(new Set<string>());
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>();
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number }>();
   const [zoom, setZoom] = useState(1);
@@ -66,21 +65,47 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     else { viewport.scrollLeft = left; viewport.scrollTop = top; }
   }, [selectedId]);
   useEffect(() => {
+    const panKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+    const panViewport = (x: number, y: number) => {
+      const viewport = scrollRef.current;
+      if (!viewport || (!x && !y)) return;
+      const magnitude = Math.max(1, Math.hypot(x, y));
+      viewport.scrollLeft += x / magnitude * KEYBOARD_PAN_STEP;
+      viewport.scrollTop += y / magnitude * KEYBOARD_PAN_STEP;
+    };
+    const panFromPressedKeys = () => {
+      const keys = pressedPanKeysRef.current;
+      panViewport(Number(keys.has('KeyD')) - Number(keys.has('KeyA')), Number(keys.has('KeyS')) - Number(keys.has('KeyW')));
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!panKeys.has(event.code)) return;
+      const target = event.target;
+      if (target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      if (!pressedPanKeysRef.current.has(event.code)) {
+        pressedPanKeysRef.current.add(event.code);
+        panFromPressedKeys();
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!panKeys.has(event.code)) return;
+      pressedPanKeysRef.current.delete(event.code);
+      event.preventDefault();
+    };
+    const clearPanKeys = () => pressedPanKeysRef.current.clear();
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', clearPanKeys);
     const timer = window.setInterval(() => {
-      const viewport = scrollRef.current, pan = edgePanRef.current;
-      if (!viewport || (!pan.x && !pan.y)) return;
-      viewport.scrollLeft += pan.x * EDGE_PAN_STEP;
-      viewport.scrollTop += pan.y * EDGE_PAN_STEP;
+      panFromPressedKeys();
     }, 16);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', clearPanKeys);
+    };
   }, []);
-  const updateEdgePan = (event: React.MouseEvent<HTMLElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const localX = event.clientX - rect.left, localY = event.clientY - rect.top;
-    const axis = (position: number, size: number) => position < EDGE_PAN_THRESHOLD ? -(1 - position / EDGE_PAN_THRESHOLD)
-      : position > size - EDGE_PAN_THRESHOLD ? 1 - (size - position) / EDGE_PAN_THRESHOLD : 0;
-    edgePanRef.current = { x: axis(localX, rect.width), y: axis(localY, rect.height) };
-  };
   const changeZoom = (requested: number, anchorX?: number, anchorY?: number) => {
     const next = Math.min(1.5, Math.max(.25, Math.round(requested * 100) / 100));
     const viewport = scrollRef.current;
@@ -120,7 +145,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: originX + dx / distance * offset, y: originY + dy / distance * offset };
   };
   const marquee = dragStart && dragEnd ? { left: Math.min(dragStart.x, dragEnd.x), top: Math.min(dragStart.y, dragEnd.y), width: Math.abs(dragEnd.x - dragStart.x), height: Math.abs(dragEnd.y - dragStart.y) } : undefined;
-  return <main className={`galaxy ${selectedShipIds.length ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onMouseMove={updateEdgePan} onMouseLeave={() => { edgePanRef.current = { x: 0, y: 0 }; }} onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
+  return <main className={`galaxy ${selectedShipIds.length ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
     <div className="galaxy-scroll" ref={scrollRef}>
       <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onMouseDown={event => { if ((event.target as Element).closest('button')) return; const rect = event.currentTarget.getBoundingClientRect(); const point = { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }; setDragStart(point); setDragEnd(point); }} onMouseMove={event => { if (!dragStart) return; const rect = event.currentTarget.getBoundingClientRect(); setDragEnd({ x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }); }} onMouseUp={() => {
         if (!dragStart || !dragEnd) return;
@@ -224,7 +249,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>
     </div>
-    <div className="zoom-controls" aria-label="Map zoom controls"><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
+    <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
     <FleetSelectionHud ships={selectedShips} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
     <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>

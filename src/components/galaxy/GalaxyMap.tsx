@@ -230,7 +230,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const position = shipPosition(p, ship, index);
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
-          const selectable = ship.faction === 'player' && (!ship.phaseArrival || !!ship.pendingLanding);
+          const selectable = ship.faction === 'player';
           const cargoCount = ship.cargo?.length ?? 0;
           return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}

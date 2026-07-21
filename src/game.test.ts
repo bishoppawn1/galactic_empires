@@ -455,15 +455,35 @@ describe('transport and colonization', () => {
     expect(inTunnel.fleets[0].travelTime).toBeLessThan(previousTunnelTime);
   });
 
-  it('deploys combat ships across the space battlefield', () => {
+  it('holds arrived combat ships at the system edge ready for immediate orders', () => {
     const state = createInitialState();
     state.planets[0].orbitUnits.push({ id: 'frigate', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130 });
     const order = dispatchSpaceUnit(state, 'terra', 'frigate', 'halcyon'); expectOk(order);
     const arrived = advanceFleetToArrival(order.state, 'frigate');
     const frigate = arrived.planets.find(p => p.id === 'halcyon')!.orbitUnits.find(u => u.id === 'frigate')!;
     expect(Math.hypot(frigate.orbitX!, frigate.orbitY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 18, 1);
-    expect(frigate.phaseArrival).toBe(true);
-    expect(frigate.orbitTargetX).toBeTypeOf('number');
+    expect(frigate.phaseArrival).toBeUndefined();
+    expect(frigate.orbitTargetX).toBeUndefined();
+
+    const holding = tick(arrived, 30).planets.find(p => p.id === 'halcyon')!.orbitUnits.find(u => u.id === 'frigate')!;
+    expect(holding.orbitX).toBe(frigate.orbitX);
+    expect(holding.orbitY).toBe(frigate.orbitY);
+
+    const returnOrder = dispatchSpaceUnit(arrived, 'halcyon', 'frigate', 'terra'); expectOk(returnOrder);
+    expect(returnOrder.state.fleets[0]).toMatchObject({ originId: 'halcyon', finalDestinationId: 'terra' });
+  });
+
+  it('lets a loaded arrival abort its landing approach and jump onward immediately', () => {
+    const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const outbound = dispatchTransport(state, 'terra', transport.id, 'halcyon'); expectOk(outbound);
+    const arrived = advanceFleetToArrival(outbound.state, transport.id);
+    const approaching = arrived.planets.find(p => p.id === 'halcyon')!.orbitUnits.find(unit => unit.id === transport.id)!;
+    expect(approaching.pendingLanding).toBe(true);
+
+    const redirected = dispatchTransport(arrived, 'halcyon', transport.id, 'terra'); expectOk(redirected);
+    expect(redirected.state.fleets[0].unit.pendingLanding).toBeUndefined();
+    expect(redirected.state.planets.find(p => p.id === 'halcyon')!.orbitUnits.some(unit => unit.id === transport.id)).toBe(false);
   });
 
   it('automatically routes distant movement through connected phase lanes over time', () => {
@@ -572,7 +592,8 @@ describe('transport and colonization', () => {
     const approaching = halcyonEdge.orbitUnits.find(u => u.id === transport.id)!;
     expect(halcyonEdge.owner).toBeNull();
     expect(Math.hypot(approaching.orbitX!, approaching.orbitY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 18, 1);
-    expect(approaching).toMatchObject({ pendingLanding: true, phaseArrival: true });
+    expect(approaching.pendingLanding).toBe(true);
+    expect(approaching.phaseArrival).toBeUndefined();
     expect(approaching.cargo).toHaveLength(3);
     let landed = arrived;
     for (let second = 0; second < fullLandingApproachSeconds + 2 && !landed.battles.some(battle => battle.planetId === 'halcyon'); second += 1) landed = tick(landed, 1);

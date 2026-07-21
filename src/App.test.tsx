@@ -351,7 +351,7 @@ describe('Galactic Empires interface', () => {
     expect(transport).toHaveStyle({ left: '2816px', top: '4748px' });
   });
 
-  it('marks loaded phase arrivals and shows the landing interception countdown', () => {
+  it('marks loaded arrivals and shows the landing interception countdown without an arrival lock', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits.push({
       ...makeUnit('enemy-landing-transport', 'transport', 'enemy'), orbitX: 342, orbitY: 0, orbitTargetX: 0, orbitTargetY: 0,
@@ -360,7 +360,8 @@ describe('Galactic Empires interface', () => {
     saveState(state);
     render(<App />);
     const landingMarker = screen.getByRole('button', { name: 'Transport landing approach Terra Nova' });
-    expect(landingMarker).toHaveClass('phase-arrival', 'landing-approach');
+    expect(landingMarker).not.toHaveClass('phase-arrival');
+    expect(landingMarker).toHaveClass('landing-approach');
     expect(landingMarker).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
     expect(screen.getByText('HOSTILE TRANSPORT LANDING APPROACH')).toBeInTheDocument();

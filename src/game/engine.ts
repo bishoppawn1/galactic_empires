@@ -77,19 +77,19 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
 function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   delete ship.docked;
   const baseAngle = Math.atan2(origin.y - destination.y, origin.x - destination.x);
-  const formationIndex = destination.orbitUnits.filter(unit => unit.phaseArrival).length;
+  const formationIndex = destination.orbitUnits.filter(unit => Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) >= GRAVITY_WELL_RADIUS - 48).length;
   const formationOffset = formationIndex === 0 ? 0 : Math.ceil(formationIndex / 2) * (formationIndex % 2 ? .075 : -.075);
   const angle = baseAngle + formationOffset;
   const radius = GRAVITY_WELL_RADIUS - 18;
   ship.orbitX = Math.cos(angle) * radius;
   ship.orbitY = Math.sin(angle) * radius;
-  ship.phaseArrival = true;
+  delete ship.phaseArrival;
+  delete ship.orbitTargetX;
+  delete ship.orbitTargetY;
   if ((UNITS[ship.kind].capacity ?? 0) > 0 && (ship.cargo?.length ?? 0) > 0) {
     ship.pendingLanding = true;
     ship.orbitTargetX = 0;
     ship.orbitTargetY = 0;
-  } else {
-    targetOpenOrbit(destination, ship);
   }
 }
 
@@ -232,7 +232,7 @@ export function migrateGameState(input: GameState): GameState {
     if (p.orbitFocusTargetId && !p.buildings.some(building => building.id === p.orbitFocusTargetId && building.kind === 'spaceDefense')) delete p.orbitFocusTargetId;
     if (p.enemyOrbitFocusTargetId && !p.buildings.some(building => building.id === p.enemyOrbitFocusTargetId && building.kind === 'spaceDefense')) delete p.enemyOrbitFocusTargetId;
     for (const ship of p.orbitUnits) {
-      if (ship.pendingLanding) ship.phaseArrival = true;
+      delete ship.phaseArrival;
       if (ship.pendingLanding || ship.pendingEmbark) { ship.orbitTargetX ??= 0; ship.orbitTargetY ??= 0; }
     }
     ensureOrbitPositions(p);
@@ -349,23 +349,37 @@ export function dockSpaceUnits(input: GameState, planetId: string, unitIds: stri
   const state = clone(input); const p = getPlanet(state, planetId);
   const ships = p?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
   if (!p || !ships.length || ships.length !== unitIds.length) return fail(input, 'Selected ships are not inside this gravity well.');
-  if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot receive new orders until their phase arrival is complete.');
   const selectedIds = new Set(unitIds);
   const occupied = p.orbitUnits.filter(ship => !selectedIds.has(ship.id));
   let availableSquads = p.groundUnits.filter(unit => unit.faction === 'player').length;
   ships.forEach(ship => {
+    delete ship.phaseArrival;
     const openCapacity = Math.max(0, (UNITS[ship.kind].capacity ?? 0) - (ship.cargo?.length ?? 0));
-    if (openCapacity && availableSquads) {
+    if ((ship.cargo?.length ?? 0) > 0) {
       delete ship.docked;
+      delete ship.pendingEmbark;
+      ship.pendingLanding = true;
+      ship.orbitTargetX = 0;
+      ship.orbitTargetY = 0;
+    } else if (openCapacity && availableSquads) {
+      delete ship.docked;
+      delete ship.pendingLanding;
       ship.pendingEmbark = true;
       ship.orbitTargetX = 0;
       ship.orbitTargetY = 0;
       availableSquads -= Math.min(openCapacity, availableSquads);
-    } else targetOpenOrbit(p, ship, occupied);
+    } else {
+      delete ship.pendingLanding;
+      delete ship.pendingEmbark;
+      targetOpenOrbit(p, ship, occupied);
+    }
     occupied.push(ship);
   });
+  const landing = ships.filter(ship => ship.pendingLanding).length;
   const embarking = ships.filter(ship => ship.pendingEmbark).length;
-  addMessage(state, embarking
+  addMessage(state, landing
+    ? `${landing} loaded transport${landing === 1 ? '' : 's'} approaching ${p.name} to deploy ground forces.`
+    : embarking
     ? `${embarking} transport${embarking === 1 ? '' : 's'} approaching ${p.name} to embark ground forces.`
     : `${ships.length} ship${ships.length === 1 ? '' : 's'} repositioning over ${p.name}.`);
   return pass(state);
@@ -377,9 +391,10 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
   const state = clone(input); const p = getPlanet(state, planetId);
   const ships = p?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
   if (!p || !ships.length || ships.length !== unitIds.length) return fail(input, 'Selected ships are not inside this gravity well.');
-  if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot receive new orders until their phase arrival is complete.');
   ships.forEach((ship, index) => {
     delete ship.docked;
+    delete ship.phaseArrival;
+    delete ship.pendingLanding;
     delete ship.pendingEmbark;
     const column = index % 4, row = Math.floor(index / 4);
     const targetX = orbitX + (column - Math.min(ships.length - 1, 3) / 2) * 24;
@@ -421,6 +436,10 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
   for (const ship of ships) {
     embarkAvailableSquads(state, origin, ship, faction);
     const departureX = ship.orbitX ?? 0, departureY = ship.orbitY ?? 0;
+    delete ship.docked;
+    delete ship.phaseArrival;
+    delete ship.pendingLanding;
+    delete ship.pendingEmbark;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
     const fleet: Fleet = { id: `f${state.nextId++}`, faction, originId: origin.id, destinationId: firstDestination.id, unit: ship, progress: 0, travelTime: 0, route: path.slice(2), finalDestinationId: destination.id };
     beginSystemExit(fleet, origin, firstDestination, departureX, departureY);
@@ -433,7 +452,6 @@ export function dispatchSpaceUnits(input: GameState, originId: string, unitIds: 
   const state = clone(input); const origin = getPlanet(state, originId); const destination = getPlanet(state, destinationId);
   const ships = origin?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
   if (!origin || !destination || !ships.length || ships.length !== unitIds.length || origin.id === destination.id) return fail(input, 'Selected ships must share one gravity well.');
-  if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot jump again until their phase arrival is complete.');
   if (ships.some(ship => ship.pendingEmbark)) return fail(input, 'Transports must complete embarkation before jumping.');
   const path = findPlanetPath(state.planets, originId, destinationId);
   if (!path || path.length < 2) return fail(input, 'No phase-lane route reaches that gravity well.');

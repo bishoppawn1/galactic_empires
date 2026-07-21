@@ -58,7 +58,10 @@ describe('Galactic Empires interface', () => {
     expect(saved.empireCivilizations.player).toBe('brood');
     expect(saved.resources.biomass).toBe(550);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
-    expect(screen.getByRole('button', { name: /Broodling Pack/i })).toBeInTheDocument();
+    const broodlingOrder = screen.getByRole('button', { name: /Broodling Pack/i });
+    expect(broodlingOrder).toBeInTheDocument();
+    expect(broodlingOrder).not.toHaveTextContent('Rending Claws');
+    expect(broodlingOrder).toHaveTextContent('SWARM INSTINCT');
     expect(screen.getByRole('button', { name: /Spore Ark/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
@@ -158,7 +161,9 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Titan Dreadnought', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
-    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('RNG 14');
+    const infantryOrder = screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button');
+    expect(infantryOrder).toHaveTextContent('RNG 14');
+    expect(infantryOrder).not.toHaveTextContent('Tri-Burst Pulse Rifle');
   });
 
   it('shows the dedicated Aegis roster and faction-specific research unlocks', () => {
@@ -706,8 +711,9 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     expect(screen.getByText(/Select friendly troops/)).toBeInTheDocument();
-    expect(screen.getAllByText(/RNG 14/)).toHaveLength(2);
-    expect(screen.getAllByText(/Tri-Burst Pulse Rifle/)).toHaveLength(2);
+    expect(screen.getAllByText('Infantry')).toHaveLength(2);
+    expect(screen.queryByText(/RNG 14/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tri-Burst Pulse Rifle/)).not.toBeInTheDocument();
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
@@ -777,7 +783,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     expect(screen.getByText('1 FORTIFIED DEFENSE ONLINE')).toBeInTheDocument();
-    expect(screen.getByText(/Defense Turret · RNG 32/)).toBeInTheDocument();
+    expect(screen.getByText('Defense Turret')).toBeInTheDocument();
     expect(document.querySelector('.battle-unit.fortification .ground-unit-image')).not.toBeNull();
   });
 });

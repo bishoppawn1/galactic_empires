@@ -117,8 +117,22 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </section>;
 }
 
-function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>; }
-function UnitRow({ unit }: { unit: Unit }) { const definition = UNITS[unit.kind]; return <div className="unit-row"><span>{isSpaceUnit(unit.kind) ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{unit.faction.toUpperCase()} · {definition.weapon.label} · {definition.weapon.projectiles}× / {definition.weapon.cooldown}s · RNG {definition.range}{definition.ability ? ` · ${definition.ability.label}` : ''}{unit.corrodedFor ? ' · CORRODED' : ''}</small></div></div>; }
+function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) {
+  const definition = UNITS[kind];
+  const spaceUnit = isSpaceUnit(kind);
+  const details = spaceUnit
+    ? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
+    : `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
+  return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? details}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
+}
+function UnitRow({ unit }: { unit: Unit }) {
+  const definition = UNITS[unit.kind];
+  const spaceUnit = isSpaceUnit(unit.kind);
+  const details = spaceUnit
+    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}`
+    : `${unit.faction.toUpperCase()} · HP ${Math.ceil(unit.hp)}/${unit.maxHp} · SH ${Math.ceil(unit.shields)}/${unit.maxShields} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}${unit.corrodedFor ? ' · CORRODED' : ''}`;
+  return <div className="unit-row"><span>{spaceUnit ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{details}</small></div></div>;
+}
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) { return <header className="section-title"><small>{kicker}</small><h2>{title}</h2></header>; }
 function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }
 function Locked({ text }: { text: string }) { return <div className="locked"><span>⌾</span><p>{text}</p></div>; }

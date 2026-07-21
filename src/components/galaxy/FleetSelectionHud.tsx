@@ -26,6 +26,6 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
         </article>;
       })}
     </div>
-    <small>Weapon range shown around selected ships · Maneuver into range · Use a JUMP gate or reachable planet</small>
+    <small>Right-click to maneuver · Right-click any reachable system for the shortest route</small>
   </section>;
 }

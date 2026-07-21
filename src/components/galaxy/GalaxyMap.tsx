@@ -36,8 +36,9 @@ const fleetMapPosition = (fleet: Fleet, planets: Planet[]) => {
   return { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress, phase };
 };
 
-export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
+export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
+  onOrderToPlanet: (id: string) => void;
   onSelectShip: (planetId: string, unitId: string, additive: boolean) => void; onGroupSelect: (ids: string[]) => void;
   onSelectSpaceYard: (planetId: string, yardId: string, additive: boolean) => void;
   onManeuver: (planetId: string, x: number, y: number) => void;
@@ -147,7 +148,15 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   const marquee = dragStart && dragEnd ? { left: Math.min(dragStart.x, dragEnd.x), top: Math.min(dragStart.y, dragEnd.y), width: Math.abs(dragEnd.x - dragStart.x), height: Math.abs(dragEnd.y - dragStart.y) } : undefined;
   return <main className={`galaxy ${selectedShipIds.length ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
     <div className="galaxy-scroll" ref={scrollRef}>
-      <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onMouseDown={event => { if ((event.target as Element).closest('button')) return; const rect = event.currentTarget.getBoundingClientRect(); const point = { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }; setDragStart(point); setDragEnd(point); }} onMouseMove={event => { if (!dragStart) return; const rect = event.currentTarget.getBoundingClientRect(); setDragEnd({ x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }); }} onMouseUp={() => {
+      <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onContextMenu={event => {
+        event.preventDefault();
+        if (!selectedOrigin) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / zoom - CANVAS_WIDTH * selectedOrigin.x / 100;
+        const y = (event.clientY - rect.top) / zoom - CANVAS_HEIGHT * selectedOrigin.y / 100;
+        if (Math.hypot(x, y) <= GRAVITY_WELL_RADIUS) onManeuver(selectedOrigin.id, x, y);
+      }} onMouseDown={event => { if (event.button !== 0 || (event.target as Element).closest('button')) return; const rect = event.currentTarget.getBoundingClientRect(); const point = { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }; setDragStart(point); setDragEnd(point); }} onMouseMove={event => { if (!dragStart) return; const rect = event.currentTarget.getBoundingClientRect(); setDragEnd({ x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }); }} onMouseUp={event => {
+        if (event.button !== 0) return;
         if (!dragStart || !dragEnd) return;
         const distance = Math.hypot(dragEnd.x - dragStart.x, dragEnd.y - dragStart.y);
         if (distance > 8) {
@@ -160,7 +169,6 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const localX = dragEnd.x - CANVAS_WIDTH * origin.x / 100;
             const localY = dragEnd.y - CANVAS_HEIGHT * origin.y / 100;
             if (Math.hypot(localX, localY) > GRAVITY_WELL_RADIUS) onGroupSelect([]);
-            else onManeuver(origin.id, localX, localY);
           }
         }
         setDragStart(undefined); setDragEnd(undefined);
@@ -196,12 +204,12 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           if (from.id !== selectedOrigin.id && to.id !== selectedOrigin.id) return [];
           const destination = from.id === selectedOrigin.id ? to : from;
           const position = gatePosition(selectedOrigin, destination);
-          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{ left: position.x, top: position.y }} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }}><span>⇢</span><small>JUMP · {destination.name}</small></button>;
+          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{ left: position.x, top: position.y }} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(destination.id); }}><span>⇢</span><small>RIGHT-CLICK · {destination.name}</small></button>;
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
           const hostileOrbit = new Set(p.orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.faction)).size > 1;
-          return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': p.color, '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }}>
+          return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': p.color, '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
             {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" /><span className="planet-sphere" />
             <span className="faction-badge">{planetFactionBadge(p.owner)}</span><span className="planet-name">{p.name}</span><span className="planet-status">{factionName(p.owner)}</span>{!!p.orbitUnits.length && <span className="orbit-count">◈ {p.orbitUnits.length}</span>}
           </button>;

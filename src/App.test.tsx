@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
-import { createInitialState, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -281,19 +281,36 @@ describe('Galactic Empires interface', () => {
     expect(badge).toHaveAttribute('aria-label', 'Cargo 4 of 4');
   });
 
-  it('lets a selected ship cross a phase lane by clicking the lane', () => {
+  it('uses left-click to inspect and right-click to route a selected ship', () => {
     saveState(stateWithPlayerForces());
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
 
-    const lane = screen.getByRole('button', { name: 'Cross phase lane from Terra Nova to Nyx' });
-    fireEvent.click(lane);
+    const destination = screen.getByRole('button', { name: 'Nyx UNCHARTED' });
+    fireEvent.click(destination);
+    expect(document.querySelector('.transit-ship')).toBeNull();
+    expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
+    fireEvent.contextMenu(destination);
 
     expect(screen.getByText('1 ship routed across 1 phase lane to Nyx.')).toBeInTheDocument();
     expect(document.querySelector('.transit-ship')).not.toBeNull();
     expect(screen.getAllByText(/CLEARING WELL/).length).toBeGreaterThan(0);
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
+  });
+
+  it('right-clicks a distant system to take the shortest multi-lane path', () => {
+    const state = stateWithPlayerForces();
+    const path = findPlanetPath(state.planets, 'terra', 'vesta')!;
+    expect(path.length).toBeGreaterThan(2);
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Vesta UNCHARTED' }));
+
+    expect(screen.getByText(`1 ship routed across ${path.length - 1} phase lanes to Vesta.`)).toBeInTheDocument();
+    expect(document.querySelector('.transit-ship')).not.toBeNull();
   });
 
   it('opens research as a top-level empire tab and renders prerequisite branches', () => {
@@ -386,6 +403,8 @@ describe('Galactic Empires interface', () => {
     expect(canvas).not.toBeNull();
     fireEvent.mouseDown(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
     fireEvent.mouseUp(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
+    expect(screen.queryByText('1 ship maneuvering inside Terra Nova gravity well.')).not.toBeInTheDocument();
+    fireEvent.contextMenu(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
 
     expect(screen.getByText('1 ship maneuvering inside Terra Nova gravity well.')).toBeInTheDocument();
     expect(transport).toHaveStyle({ left: '2816px', top: '4748px' });

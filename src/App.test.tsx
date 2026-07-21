@@ -700,6 +700,36 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.battle-orders circle')).not.toBeNull();
   });
 
+  it('drag-selects friendly troops and moves the selected group with right-click', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [
+        { ...makeUnit('attacker-1', 'infantry', 'player'), battleX: 20, battleY: 45 },
+        { ...makeUnit('attacker-2', 'antiVehicle', 'player'), battleX: 28, battleY: 52 },
+      ],
+      defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }],
+    }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    const canvas = document.querySelector('.battle-canvas') as HTMLElement;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 2600, height: 1600, right: 2600, bottom: 1600, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 390, clientY: 560 });
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 830, clientY: 900 });
+    expect(document.querySelector('.battle-selection-box')).not.toBeNull();
+    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 830, clientY: 900 });
+
+    expect(document.querySelector('.battle-selection-box')).toBeNull();
+    expect(screen.getByText('2 UNITS SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select Infantry attacker-1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Select Anti-Vehicle Infantry attacker-2' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.contextMenu(canvas, { clientX: 1300, clientY: 800 });
+    expect(document.querySelectorAll('.battle-orders circle')).toHaveLength(2);
+  });
+
   it('renders active Ground Defenses as fortified battlefield turrets', () => {
     const state = createInitialState();
     state.planets[0].buildings.push({ id: 'ground-defense-ui', kind: 'groundDefense' });

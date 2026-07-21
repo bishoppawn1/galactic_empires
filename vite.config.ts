@@ -1,11 +1,22 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+const repositoryRoot = decodeURIComponent(new URL('.', import.meta.url).pathname);
+
 export default defineConfig(({ command }) => ({
-  // GitHub Pages hosts this project beneath /galactic_empires/. Keep the
-  // development server at / so the familiar localhost URL still works.
+  root: repositoryRoot,
   base: command === 'build' ? '/galactic_empires/' : '/',
   plugins: [react()],
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

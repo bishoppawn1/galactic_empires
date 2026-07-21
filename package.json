@@ -4,14 +4,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vite --config vite.config.js",
+    "build": "tsc -b && vite build --config vite.config.js",
     "test": "vitest run",
     "test:rules": "vitest run src/game.test.ts",
     "test:ui": "vitest run src/App.test.tsx",
     "test:watch": "vitest",
     "check": "npm run test && npm run build",
-    "preview": "vite preview"
+    "preview": "vite preview --config vite.config.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

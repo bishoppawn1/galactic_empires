@@ -1,4 +1,4 @@
-import type { DataConnection, Peer } from 'peerjs';
+import { Peer, type DataConnection } from 'peerjs';
 import { EMPIRE_FACTIONS, isGameCommand, migrateGameState, viewStateForFaction, type EmpireFaction, type GameCommand, type GameConfig, type GameState } from '../game';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -85,11 +85,6 @@ function peerErrorMessage(error: unknown) {
   return typed.message || 'The multiplayer link could not be established.';
 }
 
-async function loadPeer() {
-  const module = await import('peerjs');
-  return module.Peer;
-}
-
 function waitForPeerOpen(peer: Peer): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => reject(new Error('The multiplayer service did not answer.')), PEER_OPEN_TIMEOUT_MS);
@@ -99,9 +94,8 @@ function waitForPeerOpen(peer: Peer): Promise<void> {
 }
 
 export async function hostMultiplayer(config: GameConfig, callbacks: MultiplayerCallbacks): Promise<MultiplayerController> {
-  const PeerConstructor = await loadPeer();
   const code = createLobbyCode();
-  const peer = new PeerConstructor(peerIdForCode(code));
+  const peer = new Peer(peerIdForCode(code));
   await waitForPeerOpen(peer).catch(error => { peer.destroy(); throw new Error(peerErrorMessage(error)); });
 
   const connections = new Map<string, { connection: DataConnection; faction: EmpireFaction }>();
@@ -205,8 +199,7 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
 export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCallbacks): Promise<MultiplayerController> {
   const code = normalizeCode(rawCode);
   if (code.length !== 6) throw new Error('Enter the six-character lobby code.');
-  const PeerConstructor = await loadPeer();
-  const peer = new PeerConstructor();
+  const peer = new Peer();
   await waitForPeerOpen(peer).catch(error => { peer.destroy(); throw new Error(peerErrorMessage(error)); });
 
   const connection = peer.connect(peerIdForCode(code), { reliable: true, serialization: MULTIPLAYER_SERIALIZATION });

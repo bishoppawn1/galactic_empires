@@ -45,7 +45,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 - Every empire begins on its own homeworld with its selected faction's starting economy and structures; empires using the same faction receive symmetric starts. Matches with three or four empires automatically use the Colossal 21-world frontier. Human-only slots disable strategic AI; configured AI slots use the chosen difficulty.
 - The host owns the deterministic simulation clock and validates every empire's commands. Guests send ground and Space Yard production, construction, research, fleet, maneuver, and targeting orders to the host, then each receives the authoritative state translated into their own empire's perspective.
 - Browser peers connect through WebRTC. Authoritative snapshots use PeerJS binary serialization so large late-game states are automatically chunked, and full-state synchronization is capped at four updates per second to prevent channel-buffer overload. Player commands remain immediate. The lobby exists only while the host remains online; no account or cloud save is required.
-- Multiplayer signaling has a finite connection timeout, authoritative snapshots are validated before installation, and the host can continue after an individual guest disconnects.
+- Multiplayer signaling has a finite connection timeout, authoritative snapshots are validated before installation, and the host can continue after an individual guest disconnects. The PeerJS multiplayer client ships with the initial application bundle so Join Game never depends on an expired lazy-loaded chunk; any future stale deployment-chunk event triggers one guarded refresh to the current version.
 
 ## Buildings
 

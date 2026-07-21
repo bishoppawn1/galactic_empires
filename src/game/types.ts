@@ -25,11 +25,13 @@ export type BuildingKind =
 export type GroundUnitKind =
   | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
   | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower'
-  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker';
+  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
+  | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
   | 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
   | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
-  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought';
+  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
+  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 export type UnitAbilityKind =
@@ -37,7 +39,9 @@ export type UnitAbilityKind =
   | 'synapseAura' | 'siegeCharge' | 'livingHold' | 'transportHunter' | 'shieldPiercing'
   | 'orbitalSynapse' | 'phaseCarapace' | 'spawnCloud' | 'devour' | 'planetCracker'
   | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
-  | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage';
+  | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
+  | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
+  | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {

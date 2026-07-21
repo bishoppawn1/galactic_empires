@@ -13,6 +13,12 @@ import aegisFortressWalker from '../../assets/aegis/ground/fortress-walker.png';
 import aegisPaladinGuard from '../../assets/aegis/ground/paladin-guard.png';
 import aegisRampartArtillery from '../../assets/aegis/ground/rampart-artillery.png';
 import aegisWarden from '../../assets/aegis/ground/warden.png';
+import covenantBastionStrider from '../../assets/covenant/ground/bastion-strider.png';
+import covenantBulwark from '../../assets/covenant/ground/iron-bulwark.png';
+import covenantCohort from '../../assets/covenant/ground/iron-cohort.png';
+import covenantFurnaceArtillery from '../../assets/covenant/ground/furnace-artillery.png';
+import covenantJuggernaut from '../../assets/covenant/ground/juggernaut-engine.png';
+import covenantRepairDrone from '../../assets/covenant/ground/repair-drone.png';
 import { BROOD_GROUND_KINDS, type GroundUnitKind, type UnitKind } from '../../game';
 
 const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
@@ -41,6 +47,12 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   aegisRampartArtillery,
   aegisPaladinGuard,
   aegisFortressWalker,
+  covenantCohort,
+  covenantRepairDrone,
+  covenantBastionStrider,
+  covenantFurnaceArtillery,
+  covenantJuggernaut,
+  covenantBulwark,
 };
 
 const BROOD_GROUND_IMAGES = new Set<GroundUnitKind>([...BROOD_GROUND_KINDS, 'spineTower']);

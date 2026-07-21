@@ -37,7 +37,7 @@ import {
 } from './ground/collision';
 import {
   BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTIONS, biomassCost, empireCivilization,
-  recoverableBiomass, startingResources, usesBiomass,
+  COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
@@ -257,7 +257,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
-    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
+    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : playerFaction === 'covenant' ? 'IRON PROTOCOL ONLINE — the Covenant foundries await material.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
   };
 }
 
@@ -314,10 +314,11 @@ export function migrateGameState(input: GameState): GameState {
     p.orbitUnits = Array.isArray(p.orbitUnits) ? p.orbitUnits : [];
     p.groundQueue = Array.isArray(p.groundQueue) ? p.groundQueue : [];
     p.spaceQueue = Array.isArray(p.spaceQueue) ? p.spaceQueue : [];
-    if (p.owner && empireCivilization(state, p.owner) === 'brood') {
-      p.groundQueue.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); });
-      p.spaceQueue.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); });
-      p.buildings.forEach(building => building.spaceQueue?.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); }));
+    if (p.owner) {
+      const civilization = empireCivilization(state, p.owner);
+      p.groundQueue.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); });
+      p.spaceQueue.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); });
+      p.buildings.forEach(building => building.spaceQueue?.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); }));
     }
     p.groundUnits.forEach(migrateUnitRoster);
     p.orbitUnits.forEach(migrateUnitRoster);
@@ -380,6 +381,16 @@ const harvestBattlefieldBiomass = (state: GameState, destroyed: Unit[], particip
     if (faction === 'player') addMessage(state, `BROOD HARVEST — ${recovered} biomass recovered ${location}.`);
   });
 };
+const harvestBattlefieldSalvage = (state: GameState, destroyed: Unit[], participants: EmpireFaction[], survivors: Unit[], location: string) => {
+  const recovered = recoverableMetalScrap(destroyed);
+  if (!recovered) return;
+  participants.filter(faction => usesSalvage(state, faction)).forEach(faction => {
+    const salvageArrayOnline = survivors.some(unit => unit.faction === faction && UNITS[unit.kind].ability?.kind === 'salvageArray');
+    const metal = Math.floor(recovered * (salvageArrayOnline ? COVENANT_SALVAGE_ARRAY_MULTIPLIER : 1));
+    empireEconomy(state, faction).resources.metal += metal;
+    if (faction === 'player') addMessage(state, `COVENANT SALVAGE — ${metal} metal reclaimed ${location}.`);
+  });
+};
 export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('quantumExtraction') ? 1.25 : 1;
 export const groundProductionMultiplier = (planet: Planet) => Math.max(1, planet.buildings.filter(building =>
   building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length);
@@ -422,7 +433,7 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
 
 export function queueUnit(input: GameState, planetId: string, kind: UnitKind, yardIds?: string[]): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = UNITS[kind];
-  if (kind === 'defenseTurret' || kind === 'spineTower') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
+  if (kind === 'defenseTurret' || kind === 'spineTower' || kind === 'covenantBulwark') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
   if (!p || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
   const civilization = empireCivilization(state);
   if (!unitAvailableToCivilization(kind, civilization)) return fail(input, civilization === 'brood'
@@ -754,11 +765,15 @@ export const AEGIS_GROUND_SHIELD_REGEN = 1.5;
 export const AEGIS_SHIELD_PROJECTION_RANGE = 220;
 export const AEGIS_WARD_INTERCEPTION_RANGE = 180;
 export const AEGIS_REPAIR_DRONE_RANGE = 240;
+export const COVENANT_GROUND_HULL_REGEN = 1.5;
+export const COVENANT_FIELD_REPAIR_RANGE = 18;
+export const COVENANT_ASSEMBLY_REPAIR_RANGE = 220;
+export const COVENANT_FOUNDRY_REPAIR_RANGE = 280;
 
 export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human'): Unit {
   const shieldRecovery = 5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0);
   const livingHold = UNITS[u.kind].ability?.kind === 'livingHold';
-  const hullRecovery = livingHold ? 4 : friendlyOrbit ? 2 : 0;
+  const hullRecovery = livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0;
   return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: Math.min(u.maxHp, u.hp + seconds * hullRecovery) };
 }
 
@@ -774,14 +789,14 @@ export function recoverOrbitalDefense(input: Building, seconds: number): Buildin
 
 function damageUnit(target: Unit, damage: number): Unit {
   const ability = UNITS[target.kind].ability?.kind;
-  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : 1);
+  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : ability === 'ironcladArmor' ? .75 : ability === 'ablativePlating' && target.hp > target.maxHp / 2 ? .7 : 1);
   const shieldDamage = Math.min(target.shields, reducedDamage);
   return { ...target, shields: target.shields - shieldDamage, hp: target.hp - (reducedDamage - shieldDamage) };
 }
 
 function damageUnitPiercing(target: Unit, damage: number, piercingFraction = 0): Unit {
   const ability = UNITS[target.kind].ability?.kind;
-  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : 1);
+  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : ability === 'ironcladArmor' ? .75 : ability === 'ablativePlating' && target.hp > target.maxHp / 2 ? .7 : 1);
   const directHullDamage = reducedDamage * piercingFraction;
   const shieldedDamage = reducedDamage - directHullDamage;
   const shieldDamage = Math.min(target.shields, shieldedDamage);
@@ -888,6 +903,8 @@ function groundAbilityDamageMultiplier(unit: Unit, allies: Unit[], target: Unit)
   }
   if (allies.some(ally => UNITS[ally.kind].ability?.kind === 'synapseAura' && battleDistance(unit, ally) <= 22)) multiplier *= 1.25;
   if (ability === 'siegeCharge' && target.sourceBuildingId) multiplier *= 2;
+  if (ability === 'modularTargeting' && allies.some(ally => ally.id !== unit.id && ally.kind !== unit.kind && battleDistance(unit, ally) <= 18)) multiplier *= 1.25;
+  if (ability === 'shieldBreaker' && target.shields > 0) multiplier *= 1.5;
   const targetIsMoving = typeof target.battleTargetX === 'number' && typeof target.battleTargetY === 'number'
     && Math.hypot(target.battleTargetX - (target.battleX ?? 0), target.battleTargetY - (target.battleY ?? 0)) > .5;
   if (ability === 'movingTargetBarrage' && targetIsMoving) multiplier *= 1.75;
@@ -900,7 +917,7 @@ function fireGroundWeapon(unit: Unit, allies: Unit[], enemies: Unit[], target: U
   const damage = salvoDamage * power * groundAbilityDamageMultiplier(unit, allies, target);
   recordGroundHit(hits, unit, target, damage);
   const ability = UNITS[unit.kind].ability?.kind;
-  const splash = ability === 'burstSpores' ? .35 : ability === 'judgmentShockwave' ? .45 : 0;
+  const splash = ability === 'burstSpores' ? .35 : ability === 'judgmentShockwave' ? .45 : ability === 'forgeShockwave' ? .4 : 0;
   if (!splash) return;
   enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
     .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * splash));
@@ -1002,11 +1019,17 @@ const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !un
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
   ensureBattlePositions(battle);
-  const restoreAegisShields = (unit: Unit) => unit.faction !== 'neutral' && empireCivilization(state, unit.faction) === 'aegis'
-    ? { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * AEGIS_GROUND_SHIELD_REGEN) }
-    : unit;
-  battle.attackers = battle.attackers.map(restoreAegisShields);
-  battle.defenders = battle.defenders.map(restoreAegisShields);
+  const restoreFactionSystems = (units: Unit[]) => units.map(unit => {
+    if (unit.faction === 'neutral') return unit;
+    const civilization = empireCivilization(state, unit.faction);
+    if (civilization === 'aegis') return { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * AEGIS_GROUND_SHIELD_REGEN) };
+    if (civilization !== 'covenant') return unit;
+    const fieldRepair = units.some(ally => ally.id !== unit.id && UNITS[ally.kind].ability?.kind === 'fieldRepair' && battleDistance(unit, ally) <= COVENANT_FIELD_REPAIR_RANGE);
+    const healing = seconds * (COVENANT_GROUND_HULL_REGEN + (fieldRepair ? 4 : 0));
+    return { ...unit, hp: Math.min(unit.maxHp, unit.hp + healing) };
+  });
+  battle.attackers = restoreFactionSystems(battle.attackers);
+  battle.defenders = restoreFactionSystems(battle.defenders);
   const combatantsBefore = [...battle.attackers, ...battle.defenders];
   combatantsBefore.forEach(unit => { if (unit.corrodedFor) unit.corrodedFor = Math.max(0, unit.corrodedFor - seconds); });
   const participants = battlefieldFactions(combatantsBefore);
@@ -1031,7 +1054,10 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
   const p = getPlanet(state, battle.planetId)!;
   const survivors = new Set([...battle.attackers, ...battle.defenders].map(unit => unit.id));
-  harvestBattlefieldBiomass(state, combatantsBefore.filter(unit => !survivors.has(unit.id)), participants, `on ${p.name}`);
+  const destroyed = combatantsBefore.filter(unit => !survivors.has(unit.id));
+  const survivingCombatants = [...battle.attackers, ...battle.defenders];
+  harvestBattlefieldBiomass(state, destroyed, participants, `on ${p.name}`);
+  harvestBattlefieldSalvage(state, destroyed, participants, survivingCombatants, `on ${p.name}`);
   if (!battle.defenders.length && battle.attackers.length) {
     const attackingUnitFaction = battle.attackers[0].faction;
     const winner = battle.attackerFaction ?? (attackingUnitFaction === 'neutral' ? 'player' : attackingUnitFaction);
@@ -1110,8 +1136,9 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
       const targetPosition = shipPosition(shipTarget);
       const distance = orbitDistance(attackerPosition.x, attackerPosition.y, targetPosition.x, targetPosition.y);
       const rangeMultiplier = ability === 'rangeCalibration' ? 1 + .7 * Math.min(1, distance / UNITS[attacker.kind].range) : 1;
-      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier * rangeMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
-      if (ability === 'spawnCloud') {
+      const focusMultiplier = ability === 'focusFire' && shipTarget.hp < shipTarget.maxHp ? 1.5 : 1;
+      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier * rangeMultiplier * focusMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
+      if (ability === 'spawnCloud' || ability === 'fabricatorSwarm') {
         const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(attacker, target));
         if (secondary) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: secondary.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 });
       }
@@ -1121,7 +1148,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
           .forEach(target => shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: target.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .35 }));
       }
     } else if (defenseTarget) {
-      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: ability === 'planetCracker' ? 2 : 1 });
+      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: ability === 'planetCracker' || ability === 'dismantlerBeam' ? 2 : 1 });
     }
   }
 
@@ -1199,11 +1226,17 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     const repaired = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
       && UNITS[ally.kind].ability?.kind === 'repairDrones'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= AEGIS_REPAIR_DRONE_RANGE);
+    const assemblyRepair = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
+      && UNITS[ally.kind].ability?.kind === 'assemblyLine'
+      && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= COVENANT_ASSEMBLY_REPAIR_RANGE);
+    const foundryRepair = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
+      && UNITS[ally.kind].ability?.kind === 'foundryAura'
+      && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= COVENANT_FOUNDRY_REPAIR_RANGE);
     const regenerated = projected ? { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * 10) } : unit;
     const approachScale = UNITS[unit.kind].ability?.kind === 'armoredApproach' && (unit.pendingLanding || unit.pendingEmbark) ? .55 : 1;
     const protectionScale = (projected ? .7 : 1) * approachScale;
     const damaged = incoming ? damageUnitPiercing(regenerated, incoming.damage * protectionScale, incoming.damage > 0 ? incoming.piercingDamage / incoming.damage : 0) : regenerated;
-    const healing = (devourHealing.get(unit.id) ?? 0) + (repaired ? seconds * 6 : 0);
+    const healing = (devourHealing.get(unit.id) ?? 0) + (repaired ? seconds * 6 : 0) + (assemblyRepair ? seconds * 4 : 0) + (foundryRepair ? seconds * 7 : 0);
     return healing && damaged.hp > 0 ? { ...damaged, hp: Math.min(damaged.maxHp, damaged.hp + healing) } : damaged;
   });
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);
@@ -1217,7 +1250,9 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   }
   p.orbitUnits = p.orbitUnits.filter(unit => unit.hp > 0);
   const survivingShipIds = new Set(p.orbitUnits.map(unit => unit.id));
-  harvestBattlefieldBiomass(state, combatantsBefore.filter(unit => !survivingShipIds.has(unit.id)), participants, `in orbit of ${p.name}`);
+  const destroyedShips = combatantsBefore.filter(unit => !survivingShipIds.has(unit.id));
+  harvestBattlefieldBiomass(state, destroyedShips, participants, `in orbit of ${p.name}`);
+  harvestBattlefieldSalvage(state, destroyedShips, participants, p.orbitUnits, `in orbit of ${p.name}`);
   for (const [id, ship] of vulnerableShipsBeforeCombat) {
     if (!p.orbitUnits.some(unit => unit.id === id)) addMessage(state, ship.pendingEmbark
       ? `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed while attempting to embark forces at ${p.name}; waiting ground squads survived, but any existing cargo was lost.`

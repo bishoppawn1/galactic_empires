@@ -17,6 +17,7 @@ Galactic Empires is a React + TypeScript + Vite strategy prototype. Stable publi
 - `src/components/` — feature UI grouped by campaign, planet, research, battle, layout, and shared helpers
 - `src/components/galaxy/` — galaxy-map UI, viewport geometry/culling, and batched large-fleet canvas rendering
 - `src/assets/aegis/` — Aegis ground and ship artwork, separated by unit domain
+- `src/assets/covenant/` — Iron Covenant ground and ship artwork, separated by unit domain
 - `src/styles/` — application presentation
 - `src/test/` — shared test setup
 

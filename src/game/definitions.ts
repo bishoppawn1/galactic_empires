@@ -1,7 +1,9 @@
 import type { BuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
+import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
 export { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS } from './units/aegis';
+export { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS } from './units/covenant';
 
 export const pool = (metal = 0, crystal = 0, gold = 0): ResourcePool => ({ metal, crystal, gold });
 
@@ -57,6 +59,7 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   leviathan: { label: 'Leviathan', description: 'A capital predator that consumes matter to mend its wounded body.', cost: pool(500, 330, 210), time: 72, factory: 'space', hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Twin Nova Glands', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', advancedFactory: true, ability: { kind: 'devour', label: 'Devour', description: 'Restores hull equal to 20% of the damage it deals.' } },
   worldEater: { label: 'World Eater', description: 'The apex organism, able to crack orbital fortresses in a few feeding passes.', cost: pool(860, 630, 410), time: 112, factory: 'space', hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true, ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
   ...AEGIS_UNITS,
+  ...COVENANT_UNITS,
 };
 
 export const RESEARCH: Record<ResearchId, Definition> = {
@@ -101,8 +104,14 @@ const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Carrier'], capitalShips: ['Sovereign command systems'], titanEngineering: ['Sovereign Dreadnought'],
 };
 
+const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
+  advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Repair Drone'],
+  fleetLogistics: ['Fabricator carrier doctrine'], orbitalEngineering: ['Foundry Cruiser'], quantumExtraction: ['+25% resource output'],
+  heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Carrier'], capitalShips: ['Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
+};
+
 export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) =>
-  civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS[id] : civilization === 'aegis' ? AEGIS_RESEARCH_UNLOCKS[id] : RESEARCH_UNLOCKS[id];
+  civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS[id] : civilization === 'aegis' ? AEGIS_RESEARCH_UNLOCKS[id] : civilization === 'covenant' ? COVENANT_RESEARCH_UNLOCKS[id] : RESEARCH_UNLOCKS[id];
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ORBITAL_DEFENSE_RANGE = 400;
@@ -127,8 +136,8 @@ export const COALITION_GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicl
 export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter', 'skitterer', 'carapaceBeast', 'sporeLobber', 'synapseGuard', 'crusherBeast', 'acidBehemoth', 'siegeCrawler'];
 export const COALITION_SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought'];
 export const BROOD_SPACE_KINDS: SpaceUnitKind[] = ['sporeArk', 'clawFrigate', 'needleFrigate', 'hiveCruiser', 'voidStalker', 'broodCarrier', 'leviathan', 'worldEater'];
-export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS];
-export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS];
+export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS, ...COVENANT_GROUND_KINDS, 'covenantBulwark'];
+export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS];
 
 const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'broodling', antiVehicle: 'acidSpitter', recon: 'skitterer', lightTank: 'carapaceBeast', artillery: 'sporeLobber',
@@ -144,12 +153,20 @@ const AEGIS_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   assaultCarrier: 'aegisCitadelCarrier', battlecruiser: 'aegisSovereignDreadnought', dreadnought: 'aegisSovereignDreadnought',
 };
 const AEGIS_UNIT_KINDS = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
+const COVENANT_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
+  infantry: 'covenantCohort', antiVehicle: 'covenantCohort', recon: 'covenantRepairDrone', lightTank: 'covenantBastionStrider', artillery: 'covenantFurnaceArtillery',
+  shockTrooper: 'covenantRepairDrone', railgunTank: 'covenantJuggernaut', plasmaTank: 'covenantJuggernaut', siegeWalker: 'covenantJuggernaut', defenseTurret: 'covenantBulwark',
+  transport: 'covenantAssemblyArk', escortFrigate: 'covenantSalvageFrigate', missileFrigate: 'covenantChainFrigate', lightCruiser: 'covenantFoundryCruiser', destroyer: 'covenantFoundryCruiser',
+  assaultCarrier: 'covenantFabricatorCarrier', battlecruiser: 'covenantIronclad', dreadnought: 'covenantDreadforge',
+};
+const COVENANT_UNIT_KINDS = new Set<UnitKind>([...COVENANT_GROUND_KINDS, 'covenantBulwark', ...COVENANT_SPACE_KINDS]);
+const SPECIALIZED_UNIT_KINDS = new Set<UnitKind>([...BROOD_UNIT_KINDS, ...AEGIS_UNIT_KINDS, ...COVENANT_UNIT_KINDS]);
 
-export const groundUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_GROUND_KINDS : civilization === 'aegis' ? AEGIS_GROUND_KINDS : COALITION_GROUND_KINDS;
-export const spaceUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_SPACE_KINDS : civilization === 'aegis' ? AEGIS_SPACE_KINDS : COALITION_SPACE_KINDS;
-export const civilizationUnitKind = (civilization: PlayableFaction, baseline: UnitKind): UnitKind => civilization === 'brood' ? BROOD_EQUIVALENTS[baseline] ?? baseline : civilization === 'aegis' ? AEGIS_EQUIVALENTS[baseline] ?? baseline : baseline;
-export const unitAvailableToCivilization = (kind: UnitKind, civilization: PlayableFaction) => civilization === 'brood' ? BROOD_UNIT_KINDS.has(kind) : civilization === 'aegis' ? AEGIS_UNIT_KINDS.has(kind) : !BROOD_UNIT_KINDS.has(kind) && !AEGIS_UNIT_KINDS.has(kind);
-export const groundDefenseKindForCivilization = (civilization: PlayableFaction): GroundUnitKind => civilization === 'brood' ? 'spineTower' : 'defenseTurret';
+export const groundUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_GROUND_KINDS : civilization === 'aegis' ? AEGIS_GROUND_KINDS : civilization === 'covenant' ? COVENANT_GROUND_KINDS : COALITION_GROUND_KINDS;
+export const spaceUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_SPACE_KINDS : civilization === 'aegis' ? AEGIS_SPACE_KINDS : civilization === 'covenant' ? COVENANT_SPACE_KINDS : COALITION_SPACE_KINDS;
+export const civilizationUnitKind = (civilization: PlayableFaction, baseline: UnitKind): UnitKind => civilization === 'brood' ? BROOD_EQUIVALENTS[baseline] ?? baseline : civilization === 'aegis' ? AEGIS_EQUIVALENTS[baseline] ?? baseline : civilization === 'covenant' ? COVENANT_EQUIVALENTS[baseline] ?? baseline : baseline;
+export const unitAvailableToCivilization = (kind: UnitKind, civilization: PlayableFaction) => civilization === 'brood' ? BROOD_UNIT_KINDS.has(kind) : civilization === 'aegis' ? AEGIS_UNIT_KINDS.has(kind) : civilization === 'covenant' ? COVENANT_UNIT_KINDS.has(kind) : !SPECIALIZED_UNIT_KINDS.has(kind);
+export const groundDefenseKindForCivilization = (civilization: PlayableFaction): GroundUnitKind => civilization === 'brood' ? 'spineTower' : civilization === 'covenant' ? 'covenantBulwark' : 'defenseTurret';
 export const BUILDING_KINDS = Object.keys(BUILDINGS) as BuildingKind[];
 export const UNLIMITED_BUILDING_KINDS: ReadonlySet<BuildingKind> = new Set([
   'groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory',

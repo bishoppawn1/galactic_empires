@@ -12,6 +12,13 @@ import aegisLanceFrigate from '../../assets/aegis/ships/lance-frigate.png';
 import aegisShieldMonitor from '../../assets/aegis/ships/shield-monitor.png';
 import aegisSovereignDreadnought from '../../assets/aegis/ships/sovereign-dreadnought.png';
 import aegisWardCruiser from '../../assets/aegis/ships/ward-cruiser.png';
+import covenantAssemblyArk from '../../assets/covenant/ships/assembly-ark.png';
+import covenantChainFrigate from '../../assets/covenant/ships/chain-frigate.png';
+import covenantDreadforge from '../../assets/covenant/ships/dreadforge-titan.png';
+import covenantFabricatorCarrier from '../../assets/covenant/ships/fabricator-carrier.png';
+import covenantFoundryCruiser from '../../assets/covenant/ships/foundry-cruiser.png';
+import covenantIronclad from '../../assets/covenant/ships/ironclad-battleship.png';
+import covenantSalvageFrigate from '../../assets/covenant/ships/salvage-frigate.png';
 import { BROOD_SPACE_KINDS, SPACE_KINDS, type SpaceUnitKind, type UnitKind } from '../../game';
 
 const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
@@ -37,6 +44,13 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   aegisWardCruiser,
   aegisCitadelCarrier,
   aegisSovereignDreadnought,
+  covenantAssemblyArk,
+  covenantSalvageFrigate,
+  covenantChainFrigate,
+  covenantFoundryCruiser,
+  covenantFabricatorCarrier,
+  covenantIronclad,
+  covenantDreadforge,
 };
 
 const BROOD_SHIP_IMAGES = new Set<SpaceUnitKind>(BROOD_SPACE_KINDS);
@@ -66,6 +80,13 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   aegisWardCruiser: 104,
   aegisCitadelCarrier: 128,
   aegisSovereignDreadnought: 148,
+  covenantAssemblyArk: 78,
+  covenantSalvageFrigate: 84,
+  covenantChainFrigate: 88,
+  covenantFoundryCruiser: 106,
+  covenantFabricatorCarrier: 126,
+  covenantIronclad: 138,
+  covenantDreadforge: 154,
 };
 
 export const isSpaceUnit = (kind: UnitKind): kind is SpaceUnitKind => SPACE_KINDS.includes(kind as SpaceUnitKind);

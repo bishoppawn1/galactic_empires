@@ -68,6 +68,24 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
   });
 
+  it('starts an Iron Covenant campaign with its exclusive mechanical roster and artwork', () => {
+    localStorage.clear();
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /Iron Covenant/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
+
+    expect(screen.getByText('Iron Covenant')).toBeInTheDocument();
+    expect(screen.getByText('Metal')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+    expect(screen.getByRole('button', { name: /Iron Cohort/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Assembly Ark/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Dreadforge Titan/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(7);
+  });
+
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {
     localStorage.clear();
     render(<App />);

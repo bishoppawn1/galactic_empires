@@ -13,8 +13,10 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
     <header>{controllable ? `${ships.length} SHIP${ships.length === 1 ? '' : 'S'} SELECTED` : `HOSTILE SHIP${ships.length === 1 ? '' : 'S'} INSPECTED`}</header>
     <div className="fleet-selection-list">
       {ships.map(ship => {
-        const label = UNITS[ship.kind].label;
-        return <article className={`selected-ship-card ${ship.faction}`} role="group" aria-label={`${label} status`} title={label} key={ship.id}>
+        const definition = UNITS[ship.kind];
+        const label = definition.label;
+        const title = definition.ability ? `${label} — ${definition.ability.label}: ${definition.ability.description}` : label;
+        return <article className={`selected-ship-card ${ship.faction}`} role="group" aria-label={`${label} status`} title={title} key={ship.id}>
           <span className="selected-ship-icon" aria-hidden="true">{isSpaceUnit(ship.kind) && <ShipImage kind={ship.kind} />}</span>
           <div className="selected-ship-bars">
             <span className="selected-ship-health" role="meter" aria-label={`${label} hull`} aria-valuemin={0} aria-valuemax={ship.maxHp} aria-valuenow={Math.max(0, ship.hp)} title={`Hull ${Math.ceil(ship.hp)} / ${ship.maxHp}`}>

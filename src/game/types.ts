@@ -32,6 +32,10 @@ export type SpaceUnitKind =
   | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
+export type UnitAbilityKind =
+  | 'swarmInstinct' | 'corrosiveBile' | 'evasiveChitin' | 'thornedCarapace' | 'burstSpores'
+  | 'synapseAura' | 'siegeCharge' | 'livingHold' | 'transportHunter' | 'shieldPiercing'
+  | 'orbitalSynapse' | 'phaseCarapace' | 'spawnCloud' | 'devour' | 'planetCracker';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {
@@ -70,6 +74,7 @@ export interface Unit {
   cargo?: Unit[];
   weaponCooldown?: number;
   weaponFlash?: number;
+  corrodedFor?: number;
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {
@@ -173,4 +178,9 @@ export interface UnitDefinition extends Definition {
   };
   advancedFactory?: boolean;
   capacity?: number;
+  ability?: {
+    kind: UnitAbilityKind;
+    label: string;
+    description: string;
+  };
 }

@@ -739,6 +739,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     delete restored.weaponCooldown; delete restored.weaponFlash;
     delete restored.battleTargetX; delete restored.battleTargetY;
     delete restored.battleRetaliationTargetId;
+    delete restored.corrodedFor;
     return restored;
   });
 }
@@ -748,7 +749,9 @@ export const AEGIS_GROUND_SHIELD_REGEN = 1.5;
 
 export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human'): Unit {
   const shieldRecovery = 5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0);
-  return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: friendlyOrbit ? Math.min(u.maxHp, u.hp + seconds * 2) : u.hp };
+  const livingHold = UNITS[u.kind].ability?.kind === 'livingHold';
+  const hullRecovery = livingHold ? 4 : friendlyOrbit ? 2 : 0;
+  return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: Math.min(u.maxHp, u.hp + seconds * hullRecovery) };
 }
 
 export function recoverOrbitalDefense(input: Building, seconds: number): Building {
@@ -762,8 +765,19 @@ export function recoverOrbitalDefense(input: Building, seconds: number): Buildin
 }
 
 function damageUnit(target: Unit, damage: number): Unit {
-  const shieldDamage = Math.min(target.shields, damage);
-  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - (damage - shieldDamage) };
+  const ability = UNITS[target.kind].ability?.kind;
+  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : 1);
+  const shieldDamage = Math.min(target.shields, reducedDamage);
+  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - (reducedDamage - shieldDamage) };
+}
+
+function damageUnitPiercing(target: Unit, damage: number, piercingFraction = 0): Unit {
+  const ability = UNITS[target.kind].ability?.kind;
+  const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : 1);
+  const directHullDamage = reducedDamage * piercingFraction;
+  const shieldedDamage = reducedDamage - directHullDamage;
+  const shieldDamage = Math.min(target.shields, shieldedDamage);
+  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - directHullDamage - (shieldedDamage - shieldDamage) };
 }
 
 function damageBuilding(target: Building, damage: number): Building {
@@ -821,31 +835,62 @@ interface GroundHit {
   damage: number;
   retaliationTargetId?: string;
   strongestRetaliationHit: number;
+  corrosionSeconds?: number;
+}
+
+function addGroundDamage(hits: Map<string, GroundHit>, targetId: string, damage: number) {
+  const current = hits.get(targetId);
+  if (!current) hits.set(targetId, { damage, strongestRetaliationHit: 0 });
+  else current.damage += damage;
 }
 
 function recordGroundHit(hits: Map<string, GroundHit>, attacker: Unit, target: Unit, damage: number) {
+  const amplifiedDamage = damage * ((target.corrodedFor ?? 0) > 0 ? 1.35 : 1);
   const current = hits.get(target.id);
   if (!current) {
-    hits.set(target.id, { damage, strongestRetaliationHit: 0 });
+    hits.set(target.id, { damage: amplifiedDamage, strongestRetaliationHit: 0 });
   } else {
-    current.damage += damage;
+    current.damage += amplifiedDamage;
   }
   const hit = hits.get(target.id)!;
+  if (UNITS[attacker.kind].ability?.kind === 'corrosiveBile') hit.corrosionSeconds = 5;
+  if (UNITS[target.kind].ability?.kind === 'thornedCarapace') addGroundDamage(hits, attacker.id, amplifiedDamage * .2);
   if (battleDistance(target, attacker) <= UNITS[target.kind].range) return;
-  if (damage > hit.strongestRetaliationHit || (damage === hit.strongestRetaliationHit && (!hit.retaliationTargetId || attacker.id < hit.retaliationTargetId))) {
+  if (amplifiedDamage > hit.strongestRetaliationHit || (amplifiedDamage === hit.strongestRetaliationHit && (!hit.retaliationTargetId || attacker.id < hit.retaliationTargetId))) {
     hit.retaliationTargetId = attacker.id;
-    hit.strongestRetaliationHit = damage;
+    hit.strongestRetaliationHit = amplifiedDamage;
   }
 }
 
-function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
+function groundAbilityDamageMultiplier(unit: Unit, allies: Unit[], target: Unit) {
+  let multiplier = 1;
+  const ability = UNITS[unit.kind].ability?.kind;
+  if (ability === 'swarmInstinct') {
+    const nearbyPacks = allies.filter(ally => ally.id !== unit.id && ally.kind === 'broodling' && battleDistance(unit, ally) <= 14).length;
+    multiplier *= 1 + Math.min(3, nearbyPacks) * .2;
+  }
+  if (allies.some(ally => UNITS[ally.kind].ability?.kind === 'synapseAura' && battleDistance(unit, ally) <= 22)) multiplier *= 1.25;
+  if (ability === 'siegeCharge' && target.sourceBuildingId) multiplier *= 2;
+  return multiplier;
+}
+
+function fireGroundWeapon(unit: Unit, allies: Unit[], enemies: Unit[], target: Unit, seconds: number, hits: Map<string, GroundHit>, power: number) {
+  const salvoDamage = tickUnitWeapon(unit, seconds, true);
+  if (!salvoDamage) return;
+  const damage = salvoDamage * power * groundAbilityDamageMultiplier(unit, allies, target);
+  recordGroundHit(hits, unit, target, damage);
+  if (UNITS[unit.kind].ability?.kind !== 'burstSpores') return;
+  enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
+    .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * .35));
+}
+
+function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
   const retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
   if (retaliationTarget) {
     if (battleDistance(unit, retaliationTarget) <= definition.range) {
-      const salvoDamage = tickUnitWeapon(unit, seconds, true);
-      if (salvoDamage) recordGroundHit(hits, unit, retaliationTarget, salvoDamage * power);
+      fireGroundWeapon(unit, allies, enemies, retaliationTarget, seconds, hits, power);
     } else {
       tickUnitWeapon(unit, seconds, false);
       moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds);
@@ -855,8 +900,7 @@ function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, hits: Map<s
   const enemiesInRange = enemies.filter(enemy => battleDistance(unit, enemy) <= definition.range);
   const targetInRange = nearestBattleTarget(unit, enemiesInRange, preferredId);
   if (targetInRange) {
-    const salvoDamage = tickUnitWeapon(unit, seconds, true);
-    if (salvoDamage) recordGroundHit(hits, unit, targetInRange, salvoDamage * power);
+    fireGroundWeapon(unit, allies, enemies, targetInRange, seconds, hits, power);
     return;
   }
   tickUnitWeapon(unit, seconds, false);
@@ -909,20 +953,21 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   battle.attackers = battle.attackers.map(restoreAegisShields);
   battle.defenders = battle.defenders.map(restoreAegisShields);
   const combatantsBefore = [...battle.attackers, ...battle.defenders];
+  combatantsBefore.forEach(unit => { if (unit.corrodedFor) unit.corrodedFor = Math.max(0, unit.corrodedFor - seconds); });
   const participants = battlefieldFactions(combatantsBefore);
   const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.defenders, seconds, hits, focus(unit), power(unit)));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.attackers, seconds, hits, focus(unit), power(unit)));
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, focus(unit), power(unit)));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, focus(unit), power(unit)));
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
     if (!hit) return unit;
-    if (!hit.retaliationTargetId) return damageUnit(unit, hit.damage);
+    if (!hit.retaliationTargetId) return { ...damageUnit(unit, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
     const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
     delete retaliating.battleTargetX;
     delete retaliating.battleTargetY;
-    return damageUnit(retaliating, hit.damage);
+    return { ...damageUnit(retaliating, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
   };
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
@@ -954,6 +999,8 @@ export interface OrbitalCombatShot {
   faction: EmpireFaction;
   damage: number;
   weaponEffect: WeaponEffect;
+  damageMultiplier?: number;
+  piercingFraction?: number;
 }
 
 const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) => Math.hypot(toX - fromX, toY - fromY);
@@ -992,9 +1039,18 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
       : hostileDefenses.find(defenseInRange);
     const shipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
     const weapon = UNITS[attacker.kind].weapon;
+    const ability = UNITS[attacker.kind].ability?.kind;
     const salvoDamage = weapon.damage * weapon.projectiles;
-    if (shipTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect });
-    else if (defenseTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect });
+    if (shipTarget) {
+      const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
+      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
+      if (ability === 'spawnCloud') {
+        const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(attacker, target));
+        if (secondary) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: secondary.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 });
+      }
+    } else if (defenseTarget) {
+      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: ability === 'planetCracker' ? 2 : 1 });
+    }
   }
 
   if (!p.owner) return shots;
@@ -1032,22 +1088,43 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const vulnerableShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding || unit.pendingEmbark).map(unit => [unit.id, unit]));
   const installationScale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
   const enemyPower = enemyDifficultyMultiplier(state.config.difficulty);
-  const shipDamage = new Map<string, number>();
+  const shipDamage = new Map<string, { damage: number; piercingDamage: number }>();
   const defenseDamage = new Map<string, number>();
-  const shipShots = new Map(shots.filter(shot => shot.attackerType === 'ship').map(shot => [shot.attackerId, shot]));
+  const shipShots = new Map<string, OrbitalCombatShot[]>();
+  shots.filter(shot => shot.attackerType === 'ship').forEach(shot => shipShots.set(shot.attackerId, [...(shipShots.get(shot.attackerId) ?? []), shot]));
+  const devourHealing = new Map<string, number>();
   p.orbitUnits.forEach(unit => {
-    const shot = shipShots.get(unit.id);
-    const salvoDamage = tickUnitWeapon(unit, seconds, !!shot);
-    if (!shot || !salvoDamage) return;
-    const damage = salvoDamage * SPACE_COMBAT_DAMAGE_MULTIPLIER * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
-    const ledger = shot.targetType === 'ship' ? shipDamage : defenseDamage;
-    ledger.set(shot.targetId, (ledger.get(shot.targetId) ?? 0) + damage);
+    const attackerShots = shipShots.get(unit.id) ?? [];
+    const salvoDamage = tickUnitWeapon(unit, seconds, attackerShots.length > 0);
+    if (!attackerShots.length || !salvoDamage) return;
+    const hasSynapse = p.orbitUnits.some(ally => ally.faction === unit.faction && UNITS[ally.kind].ability?.kind === 'orbitalSynapse'
+      && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= 240);
+    const factionScale = (state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1);
+    attackerShots.forEach(shot => {
+      const damage = salvoDamage * SPACE_COMBAT_DAMAGE_MULTIPLIER * factionScale * (shot.damageMultiplier ?? 1);
+      if (shot.targetType === 'ship') {
+        const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
+        current.damage += damage;
+        current.piercingDamage += damage * (shot.piercingFraction ?? 0);
+        shipDamage.set(shot.targetId, current);
+      } else {
+        defenseDamage.set(shot.targetId, (defenseDamage.get(shot.targetId) ?? 0) + damage);
+      }
+      if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
+    });
   });
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
     const damage = shot.damage * installationScale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
-    shipDamage.set(shot.targetId, (shipDamage.get(shot.targetId) ?? 0) + damage);
+    const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
+    current.damage += damage;
+    shipDamage.set(shot.targetId, current);
   });
-  p.orbitUnits = p.orbitUnits.map(unit => shipDamage.has(unit.id) ? damageUnit(unit, shipDamage.get(unit.id)!) : unit);
+  p.orbitUnits = p.orbitUnits.map(unit => {
+    const incoming = shipDamage.get(unit.id);
+    const damaged = incoming ? damageUnitPiercing(unit, incoming.damage, incoming.damage > 0 ? incoming.piercingDamage / incoming.damage : 0) : unit;
+    const healing = devourHealing.get(unit.id) ?? 0;
+    return healing ? { ...damaged, hp: Math.min(damaged.maxHp, damaged.hp + healing) } : damaged;
+  });
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);
 
   const destroyedDefenses = p.buildings.filter(building => building.kind === 'spaceDefense' && building.hp! <= 0);

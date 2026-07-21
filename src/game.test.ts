@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick,
+  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
-  GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -102,6 +102,7 @@ describe('campaign configuration', () => {
     expect(createInitialState({ mapSize: 'small', difficulty: 'commander' }).planets).toHaveLength(7);
     expect(createInitialState({ mapSize: 'medium', difficulty: 'commander' }).planets).toHaveLength(11);
     expect(createInitialState({ mapSize: 'large', difficulty: 'commander' }).planets).toHaveLength(15);
+    expect(createInitialState({ mapSize: 'huge', difficulty: 'commander' }).planets).toHaveLength(21);
   });
 
   it('changes AI cadence by difficulty without granting starting forces', () => {
@@ -121,6 +122,25 @@ describe('campaign configuration', () => {
     expect(migrated.enemyMissionCount).toBe(0);
   });
 
+  it('repairs missing research and collection fields in older saves', () => {
+    const legacy = createInitialState({ mapSize: 'small', difficulty: 'commander' });
+    const damaged = legacy as unknown as Record<string, unknown>;
+    for (const key of ['fleets', 'battles', 'completedResearch', 'enemyCompletedResearch', 'researchQueue', 'enemyResearchQueue', 'messages']) delete damaged[key];
+    delete (legacy.planets[0] as Partial<typeof legacy.planets[0]>).groundQueue;
+    delete (legacy.planets[0] as Partial<typeof legacy.planets[0]>).spaceQueue;
+
+    const migrated = migrateGameState(legacy);
+    expect(migrated.fleets).toEqual([]);
+    expect(migrated.battles).toEqual([]);
+    expect(migrated.completedResearch).toEqual([]);
+    expect(migrated.enemyCompletedResearch).toEqual([]);
+    expect(migrated.researchQueue).toEqual([]);
+    expect(migrated.enemyResearchQueue).toEqual([]);
+    expect(migrated.planets[0].groundQueue).toEqual([]);
+    expect(migrated.messages[0]).toContain('RECOVERED');
+    expect(() => tick(migrated, .1)).not.toThrow();
+  });
+
   it('adds neutral garrisons to older saves exactly once', () => {
     const legacy = createInitialState({ mapSize: 'small', difficulty: 'commander' });
     legacy.planets.filter(planet => planet.owner === null).forEach(planet => { planet.groundUnits = []; });
@@ -133,6 +153,36 @@ describe('campaign configuration', () => {
 });
 
 describe('competitive multiplayer', () => {
+  it('creates four different empires on a larger map and preserves AI slot ownership', () => {
+    const state = createCompetitiveState({ mapSize: 'small', difficulty: 'commander' }, [
+      { faction: 'player', controller: 'human' },
+      { faction: 'enemy', controller: 'human' },
+      { faction: 'rival2', controller: 'ai' },
+      { faction: 'rival3', controller: 'human' },
+    ]);
+    expect(state.config.mapSize).toBe('huge');
+    expect(state.planets).toHaveLength(21);
+    expect(new Set(state.planets.filter(planet => planet.owner !== null).map(planet => planet.owner))).toEqual(new Set(['player', 'enemy', 'rival2', 'rival3']));
+    expect(state.aiFactions).toEqual(['rival2']);
+    expect(state.additionalEmpires?.rival2?.resources).toEqual(state.resources);
+    expect(state.additionalEmpires?.rival3?.resources).toEqual(state.resources);
+  });
+
+  it('gives a third commander an independent reversible perspective and economy', () => {
+    const canonical = createCompetitiveState(undefined, [
+      { faction: 'player', controller: 'human' },
+      { faction: 'enemy', controller: 'human' },
+      { faction: 'rival2', controller: 'human' },
+    ]);
+    const thirdView = viewStateForFaction(canonical, 'rival2');
+    expect(thirdView.planets.find(planet => planet.id === 'halcyon')?.owner).toBe('player');
+    expect(thirdView.planets.find(planet => planet.id === 'terra')?.owner).toBe('rival2');
+    const built = applyGameCommand(thirdView, { type: 'construct', planetId: 'halcyon', kind: 'metalMine' }); expectOk(built);
+    const updatedCanonical = viewStateForFaction(built.state, 'rival2');
+    expect(updatedCanonical.additionalEmpires?.rival2?.resources).toEqual({ metal: 520, crystal: 340, gold: 235 });
+    expect(viewStateForFaction(thirdView, 'rival2')).toEqual(canonical);
+  });
+
   it('gives the rival an independent player perspective and economy', () => {
     const canonical = createCompetitiveState({ mapSize: 'small', difficulty: 'admiral' });
     const rivalView = swapPlayerPerspective(canonical);
@@ -715,6 +765,27 @@ describe('combat recovery rules', () => {
     expect(away.shields).toBe(50); expect(away.hp).toBe(80);
     const home = recoverSpaceUnit(damaged(), true, 10);
     expect(home.shields).toBe(50); expect(home.hp).toBe(100);
+  });
+
+  it('continuously restores shields for ships traveling between systems', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.orbitUnits.push({ ...makeUnit('damaged-traveler', 'escortFrigate', 'player'), hp: 200, shields: 0 });
+    const dispatched = dispatchSpaceUnit(state, terra.id, 'damaged-traveler', 'halcyon'); expectOk(dispatched);
+    const recovered = tick(dispatched.state, 2);
+    const traveler = recovered.fleets.find(fleet => fleet.unit.id === 'damaged-traveler')!.unit;
+    expect(traveler.shields).toBe(10);
+    expect(traveler.hp).toBe(200);
+  });
+
+  it('regenerates orbital platform shields much faster than hull without exceeding maximums', () => {
+    const damagedPlatform = { id: 'recovering-platform', kind: 'spaceDefense' as const, hp: 300, maxHp: 420, shields: 100, maxShields: 220 };
+    const recovered = recoverOrbitalDefense(damagedPlatform, 2);
+    expect(recovered.hp).toBe(300 + ORBITAL_DEFENSE_HULL_REGEN * 2);
+    expect(recovered.shields).toBe(100 + ORBITAL_DEFENSE_SHIELD_REGEN * 2);
+    expect(ORBITAL_DEFENSE_SHIELD_REGEN).toBeGreaterThan(ORBITAL_DEFENSE_HULL_REGEN * 4);
+    expect(recoverOrbitalDefense(recovered, 100)).toMatchObject({ hp: 420, shields: 220 });
+    expect(damagedPlatform).toMatchObject({ hp: 300, shields: 100 });
   });
 
   it('lets orbital defense platforms fire on hostile ships', () => {

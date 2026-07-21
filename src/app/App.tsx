@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  applyGameCommand, createCompetitiveState, createInitialState, spaceYards, swapPlayerPerspective, tick,
-  type GameCommand, type GameConfig, type GameState,
+  applyGameCommand, createCompetitiveState, createInitialState, spaceYards, viewStateForFaction, tick,
+  type EmpireFaction, type GameCommand, type GameConfig, type GameState,
 } from '../game';
 import { GroundBattleView } from '../components/battle/GroundBattleView';
 import { CampaignSetup } from '../components/campaign/CampaignSetup';
@@ -33,7 +33,7 @@ export default function App() {
   const stateRef = useRef(state);
   const controllerRef = useRef<MultiplayerController | undefined>(undefined);
   const multiplayerPlayingRef = useRef(false);
-  const remoteCommandRef = useRef<(command: GameCommand) => void>(() => {});
+  const remoteCommandRef = useRef<(command: GameCommand, faction: EmpireFaction) => void>(() => {});
   const battle = state?.battles.find(candidate => candidate.planetId === battleId);
 
   const installState = (next: GameState, broadcast = false) => {
@@ -41,12 +41,12 @@ export default function App() {
     setState(next);
     if (broadcast) controllerRef.current?.sendState(next);
   };
-  remoteCommandRef.current = command => {
+  remoteCommandRef.current = (command, faction) => {
     const current = stateRef.current;
     if (!current || !controllerRef.current?.isHost || !multiplayerPlayingRef.current) return;
-    const rivalView = swapPlayerPerspective(current);
+    const rivalView = viewStateForFaction(current, faction);
     const result = applyGameCommand(rivalView, command);
-    if (result.ok) installState(swapPlayerPerspective(result.state), true);
+    if (result.ok) installState(viewStateForFaction(result.state, faction), true);
   };
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function App() {
   useEffect(() => { if (battleId && state && !state.battles.some(candidate => candidate.planetId === battleId)) setBattleId(undefined); }, [state, battleId]);
   useEffect(() => () => controllerRef.current?.close(), []);
 
-  const resetInterface = () => { setView('galaxy'); setSelectedId('terra'); setTab('command'); setProductionFocus(undefined); setBattleId(undefined); setSelectedShipIds([]); setSelectedYardIds([]); };
+  const resetInterface = (nextState?: GameState) => { setView('galaxy'); setSelectedId(nextState?.planets.find(planet => planet.owner === 'player')?.id ?? 'terra'); setTab('command'); setProductionFocus(undefined); setBattleId(undefined); setSelectedShipIds([]); setSelectedYardIds([]); };
   const closeMultiplayer = () => {
     controllerRef.current?.close();
     controllerRef.current = undefined;
@@ -86,6 +86,13 @@ export default function App() {
     if (stateRef.current) setToast(message);
     else setConnectionError(message);
   };
+  const playerLeft = (faction: EmpireFaction) => {
+    const current = stateRef.current;
+    if (!current || !controllerRef.current?.isHost) return;
+    const next = { ...current, aiFactions: Array.from(new Set([...(current.aiFactions ?? []), faction])) };
+    installState(next, true);
+    setToast(`EMPIRE ${['player', 'enemy', 'rival2', 'rival3'].indexOf(faction) + 1} COMMAND LINK LOST — AI CONTROL ENGAGED.`);
+  };
   const beginHost = async (config: GameConfig) => {
     setConnecting(true); setConnectionError(undefined);
     try {
@@ -93,7 +100,8 @@ export default function App() {
         onLobby: nextLobby => setLobby(nextLobby),
         onStart: () => {},
         onState: () => {},
-        onCommand: command => remoteCommandRef.current(command),
+        onCommand: (command, faction) => remoteCommandRef.current(command, faction),
+        onPlayerLeft: playerLeft,
         onError: connectionFailed,
         onClosed: sessionClosed,
       });
@@ -112,10 +120,11 @@ export default function App() {
           stateRef.current = next;
           setState(next);
           setLobby(undefined);
-          resetInterface();
+          resetInterface(next);
         },
         onState: next => { if (multiplayerPlayingRef.current) { stateRef.current = next; setState(next); } },
         onCommand: () => {},
+        onPlayerLeft: () => {},
         onError: connectionFailed,
         onClosed: sessionClosed,
       });
@@ -127,12 +136,12 @@ export default function App() {
   const startMultiplayer = () => {
     const controller = controllerRef.current;
     if (!controller?.isHost || !lobby || lobby.players.length < 2) return;
-    const next = createCompetitiveState(lobby.config);
+    const next = createCompetitiveState(lobby.config, lobby.players.map(player => ({ faction: player.faction, controller: player.ai ? 'ai' : 'human' })));
     multiplayerPlayingRef.current = true;
     controller.start(next);
     installState(next);
     setLobby(undefined);
-    resetInterface();
+    resetInterface(next);
   };
   const issue = (command: GameCommand) => {
     const current = stateRef.current;
@@ -155,9 +164,9 @@ export default function App() {
     }
   };
   const changeTab = (nextTab: PlanetTab) => { setTab(nextTab); setProductionFocus(undefined); };
-  const alerts = useMemo(() => state ? state.battles.length + state.planets.filter(planet => planet.orbitUnits.some(unit => unit.faction === 'enemy') && planet.orbitUnits.some(unit => unit.faction === 'player')).length : 0, [state]);
+  const alerts = useMemo(() => state ? state.battles.length + state.planets.filter(planet => planet.orbitUnits.some(unit => unit.faction === 'player') && planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral')).length : 0, [state]);
 
-  if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} />;
+  if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} onAddAi={() => controllerRef.current?.addAi()} onRemoveAi={() => controllerRef.current?.removeAi()} />;
   if (!state) return <CampaignSetup
     onStart={config => { const next = createInitialState(config); installState(next); resetInterface(); }}
     onHost={beginHost}
@@ -185,7 +194,7 @@ export default function App() {
   return <div className="app-shell">
     <ResourceBar state={state} view={view} onViewChange={changeView} />
     {view === 'galaxy' ? <div className="workspace"><GalaxyMap state={state} selectedId={planet.id} selectedShipIds={selectedShipIds} selectedYardIds={selectedYardIds} onSelect={selectPlanet} onSelectShip={(planetId, unitId, additive) => { setSelectedId(planetId); setSelectedYardIds([]); setSelectedShipIds(current => additive ? (current.includes(unitId) ? current.filter(id => id !== unitId) : [...current, unitId]) : (current.length === 1 && current[0] === unitId ? [] : [unitId])); }} onSelectSpaceYard={(planetId, yardId, additive) => { setSelectedId(planetId); setSelectedShipIds([]); setSelectedYardIds(current => { const samePlanet = current.every(id => spaceYards(state.planets.find(candidate => candidate.id === planetId)!).some(yard => yard.id === id)); return additive && samePlanet ? (current.includes(yardId) ? current.filter(id => id !== yardId) : [...current, yardId]) : (current.length === 1 && current[0] === yardId ? [] : [yardId]); }); setProductionFocus('space'); setTab('forces'); }} onGroupSelect={ids => { setSelectedYardIds([]); setSelectedShipIds(ids); }} onManeuver={(planetId, x, y) => issue({ type: 'maneuver', planetId, unitIds: selectedShipIds, orbitX: x, orbitY: y })} onTargetDefense={(planetId, defenseId) => issue({ type: 'orbitFocus', planetId, targetId: defenseId })} /><PlanetPanel state={state} planet={planet} tab={tab} setTab={changeTab} productionFocus={productionFocus} selectedYardIds={selectedYardIds} act={issue} onBattle={() => setBattleId(planet.id)} /></div> : <ResearchView state={state} act={issue} />}
-    <footer className="command-log"><b>COMMAND LOG</b><div>{state.messages[0]}</div>{controllerRef.current && <span className="multiplayer-status">VERSUS · {controllerRef.current.isHost ? 'HOST EMPIRE' : 'RIVAL EMPIRE'} · {controllerRef.current.code}</span>}{alerts > 0 && <span className="alert-count">{alerts} ACTIVE CONFLICT{alerts > 1 ? 'S' : ''}</span>}<button onClick={reset}>{controllerRef.current ? 'LEAVE GAME' : 'RESET CAMPAIGN'}</button></footer>
+    <footer className="command-log"><b>COMMAND LOG</b><div>{state.messages[0]}</div>{controllerRef.current && <span className="multiplayer-status">FREE-FOR-ALL · EMPIRE {['player', 'enemy', 'rival2', 'rival3'].indexOf(controllerRef.current.faction) + 1} · {controllerRef.current.code}</span>}{alerts > 0 && <span className="alert-count">{alerts} ACTIVE CONFLICT{alerts > 1 ? 'S' : ''}</span>}<button onClick={reset}>{controllerRef.current ? 'LEAVE GAME' : 'RESET CAMPAIGN'}</button></footer>
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

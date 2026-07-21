@@ -13,7 +13,7 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
   return <aside className="panel">
     <header className="planet-header">
       <div className="mini-planet" style={{ '--planet': planet.color } as React.CSSProperties} />
-      <div><small>{factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.owner === 'player' ? 'Player-controlled world' : planet.owner === 'enemy' ? 'Enemy-controlled world' : 'Unclaimed frontier world'}</p></div>
+      <div><small>{factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world'}</p></div>
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}
     <nav className="tabs" aria-label="Planet sections">
@@ -42,7 +42,7 @@ function Command({ planet }: { planet: Planet }) {
       const maximum = planet.buildingLimits[kind];
       return <div className="deposit" key={resource}><span>{resource}</span><div><i style={{ width: `${count / maximum * 100}%` }} /></div><b>{count}/{maximum} · ∞</b></div>;
     })}
-    {planet.owner !== 'player' && <div className="intel"><b>{planet.owner === 'enemy' ? 'HOSTILE INTELLIGENCE' : 'NEUTRAL GARRISON'}</b><p>{planet.owner === 'enemy' ? 'Select a transport in a friendly orbit, then click this planet. Squads embark and invade automatically.' : `${planet.groundUnits.length} independent defender${planet.groundUnits.length === 1 ? '' : 's'} detected. Land ground forces to secure this world.`}</p></div>}
+    {planet.owner !== 'player' && <div className="intel"><b>{planet.owner ? 'HOSTILE INTELLIGENCE' : 'NEUTRAL GARRISON'}</b><p>{planet.owner ? 'Select a transport in a friendly orbit, then click this planet. Squads embark and invade automatically.' : `${planet.groundUnits.length} independent defender${planet.groundUnits.length === 1 ? '' : 's'} detected. Land ground forces to secure this world.`}</p></div>}
   </section>;
 }
 
@@ -101,8 +101,8 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     {planet.groundUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}{planet.orbitUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}
     {planet.orbitUnits.some(unit => unit.faction === 'player') && <div className="transport-order"><b>GRAVITY WELL CONTROL</b><small>Select a ship marker, then click inside this gravity well to maneuver over time. Click the planet center to dock and automatically embark squads, or click any reachable planet to plot the shortest phase-lane route.</small></div>}
     {state.fleets.filter(fleet => (fleet.finalDestinationId ?? fleet.destinationId) === planet.id).map(fleet => <div className={`incoming ${fleet.phase ?? 'tunnel'}`} key={fleet.id}>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label.toUpperCase()} <b>{Math.ceil(fleet.travelTime - fleet.progress)}s</b></div>)}
-    {planet.orbitUnits.filter(unit => unit.pendingLanding).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`landing-${unit.id}`}>{unit.faction === 'enemy' ? 'HOSTILE' : 'FRIENDLY'} {UNITS[unit.kind].label.toUpperCase()} LANDING APPROACH <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
-    {planet.orbitUnits.filter(unit => unit.pendingEmbark).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`embark-${unit.id}`}>{unit.faction === 'enemy' ? 'HOSTILE' : 'FRIENDLY'} {UNITS[unit.kind].label.toUpperCase()} EMBARKING <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
+    {planet.orbitUnits.filter(unit => unit.pendingLanding).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`landing-${unit.id}`}>{unit.faction === 'player' ? 'FRIENDLY' : 'HOSTILE'} {UNITS[unit.kind].label.toUpperCase()} LANDING APPROACH <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
+    {planet.orbitUnits.filter(unit => unit.pendingEmbark).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`embark-${unit.id}`}>{unit.faction === 'player' ? 'FRIENDLY' : 'HOSTILE'} {UNITS[unit.kind].label.toUpperCase()} EMBARKING <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
   </section>;
 }
 

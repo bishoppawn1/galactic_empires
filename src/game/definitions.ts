@@ -69,6 +69,8 @@ export const orbitalDefenseOffset = (index: number, count: number) => {
   const angle = -Math.PI / 4 + index * (Math.PI * 2 / Math.max(2, count));
   return { x: Math.cos(angle) * ORBITAL_DEFENSE_RADIUS, y: Math.sin(angle) * ORBITAL_DEFENSE_RADIUS };
 };
+export const ORBITAL_DEFENSE_HULL_REGEN = 2;
+export const ORBITAL_DEFENSE_SHIELD_REGEN = 16;
 export const SPACE_COMBAT_DAMAGE_MULTIPLIER = 4;
 export const RESOURCE_COLLECTION_MULTIPLIER = 4;
 export const GRAVITY_WELL_RADIUS = 600;

@@ -1,7 +1,8 @@
 export type Resource = 'metal' | 'crystal' | 'gold';
-export type Faction = 'player' | 'enemy' | null;
+export type EmpireFaction = 'player' | 'enemy' | 'rival2' | 'rival3';
+export type Faction = EmpireFaction | null;
 export type UnitFaction = Exclude<Faction, null> | 'neutral';
-export type MapSize = 'small' | 'medium' | 'large';
+export type MapSize = 'small' | 'medium' | 'large' | 'huge';
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 
 export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty }
@@ -73,6 +74,7 @@ export interface Planet {
   spaceQueue: QueueItem[];
   orbitFocusTargetId?: string;
   enemyOrbitFocusTargetId?: string;
+  orbitFocusTargetIds?: Partial<Record<EmpireFaction, string>>;
 }
 export interface PlanetConnection { from: Planet; to: Planet; distance: number }
 export interface Fleet {
@@ -97,9 +99,19 @@ export interface GroundBattle {
   groundDefenseBuildingIds?: string[];
   focusTargetId?: string;
   enemyFocusTargetId?: string;
+  focusTargetIds?: Partial<Record<EmpireFaction, string>>;
 }
 export type ResearchId = 'advancedIndustry' | 'groundWarfare' | 'fleetLogistics' | 'orbitalEngineering' | 'quantumExtraction' | 'heavyArmor' | 'carrierOperations' | 'capitalShips' | 'titanEngineering';
 export interface ResearchProject { id: ResearchId; remaining: number; total: number }
+export interface EmpireEconomy {
+  resources: ResourcePool;
+  completedResearch: ResearchId[];
+  researchQueue: ResearchProject[];
+  actionClock: number;
+  attackClock: number;
+  missionCount: number;
+}
+export interface MatchEmpireSlot { faction: EmpireFaction; controller: 'human' | 'ai' }
 export interface GameState {
   mode?: 'solo' | 'competitive';
   config: GameConfig;
@@ -115,6 +127,8 @@ export interface GameState {
   enemyActionClock: number;
   enemyAttackClock: number;
   enemyMissionCount: number;
+  additionalEmpires?: Partial<Record<'rival2' | 'rival3', EmpireEconomy>>;
+  aiFactions?: EmpireFaction[];
   elapsed: number;
   nextId: number;
   neutralGarrisonsInitialized: boolean;

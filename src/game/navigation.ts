@@ -2,7 +2,7 @@ import type { Faction, Planet, PlanetConnection, ResourcePool } from './types';
 
 export const formatCost = (cost: ResourcePool) => [cost.metal && `${cost.metal}M`, cost.crystal && `${cost.crystal}C`, cost.gold && `${cost.gold}G`].filter(Boolean).join(' · ');
 
-export const ownerLabel = (owner: Faction) => owner === 'player' ? 'COLONY' : owner === 'enemy' ? 'HOSTILE' : 'UNCHARTED';
+export const ownerLabel = (owner: Faction) => owner === 'player' ? 'COLONY' : owner ? 'HOSTILE' : 'UNCHARTED';
 
 export function localPlanetConnections(planets: Planet[], maxDistance = 42): PlanetConnection[] {
   const connections: PlanetConnection[] = [];

@@ -54,13 +54,13 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: 'CONNECT' })).toBeEnabled();
   });
 
-  it('describes multiplayer as a two-empire versus match', () => {
-    render(<MultiplayerLobby lobby={{ code: 'ABC234', config: { mapSize: 'small', difficulty: 'commander' }, players: [{ id: 'host', label: 'HOST COMMANDER', host: true }] }} isHost onStart={() => {}} onLeave={() => {}} />);
-    expect(screen.getByText('OPPOSING COMMANDERS')).toBeInTheDocument();
-    expect(screen.getByText('1 / 2 ONLINE')).toBeInTheDocument();
-    expect(screen.getByText('HUMAN RIVAL')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /WAITING FOR RIVAL/i })).toBeDisabled();
-    expect(screen.queryByText(/CO-OP/)).not.toBeInTheDocument();
+  it('presents four independent empire slots with optional AI opponents', () => {
+    render(<MultiplayerLobby lobby={{ code: 'ABC234', config: { mapSize: 'small', difficulty: 'commander' }, players: [{ id: 'host', label: 'HOST COMMANDER', host: true, faction: 'player' }] }} isHost onStart={() => {}} onLeave={() => {}} onAddAi={() => {}} onRemoveAi={() => {}} />);
+    expect(screen.getByText('EMPIRE ROSTER')).toBeInTheDocument();
+    expect(screen.getByText('1 / 4 SLOTS')).toBeInTheDocument();
+    expect(screen.getByText('EMPIRE 1 · HOST')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ADD AI EMPIRE' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /ADD A RIVAL OR AI/i })).toBeDisabled();
   });
 
   it('shows the three resources and homeworld', () => {
@@ -71,6 +71,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
   });
 
+  it('renders an older campaign even when research-era fields are missing', () => {
+    const legacy = createInitialState();
+    const damaged = legacy as unknown as Record<string, unknown>;
+    for (const key of ['completedResearch', 'enemyCompletedResearch', 'researchQueue', 'enemyResearchQueue']) delete damaged[key];
+    localStorage.setItem('galactic-empires-save-v5', JSON.stringify(legacy));
+    render(<App />);
+    expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toBeInTheDocument();
+  });
+
   it('uses explicit, redundant ownership markers for player and enemy planets', () => {
     render(<App />);
     const playerPlanet = screen.getByRole('button', { name: 'Terra Nova COLONY' });
@@ -78,13 +88,13 @@ describe('Galactic Empires interface', () => {
     expect(playerPlanet).toHaveClass('player');
     expect(enemyPlanet).toHaveClass('enemy');
     expect(within(playerPlanet).getByText('YOU')).toBeInTheDocument();
-    expect(within(enemyPlanet).getByText('ENEMY')).toBeInTheDocument();
+    expect(within(enemyPlanet).getByText('RIVAL A')).toBeInTheDocument();
     expect(playerPlanet.querySelector('.ownership-ring')).not.toBeNull();
     expect(enemyPlanet.querySelector('.ownership-ring')).not.toBeNull();
 
     const legend = screen.getByRole('region', { name: 'Planet ownership legend' });
     expect(within(legend).getByText('YOUR EMPIRE')).toBeInTheDocument();
-    expect(within(legend).getByText('ENEMY EMPIRE')).toBeInTheDocument();
+    expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
   it('reports the small garrison defending an unclaimed planet', () => {

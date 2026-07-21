@@ -7,7 +7,7 @@ import { factionName, fleetPhaseLabel } from '../shared/presentation';
 import { ShipImage } from '../shared/ShipImage';
 import { FleetSelectionHud } from './FleetSelectionHud';
 
-const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'ENEMY' : 'NEUTRAL';
+const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'RIVAL A' : owner === 'rival2' ? 'RIVAL B' : owner === 'rival3' ? 'RIVAL C' : 'NEUTRAL';
 
 const CANVAS_WIDTH = 12800;
 const CANVAS_HEIGHT = 8800;
@@ -48,6 +48,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   const ownershipCounts = {
     player: state.planets.filter(planet => planet.owner === 'player').length,
     enemy: state.planets.filter(planet => planet.owner === 'enemy').length,
+    rival2: state.planets.filter(planet => planet.owner === 'rival2').length,
+    rival3: state.planets.filter(planet => planet.owner === 'rival3').length,
     neutral: state.planets.filter(planet => planet.owner === null).length,
   };
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -173,7 +175,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
-          const hostileOrbit = p.orbitUnits.some(u => u.faction === 'enemy') && p.orbitUnits.some(u => u.faction === 'player');
+          const hostileOrbit = new Set(p.orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.faction)).size > 1;
           return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': p.color, '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }}>
             {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" /><span className="planet-sphere" />
             <span className="faction-badge">{planetFactionBadge(p.owner)}</span><span className="planet-name">{p.name}</span><span className="planet-status">{factionName(p.owner)}</span>{!!p.orbitUnits.length && <span className="orbit-count">◈ {p.orbitUnits.length}</span>}
@@ -185,7 +187,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           return yards.map((yard, index) => {
             const position = yardPosition(p, index, yards.length);
             const advanced = yard.kind === 'advancedSpaceFactory';
-            const content = <><span>{advanced ? 'A' : 'Y'}{index + 1}</span><small>{p.owner === 'enemy' ? `HOSTILE ${advanced ? 'ADV YARD' : 'YARD'}` : advanced ? 'ADV YARD' : 'SPACE YARD'}</small></>;
+            const content = <><span>{advanced ? 'A' : 'Y'}{index + 1}</span><small>{p.owner !== 'player' ? `HOSTILE ${advanced ? 'ADV YARD' : 'YARD'}` : advanced ? 'ADV YARD' : 'SPACE YARD'}</small></>;
             const className = `orbit-yard ${p.owner} ${advanced ? 'advanced' : ''} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`;
             return p.owner === 'player'
               ? <button key={yard.id} aria-label={`${advanced ? 'Advanced Space Yard' : 'Space Yard'} ${index + 1} orbiting ${p.name} — open ship production`} aria-pressed={selectedYardIds.includes(yard.id)} className={className} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); onSelectSpaceYard(p.id, yard.id, event.shiftKey); }}>{content}</button>
@@ -196,7 +198,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
           return defenses.map((defense, index) => {
             const position = defensePosition(p, index, defenses.length);
-            const targetable = p.owner === 'enemy' && p.orbitUnits.some(ship => ship.faction === 'player');
+            const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');
             const focused = p.orbitFocusTargetId === defense.id;
             const content = <><span>⌾</span><i /><div className="defense-health"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small>{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
             const className = `orbital-defense ${p.owner ?? 'neutral'} ${targetable ? 'targetable' : ''} ${focused ? 'focused' : ''}`;
@@ -225,6 +227,6 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     <div className="zoom-controls" aria-label="Map zoom controls"><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
     <FleetSelectionHud ships={selectedShips} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
-    <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>ENEMY EMPIRE</b><strong>{ownershipCounts.enemy}</strong></span><span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
+    <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
   </main>;
 }

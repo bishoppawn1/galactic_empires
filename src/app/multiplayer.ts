@@ -1,9 +1,9 @@
 import type { DataConnection, Peer } from 'peerjs';
-import { isGameCommand, migrateGameState, swapPlayerPerspective, type GameCommand, type GameConfig, type GameState } from '../game';
+import { EMPIRE_FACTIONS, isGameCommand, migrateGameState, viewStateForFaction, type EmpireFaction, type GameCommand, type GameConfig, type GameState } from '../game';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PEER_PREFIX = 'galactic-empires-';
-const MAX_PLAYERS = 2;
+export const MAX_PLAYERS = 4;
 export const MULTIPLAYER_SERIALIZATION = 'binary';
 export const STATE_SYNC_INTERVAL_MS = 250;
 export const MAX_BUFFERED_STATE_MESSAGES = 2;
@@ -14,7 +14,7 @@ export const canSendStateUpdate = (lastSentAt: number, now: number, bufferedMess
 
 export function prepareIncomingState(payload: unknown): GameState | undefined {
   try {
-    return swapPlayerPerspective(migrateGameState(payload as GameState));
+    return migrateGameState(payload as GameState);
   } catch {
     return undefined;
   }
@@ -24,6 +24,8 @@ export interface LobbyPlayer {
   id: string;
   label: string;
   host: boolean;
+  faction: EmpireFaction;
+  ai?: boolean;
 }
 
 export interface LobbySnapshot {
@@ -36,7 +38,8 @@ interface MultiplayerCallbacks {
   onLobby: (lobby: LobbySnapshot) => void;
   onStart: (state: GameState) => void;
   onState: (state: GameState) => void;
-  onCommand: (command: GameCommand) => void;
+  onCommand: (command: GameCommand, faction: EmpireFaction) => void;
+  onPlayerLeft: (faction: EmpireFaction) => void;
   onError: (message: string) => void;
   onClosed: (message: string) => void;
 }
@@ -52,9 +55,12 @@ type GuestMessage = { type: 'join' } | { type: 'command'; command: GameCommand }
 export interface MultiplayerController {
   readonly isHost: boolean;
   readonly code: string;
+  readonly faction: EmpireFaction;
   start: (state: GameState) => void;
   sendState: (state: GameState) => void;
   sendCommand: (command: GameCommand) => void;
+  addAi: () => void;
+  removeAi: () => void;
   close: () => void;
 }
 
@@ -71,7 +77,7 @@ function peerErrorMessage(error: unknown) {
   if (typed.type === 'peer-unavailable') return 'No open lobby uses that code.';
   if (typed.type === 'unavailable-id') return 'That lobby code is already active. Try hosting again.';
   if (typed.type === 'browser-incompatible') return 'This browser does not support multiplayer connections.';
-  if (typed.type === 'message-too-big') return 'The multiplayer snapshot exceeded the channel limit. Both commanders should reload the updated game.';
+  if (typed.type === 'message-too-big') return 'The multiplayer snapshot exceeded the channel limit. All commanders should reload the updated game.';
   return typed.message || 'The multiplayer link could not be established.';
 }
 
@@ -94,7 +100,8 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
   const peer = new PeerConstructor(peerIdForCode(code));
   await waitForPeerOpen(peer).catch(error => { peer.destroy(); throw new Error(peerErrorMessage(error)); });
 
-  const connections = new Map<string, DataConnection>();
+  const connections = new Map<string, { connection: DataConnection; faction: EmpireFaction }>();
+  const aiFactions = new Set<EmpireFaction>();
   let playing = false;
   let closed = false;
   let lastStateSentAt = Number.NEGATIVE_INFINITY;
@@ -102,8 +109,9 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
     code,
     config,
     players: [
-      { id: peer.id, label: 'HOST COMMANDER', host: true },
-      ...Array.from(connections.keys()).map(id => ({ id, label: 'RIVAL COMMANDER', host: false })),
+      { id: peer.id, label: 'HOST COMMANDER', host: true, faction: 'player' },
+      ...Array.from(connections.entries()).map(([id, participant]) => ({ id, label: `COMMANDER ${EMPIRE_FACTIONS.indexOf(participant.faction) + 1}`, host: false, faction: participant.faction })),
+      ...Array.from(aiFactions).map(faction => ({ id: `ai-${faction}`, label: `AI EMPIRE ${EMPIRE_FACTIONS.indexOf(faction) + 1}`, host: false, faction, ai: true })),
     ],
   });
   const send = (connection: DataConnection, message: HostMessage) => {
@@ -118,12 +126,21 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
   };
   const broadcast = (message: HostMessage, allowBuffered = true) => {
     let sent = false;
-    connections.forEach(connection => {
-      const bufferedMessages = (connection as DataConnection & { bufferSize?: number }).bufferSize ?? 0;
-      if (!allowBuffered || bufferedMessages < MAX_BUFFERED_STATE_MESSAGES) sent = send(connection, message) || sent;
+    connections.forEach(participant => {
+      const bufferedMessages = (participant.connection as DataConnection & { bufferSize?: number }).bufferSize ?? 0;
+      if (!allowBuffered || bufferedMessages < MAX_BUFFERED_STATE_MESSAGES) sent = send(participant.connection, message) || sent;
     });
     return sent;
   };
+  const broadcastState = (type: 'start' | 'state', state: GameState, allowBuffered = true) => {
+    let sent = false;
+    connections.forEach(participant => {
+      const bufferedMessages = (participant.connection as DataConnection & { bufferSize?: number }).bufferSize ?? 0;
+      if (!allowBuffered || bufferedMessages < MAX_BUFFERED_STATE_MESSAGES) sent = send(participant.connection, { type, state: viewStateForFaction(state, participant.faction) }) || sent;
+    });
+    return sent;
+  };
+  const availableFaction = () => EMPIRE_FACTIONS.find(faction => faction !== 'player' && !aiFactions.has(faction) && !Array.from(connections.values()).some(participant => participant.faction === faction));
   const publishLobby = () => {
     const snapshot = lobby();
     callbacks.onLobby(snapshot);
@@ -135,17 +152,19 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
       const message = payload as GuestMessage;
       if (message?.type === 'join') {
         if (playing) { send(connection, { type: 'error', message: 'That campaign is already underway.' }); connection.close(); return; }
-        if (!connections.has(connection.peer) && connections.size >= MAX_PLAYERS - 1) { send(connection, { type: 'error', message: 'That lobby is full.' }); connection.close(); return; }
-        connections.set(connection.peer, connection);
+        const faction = availableFaction();
+        if (!connections.has(connection.peer) && !faction) { send(connection, { type: 'error', message: 'That lobby is full.' }); connection.close(); return; }
+        if (!connections.has(connection.peer)) connections.set(connection.peer, { connection, faction: faction! });
         publishLobby();
       } else if (message?.type === 'command' && playing && connections.has(connection.peer) && isGameCommand(message.command)) {
-        callbacks.onCommand(message.command);
+        callbacks.onCommand(message.command, connections.get(connection.peer)!.faction);
       }
     });
     connection.on('close', () => {
+      const participant = connections.get(connection.peer);
       const wasParticipant = connections.delete(connection.peer);
       if (wasParticipant && !playing) publishLobby();
-      else if (wasParticipant && playing && !closed) callbacks.onClosed('The rival commander disconnected from the match.');
+      else if (participant && playing && !closed) callbacks.onPlayerLeft(participant.faction);
     });
     connection.on('error', error => callbacks.onError(peerErrorMessage(error)));
   });
@@ -156,21 +175,24 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
   return {
     isHost: true,
     code,
+    faction: 'player',
     start(state) {
-      if (playing || connections.size === 0) return;
+      if (playing || connections.size + aiFactions.size === 0) return;
       playing = true;
-      broadcast({ type: 'start', state }, false);
+      broadcastState('start', state, false);
       lastStateSentAt = Date.now();
     },
     sendState(state) {
       const now = Date.now();
       if (!playing || !canSendStateUpdate(lastStateSentAt, now)) return;
-      if (broadcast({ type: 'state', state })) lastStateSentAt = now;
+      if (broadcastState('state', state)) lastStateSentAt = now;
     },
     sendCommand() {},
+    addAi() { const faction = availableFaction(); if (!playing && faction) { aiFactions.add(faction); publishLobby(); } },
+    removeAi() { if (!playing && aiFactions.size) { aiFactions.delete(Array.from(aiFactions).at(-1)!); publishLobby(); } },
     close() {
       closed = true;
-      connections.forEach(connection => connection.close());
+      connections.forEach(participant => participant.connection.close());
       peer.destroy();
     },
   };
@@ -185,9 +207,13 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
 
   const connection = peer.connect(peerIdForCode(code), { reliable: true, serialization: MULTIPLAYER_SERIALIZATION });
   let closed = false;
+  let assignedFaction: EmpireFaction = 'enemy';
   connection.on('data', payload => {
     const message = payload as HostMessage;
-    if (message?.type === 'lobby') callbacks.onLobby(message.lobby);
+    if (message?.type === 'lobby') {
+      assignedFaction = message.lobby.players.find(player => player.id === peer.id)?.faction ?? assignedFaction;
+      callbacks.onLobby(message.lobby);
+    }
     else if (message?.type === 'start' || message?.type === 'state') {
       const state = prepareIncomingState(message.state);
       if (!state) { callbacks.onError('The host sent an invalid campaign snapshot.'); return; }
@@ -210,6 +236,7 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
   return {
     isHost: false,
     code,
+    get faction() { return assignedFaction; },
     start() {},
     sendState() {},
     sendCommand(command) {
@@ -217,6 +244,8 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
       try { connection.send({ type: 'command', command } satisfies GuestMessage); }
       catch (error) { callbacks.onError(peerErrorMessage(error)); }
     },
+    addAi() {},
+    removeAi() {},
     close() { closed = true; connection.close(); peer.destroy(); },
   };
 }

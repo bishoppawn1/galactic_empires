@@ -144,3 +144,71 @@ button { color: inherit; }
 .battle-help { position: absolute; left: 25px; bottom: 24px; z-index: 5; padding: 10px 13px; border: 1px solid #3c4e48; background: #080d0de8; color: white; font: 600 8px Inter; letter-spacing: .13em; }.battle-help span { color: #7a8981; margin-left: 20px; letter-spacing: normal; font-weight: 400; }
 @keyframes spin { to { transform: rotate(360deg); } } @keyframes defense-spin { to { transform: rotate(360deg); } } @keyframes lane-flow { to { stroke-dashoffset: -32; } } @keyframes orbital-fire { to { stroke-dashoffset: -26; } } @keyframes phase-arrival-pulse { to { filter: brightness(1.55); transform: scale(1.08); } } @keyframes pulse { 70% { box-shadow: 0 0 0 12px #e86a9200; } 100% { box-shadow: 0 0 0 0 #e86a9200; } } @keyframes toast-in { from { transform: translate(-50%,10px); opacity: 0; } }
 @media (max-height: 740px) { .planet-header { padding: 10px 18px; }.mini-planet { width: 54px; height: 54px; }.planet-header h1 { font-size: 23px; }.tabs { flex-basis: 40px; }.panel-scroll section { padding: 16px 20px; } }
+
+/* Readability pass: compact interface labels should remain legible at normal zoom. */
+.empire-tabs button, .resource small, .resource em, .cycle, .phase-gate, .faction-badge,
+.planet-status, .orbit-count, .fleet-command-hint, .map-key, .zoom-controls output,
+.planet-header small, .section-title small, .tabs button, .panel h3, .stat small,
+.deposit, .deposit b, .intel b, .card-copy small, .card-copy em, .build-card button,
+.production-link, .unit-button small, .queue > b, .queue > div, .queue > small,
+.yard-queue-card > header span, .force-summary span, .unit-row small,
+.transport-order > b, .transport-order > small, .transport-order button,
+.dispatch select, .transport-order > select, .incoming, .research-hero small,
+.research-stats span, .research-warning b, .research-warning p, .tech-node small,
+.tech-node p, .tech-node em, .tech-node button, .tech-tier > header,
+.tech-unlocks span, .command-log, .command-log > b, .command-log button, .alert-count,
+.setup-card header small, .setup-card legend, .setup-options button span,
+.setup-summary small, .launch-campaign, .multiplayer-start, .join-game,
+.join-form label, .join-form button, .connection-error, .lobby-code small,
+.lobby-code button, .lobby-heading, .lobby-player small, .lobby-player em,
+.leave-lobby, .waiting-pulse, .multiplayer-status, .battle-hud small,
+.battle-hud p, .battle-hud em, .front-line, .battle-unit > small,
+.battle-scale, .battle-scale span, .battle-help { font-size: 12px; line-height: 1.25; }
+
+.orbit-yard > small, .orbital-defense > small, .transit-ship > small { font-size: 11px; line-height: 1.2; }
+.card-copy b { font-size: 16px; }
+.unit-button b, .unit-row b { font-size: 15px; }
+.yard-queue-card > header b { font-size: 13px; }
+
+/* Four-empire identity palette. Every commander keeps cyan locally; the other
+   three empires remain visually distinct after perspective translation. */
+.planet-node.rival2 .orbit-zone { border: 2px dashed #ffc85780; background: radial-gradient(circle,transparent 47%,#ffc8570c 68%,#ffc85718 69%,transparent 70%); box-shadow: inset 0 0 80px #ffc8570b; }
+.planet-node.rival3 .orbit-zone { border: 2px dashed #a98bff80; background: radial-gradient(circle,transparent 47%,#a98bff0c 68%,#a98bff18 69%,transparent 70%); box-shadow: inset 0 0 80px #a98bff0b; }
+.planet-node.rival2 .ownership-ring { border-color: #ffc857; border-style: double; border-width: 5px; box-shadow: 0 0 0 3px #ffc85724,inset 0 0 16px #ffc85724,0 0 22px #ffc85755; }
+.planet-node.rival3 .ownership-ring { border-color: #a98bff; border-style: double; border-width: 5px; box-shadow: 0 0 0 3px #a98bff24,inset 0 0 16px #a98bff24,0 0 22px #a98bff55; }
+.planet-node.rival2 .planet-sphere { outline: 2px solid #ffd778; outline-offset: 3px; }
+.planet-node.rival3 .planet-sphere { outline: 2px solid #bca8ff; outline-offset: 3px; }
+.planet-node.rival2 .orbit-ring { border-color: #ffc857; }
+.planet-node.rival3 .orbit-ring { border-color: #a98bff; }
+.planet-node.rival2 .faction-badge { border-color: #ffc857; background: #2a220ff2; color: #ffe39a; box-shadow: 0 0 14px #ffc85755; }
+.planet-node.rival3 .faction-badge { border-color: #a98bff; background: #1d1533f2; color: #d4c8ff; box-shadow: 0 0 14px #a98bff55; }
+.planet-node.rival2 .planet-status { color: #ffd778; }
+.planet-node.rival3 .planet-status { color: #bca8ff; }
+.orbit-ship.rival2,.transit-ship.rival2 { color: #ffc857; }
+.orbit-ship.rival3,.transit-ship.rival3 { color: #a98bff; }
+.orbit-ship.rival2,.orbit-ship.rival3 { cursor: default; opacity: .85; }
+.orbit-ship.rival2 > .ship-image,.transit-ship.rival2 > .ship-image { filter: hue-rotate(265deg) saturate(1.4) drop-shadow(0 0 6px #ffc857aa); }
+.orbit-ship.rival3 > .ship-image,.transit-ship.rival3 > .ship-image { filter: hue-rotate(75deg) saturate(1.35) drop-shadow(0 0 6px #a98bffaa); }
+.orbit-yard.rival2 { border-color: #ffc857; color: #ffd778; cursor: default; box-shadow: 0 0 18px #000,inset 0 0 12px #ffc85728; }
+.orbit-yard.rival3 { border-color: #a98bff; color: #bca8ff; cursor: default; box-shadow: 0 0 18px #000,inset 0 0 12px #a98bff28; }
+.orbit-yard.rival2::before,.orbit-yard.rival2::after { border-color: #ffc85799; }
+.orbit-yard.rival3::before,.orbit-yard.rival3::after { border-color: #a98bff99; }
+.orbital-defense.rival2 { color: #ffc857; border-color: #ffc85799; background: radial-gradient(circle,#4a3915 0 22%,#171205 24% 48%,transparent 50%); filter: drop-shadow(0 0 18px #ffc85788); }
+.orbital-defense.rival3 { color: #a98bff; border-color: #a98bff99; background: radial-gradient(circle,#30234f 0 22%,#100a1d 24% 48%,transparent 50%); filter: drop-shadow(0 0 18px #a98bff88); }
+.orbital-fire line.rival2,.battle-fire line.rival2 { stroke: #ffc857; filter: drop-shadow(0 0 5px #ffc857); }
+.orbital-fire line.rival3,.battle-fire line.rival3 { stroke: #bca8ff; filter: drop-shadow(0 0 5px #a98bff); }
+.map-key span.rival2 { border-color: #ffc85766; color: #ffe39a; }
+.map-key span.rival3 { border-color: #a98bff66; color: #d4c8ff; }
+.key-dot.rival2 { background: #ffc857; color: #ffc857; }
+.key-dot.rival3 { background: #a98bff; color: #a98bff; }
+.landing-warning.rival2,.landing-warning.rival3 { border-left-color: var(--red); background: #251018; color: #d99aae; }
+.army.rival2 .range-ring,.army.rival3 .range-ring { border-color: #e86a9220; background: radial-gradient(circle,transparent 64%,#e86a9208 65%,transparent 68%); }
+.army.rival2 .unit-core > span { color: #ffc857; text-shadow: 0 0 12px #ffc857; }
+.army.rival3 .unit-core > span { color: #a98bff; text-shadow: 0 0 12px #a98bff; }
+.battle-unit.rival2,.battle-unit.rival3 { cursor: crosshair; }
+.setup-options { grid-template-columns: repeat(4,1fr); }
+.ai-slot-controls { display: flex; gap: 8px; margin: -10px 0 18px; }
+.ai-slot-controls button { flex: 1; min-height: 34px; border: 1px solid #806d36; background: #241f10; color: var(--gold); font: 600 11px Inter; letter-spacing: .1em; cursor: pointer; }
+.lobby-player.ai { border-color: #806d36; background: #1b180e; }
+.lobby-player.ai > i { background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+@media (max-width: 760px) { .setup-options { grid-template-columns: 1fr; } }

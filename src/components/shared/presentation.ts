@@ -1,6 +1,6 @@
 import type { BuildingKind, Fleet, Planet, UnitKind } from '../../game';
 
-export const factionName = (owner: Planet['owner']) => owner === 'player' ? 'YOUR EMPIRE' : owner === 'enemy' ? 'ENEMY EMPIRE' : 'NEUTRAL';
+export const factionName = (owner: Planet['owner']) => owner === 'player' ? 'YOUR EMPIRE' : owner ? `RIVAL EMPIRE ${owner === 'enemy' ? 'A' : owner === 'rival2' ? 'B' : 'C'}` : 'NEUTRAL';
 
 export const fleetPhaseLabel = (fleet: Fleet) => fleet.phase === 'exiting' ? 'CLEARING WELL' : fleet.phase === 'charging' ? 'GATE CHARGE' : 'IN TUNNEL';
 

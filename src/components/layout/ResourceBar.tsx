@@ -1,9 +1,9 @@
-import { researchIncomeMultiplier, type BuildingKind, type GameState } from '../../game';
+import { RESOURCE_COLLECTION_MULTIPLIER, researchIncomeMultiplier, type BuildingKind, type GameState } from '../../game';
 import type { EmpireView } from '../../app/types';
 
 export function ResourceBar({ state, view, onViewChange }: { state: GameState; view: EmpireView; onViewChange: (view: EmpireView) => void }) {
   const owned = state.planets.filter(p => p.owner === 'player');
-  const rate = (resource: 'metal' | 'crystal' | 'gold', kind: BuildingKind) => owned.reduce((sum, p) => sum + p.buildings.filter(b => b.kind === kind).length * p.resourceYield[resource] * 0.7, 0) * researchIncomeMultiplier(state.completedResearch);
+  const rate = (resource: 'metal' | 'crystal' | 'gold', kind: BuildingKind) => owned.reduce((sum, p) => sum + p.buildings.filter(b => b.kind === kind).length * p.resourceYield[resource] * 0.7, 0) * RESOURCE_COLLECTION_MULTIPLIER * researchIncomeMultiplier(state.completedResearch);
   return <div className="resource-bar">
     <div className="brand"><span className="brand-mark">GE</span><span>GALACTIC <b>EMPIRES</b></span></div>
     <nav className="empire-tabs" aria-label="Empire views">

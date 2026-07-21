@@ -63,6 +63,7 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const SPACE_COMBAT_DAMAGE_MULTIPLIER = 4;
+export const RESOURCE_COLLECTION_MULTIPLIER = 4;
 export const GRAVITY_WELL_RADIUS = 600;
 export const ORBIT_MANEUVER_SPEED = 18;
 export const LANDING_APPROACH_SPEED = 14;

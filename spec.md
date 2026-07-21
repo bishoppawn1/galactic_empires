@@ -6,9 +6,9 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 ## Core loop
 
-1. A new campaign opens on a setup screen. The player chooses a Compact (7 worlds), Standard (11 worlds), or Expansive (15 worlds) galaxy and selects Cadet, Commander, or Admiral enemy difficulty. Difficulty changes hostile construction cadence, attack frequency, combat strength, and escort size.
+1. A new campaign opens on a setup screen. The player chooses a Compact (7 worlds), Standard (11 worlds), or Expansive (15 worlds) galaxy and selects Cadet, Commander, or Admiral enemy difficulty. Difficulty changes hostile construction cadence, attack frequency, combat strength, and escort size. The campaign can launch in single-player mode, or the player can open a co-op lobby and share its six-character code.
 2. The player and hostile AI each begin on exactly one colonized planet with equal stockpiles, one Metal Mine, one Crystal Extractor, one Gold Mine, a Ground Factory, and a Space Yard. Neither faction starts with ground units or ships; both must produce their first forces. Every unclaimed planet begins with a deterministic garrison of one or two neutral ground units.
-3. Mines add Metal, Crystal, and Gold to a shared imperial stockpile indefinitely. Planets differ by their mine limits and output modifiers, but resources never deplete.
+3. Mines add Metal, Crystal, and Gold to a shared imperial stockpile indefinitely. Base collection runs at four times the prototype's original rate so the opening economy reaches useful decisions quickly. Planets differ by their mine limits and output modifiers, but resources never deplete.
 4. The player spends resources on additional buildings, units, ships, and research. The hostile empire runs its own independent economy and uses the same production limits to reinforce its worlds. While neutral worlds remain, its transport missions follow a two-expansions-to-one-invasion cadence, choose the nearest reachable target of the preferred type, and fall back to the other mission type when necessary.
 5. Every planet is surrounded by a 600-pixel-radius gravity well on a 12800 × 8800 tactical canvas. The well is click-through for maneuver orders, while the planet center remains a docking target. Ships have persistent, non-overlapping orbit positions and can be drag-box selected, Shift-selected, and moved as formations within the well. Clicking empty space outside the selected fleet's current well clears ship selection. Orbital movement and landing approaches are deliberately slow and occur visibly over time rather than teleporting to the destination.
 6. Moving the pointer near any edge of the galaxy viewport continuously pans the camera in that direction. Scrollbars are hidden so navigation is handled directly on the map. Dedicated zoom-out, zoom-in, and 1:1 controls are always visible; the mouse wheel zooms around the pointer from 25% to 150%. Claimed planets use redundant ownership cues: cyan solid rings and YOU badges for the player, magenta double rings and ENEMY badges for opponents, plus a counted faction legend.
@@ -25,6 +25,14 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 - Crystal Extractor costs Metal + Gold.
 - Gold Mine costs Metal + Crystal.
 - Buildings have no tiers or upgrades. The player constructs additional copies until the planet-specific maximum is reached, shown as `built / maximum`.
+
+## Multiplayer
+
+- Multiplayer is cooperative: every connected commander controls the same player empire against the hostile AI.
+- Starting multiplayer opens a lobby with a case-insensitive six-character code. Join Game appears immediately below Start Multiplayer and accepts that code.
+- The lobby shows up to four connected commanders. Only the host can start, and launch remains disabled until at least one ally has joined.
+- The host owns the deterministic simulation clock and validates all commands. Guests send build, research, fleet, maneuver, and targeting orders to the host, then receive the authoritative state.
+- Browser peers connect through WebRTC. The lobby exists only while the host remains online; no account or cloud save is required.
 
 ## Buildings
 
@@ -75,6 +83,7 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 - Interactive map and planet selection.
 - Symmetric one-world, zero-unit starts for player and AI.
 - Pre-campaign map-size and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
+- Code-based 2–4 player co-op lobby with a host-controlled launch and synchronized authoritative simulation.
 - Unlimited planet economy with local mine-count limits and output modifiers.
 - Quantity-based construction with per-planet maxima, costs, and research gates.
 - Ground and space production queues.
@@ -94,4 +103,4 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 
 ## Out of scope for this prototype
 
-Networking, accounts, a full long-horizon AI strategic planner, campaign narrative, final art/audio, balance tuning, and multiplayer are deferred.
+Accounts, matchmaking, dedicated relay hosting, reconnecting to an abandoned lobby, competitive factions, a full long-horizon AI strategic planner, campaign narrative, final art/audio, and extensive balance tuning are deferred.

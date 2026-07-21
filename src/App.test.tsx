@@ -33,11 +33,24 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('main', { name: 'New campaign setup' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Expansive/ }));
     fireEvent.click(screen.getByRole('button', { name: /Admiral/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Launch campaign/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
     const saved = JSON.parse(localStorage.getItem('galactic-empires-save-v5')!);
     expect(saved.config).toEqual({ mapSize: 'large', difficulty: 'admiral' });
     expect(saved.planets).toHaveLength(15);
+  });
+
+  it('puts join game below multiplayer start and accepts a six-character lobby code', () => {
+    localStorage.clear();
+    render(<App />);
+    const multiplayer = screen.getByRole('button', { name: /Start multiplayer/i });
+    const join = screen.getByRole('button', { name: /Join game/i });
+    expect(multiplayer.compareDocumentPosition(join) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(join);
+    const code = screen.getByRole('textbox', { name: 'Lobby code' });
+    fireEvent.change(code, { target: { value: 'ab-c23z' } });
+    expect(code).toHaveValue('ABC23Z');
+    expect(screen.getByRole('button', { name: 'CONNECT' })).toBeEnabled();
   });
 
   it('shows the three resources and homeworld', () => {

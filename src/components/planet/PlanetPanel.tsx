@@ -1,13 +1,13 @@
 import {
   BUILDINGS, BUILDING_KINDS, GROUND_KINDS, LANDING_APPROACH_SPEED, SPACE_KINDS, UNITS,
-  constructBuilding, formatCost, groundProductionMultiplier, queueUnit, spaceYards,
-  type BuildingKind, type GameResult, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
+  formatCost, groundProductionMultiplier, spaceYards,
+  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
 import { buildingIcon, factionName, fleetPhaseLabel, unitGlyph } from '../shared/presentation';
 
 export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle }: {
-  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (result: GameResult) => void; onBattle: () => void;
+  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void;
 }) {
   return <aside className="panel">
     <header className="planet-header">
@@ -45,7 +45,7 @@ function Command({ planet }: { planet: Planet }) {
   </section>;
 }
 
-function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (result: GameResult) => void }) {
+function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (command: GameCommand) => void }) {
   if (planet.owner !== 'player') return <Locked text="Construction is only available on your colonies." />;
   return <section><SectionTitle kicker="PLANETARY INDUSTRY" title="Build structures" />
     <div className="card-list">
@@ -54,7 +54,7 @@ function Construction({ state, planet, act }: { state: GameState; planet: Planet
         const locked = !!def.requires && !state.completedResearch.includes(def.requires);
         return <article className={`build-card ${locked ? 'locked-card' : ''}`} key={kind}>
           <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {maximum} BUILT · {formatCost(def.cost)}</em></div>
-          <button disabled={locked || count >= maximum} onClick={() => act(constructBuilding(state, planet.id, kind))}>{locked ? 'LOCKED' : count >= maximum ? 'MAX' : 'BUILD +1'}</button>
+          <button disabled={locked || count >= maximum} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : count >= maximum ? 'MAX' : 'BUILD +1'}</button>
         </article>;
       })}
     </div>
@@ -66,7 +66,7 @@ function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; sp
   return <div className="queue"><b>PRODUCTION QUEUE · {speed}× SPEED</b>{items.length ? items.map((item, index) => <div key={item.id}><span>{index + 1}. {UNITS[item.kind].label}</span><div><i style={{ width: `${100 * (1 - item.remaining / item.total)}%` }} /></div><em>{Math.ceil(item.remaining / speed)}s</em></div>) : <small>QUEUE EMPTY</small>}</div>;
 }
 
-function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (result: GameResult) => void }) {
+function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
   const groundSpeed = groundProductionMultiplier(planet);
   const groundFactoryCount = planet.buildings.filter(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length;
   const yards = spaceYards(planet);
@@ -85,12 +85,12 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   };
   const groundProduction = <div className={`production-group ${focus === 'ground' ? 'focused' : ''}`}>
     <h3>Ground factories · {groundFactoryCount} online · {groundSpeed}× speed</h3>
-    <div className="unit-grid">{GROUND_KINDS.map(kind => <UnitButton key={kind} kind={kind} speed={groundSpeed} onClick={() => act(queueUnit(state, planet.id, kind))} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
+    <div className="unit-grid">{GROUND_KINDS.map(kind => <UnitButton key={kind} kind={kind} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
     {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically'}.</p>}
-    <div className="unit-grid">{SPACE_KINDS.map(kind => <UnitButton key={kind} kind={kind} onClick={() => act(queueUnit(state, planet.id, kind, groupedYards.length ? groupedYards.map(yard => yard.id) : undefined))} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
+    <div className="unit-grid">{SPACE_KINDS.map(kind => <UnitButton key={kind} kind={kind} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
     <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} showEmpty /></article>)}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />

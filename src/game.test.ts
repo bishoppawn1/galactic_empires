@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  findPlanetPath, groundProductionMultiplier, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, tick,
+  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, tick,
   localPlanetConnections,
   GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
@@ -67,8 +67,17 @@ describe('economy and construction', () => {
     const state = createInitialState();
     const firstCentury = tick(state, 100);
     const secondCentury = tick(firstCentury, 100);
-    expect(firstCentury.resources.metal - state.resources.metal).toBeCloseTo(70);
-    expect(secondCentury.resources.metal - firstCentury.resources.metal).toBeCloseTo(70);
+    expect(firstCentury.resources.metal - state.resources.metal).toBeCloseTo(280);
+    expect(secondCentury.resources.metal - firstCentury.resources.metal).toBeCloseTo(280);
+  });
+
+  it('applies serializable co-op commands through the deterministic rules engine', () => {
+    const state = createInitialState();
+    const command = { type: 'construct', planetId: 'terra', kind: 'metalMine' } as const;
+    expect(isGameCommand(command)).toBe(true);
+    const result = applyGameCommand(state, command); expectOk(result);
+    expect(result.state.planets[0].buildings.filter(building => building.kind === 'metalMine')).toHaveLength(2);
+    expect(isGameCommand({ type: 'maneuver', planetId: 'terra', unitIds: [], orbitX: Infinity, orbitY: 0 })).toBe(false);
   });
 
   it('charges complementary resources for each mine type', () => {

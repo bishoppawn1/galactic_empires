@@ -27,7 +27,7 @@ import { findPlanetPath } from './navigation';
 import {
   BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
   ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
-  RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
 } from './definitions';
 
 export * from './types';
@@ -805,7 +805,7 @@ export function tick(input: GameState, seconds: number): GameState {
       for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
         const kind = `${resource}Mine` as BuildingKind;
         const mineCount = p.buildings.filter(b => b.kind === kind).length;
-        state.resources[resource] += seconds * mineCount * p.resourceYield[resource] * 0.7 * incomeScale;
+        state.resources[resource] += seconds * mineCount * p.resourceYield[resource] * 0.7 * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
       }
       tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p), 'player');
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, 1, 'player', `Space Yard ${index + 1}`));
@@ -814,7 +814,7 @@ export function tick(input: GameState, seconds: number): GameState {
       for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
         const kind = `${resource}Mine` as BuildingKind;
         const mineCount = p.buildings.filter(b => b.kind === kind).length;
-        state.enemyResources[resource] += seconds * mineCount * p.resourceYield[resource] * incomeScale;
+        state.enemyResources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
       }
       tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p), 'enemy');
       spaceYards(p).forEach(yard => tickQueue(state, p, yard.spaceQueue!, seconds, 1, 'enemy'));

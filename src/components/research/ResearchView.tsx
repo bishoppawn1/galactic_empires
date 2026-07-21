@@ -1,6 +1,6 @@
-import { RESEARCH, RESEARCH_UNLOCKS, beginResearch, formatCost, type GameResult, type GameState, type ResearchId } from '../../game';
+import { RESEARCH, RESEARCH_UNLOCKS, formatCost, type GameCommand, type GameState, type ResearchId } from '../../game';
 
-function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameState; hasLab: boolean; act: (result: GameResult) => void }) {
+function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameState; hasLab: boolean; act: (command: GameCommand) => void }) {
   const def = RESEARCH[id];
   const done = state.completedResearch.includes(id);
   const active = state.researchQueue.find(project => project.id === id);
@@ -12,11 +12,11 @@ function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameS
     <p>{def.description}</p>
     {!!RESEARCH_UNLOCKS[id]?.length && <div className="tech-unlocks"><small>UNLOCKS</small><span>{RESEARCH_UNLOCKS[id]!.join(' · ')}</span></div>}
     {active ? <div className="research-progress" aria-label={`${def.label} progress`}><i style={{ width: `${100 * (1 - active.remaining / active.total)}%` }} /></div> : <em>{formatCost(def.cost)} · {def.time}s</em>}
-    <button disabled={done || !!active || !hasLab || !prerequisiteMet} onClick={() => act(beginResearch(state, id))}>{buttonLabel}</button>
+    <button disabled={done || !!active || !hasLab || !prerequisiteMet} onClick={() => act({ type: 'beginResearch', id })}>{buttonLabel}</button>
   </article>;
 }
 
-export function ResearchView({ state, act }: { state: GameState; act: (result: GameResult) => void }) {
+export function ResearchView({ state, act }: { state: GameState; act: (command: GameCommand) => void }) {
   const hasLab = state.planets.some(p => p.owner === 'player' && p.buildings.some(b => b.kind === 'researchLab'));
   const researchIds = Object.keys(RESEARCH) as ResearchId[];
   const depth = (id: ResearchId): number => RESEARCH[id].requires ? 1 + depth(RESEARCH[id].requires!) : 0;

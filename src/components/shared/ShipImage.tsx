@@ -19,7 +19,20 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   dreadnought,
 };
 
+export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
+  transport: 68,
+  escortFrigate: 78,
+  missileFrigate: 82,
+  lightCruiser: 94,
+  destroyer: 104,
+  assaultCarrier: 116,
+  battlecruiser: 126,
+  dreadnought: 140,
+};
+
 export const isSpaceUnit = (kind: UnitKind): kind is SpaceUnitKind => SPACE_KINDS.includes(kind as SpaceUnitKind);
+
+export const shipDisplaySize = (kind: UnitKind) => isSpaceUnit(kind) ? SHIP_DISPLAY_SIZES[kind] : SHIP_DISPLAY_SIZES.transport;
 
 export function ShipImage({ kind, className = '' }: { kind: UnitKind; className?: string }) {
   if (!isSpaceUnit(kind)) return null;

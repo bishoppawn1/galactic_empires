@@ -397,6 +397,28 @@ describe('Galactic Empires interface', () => {
     expect(marker).toHaveAttribute('title', expect.stringContaining('Triple Laser Array'));
   });
 
+  it('renders hull classes at distinct map scales with square player control frames', () => {
+    const state = stateWithPlayerForces();
+    state.planets[0].orbitUnits.push(makeUnit('u7', 'dreadnought', 'player'));
+    state.planets.find(planet => planet.id === 'cygnus')!.orbitUnits.push(makeUnit('enemy-map-ship', 'escortFrigate', 'enemy'));
+    saveState(state);
+    render(<App />);
+
+    const transport = screen.getByRole('button', { name: 'Transport orbiting Terra Nova' });
+    const escort = screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' });
+    const missile = screen.getByRole('button', { name: 'Missile Frigate orbiting Terra Nova' });
+    const dreadnought = screen.getByRole('button', { name: 'Titan Dreadnought orbiting Terra Nova' });
+    const hostile = screen.getByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' });
+    expect(transport).toHaveStyle({ '--ship-display-size': '68px' });
+    expect(escort).toHaveStyle({ '--ship-display-size': '78px' });
+    expect(missile).toHaveStyle({ '--ship-display-size': '82px' });
+    expect(dreadnought).toHaveStyle({ '--ship-display-size': '140px' });
+    expect(transport.querySelector('.ship-control-frame')).toBeInTheDocument();
+    expect(escort.querySelector('.ship-control-frame')).toBeInTheDocument();
+    expect(hostile.querySelector('.ship-control-frame')).not.toBeInTheDocument();
+  });
+
+
   it('turns an orbiting ship toward its maneuver target', () => {
     const state = stateWithPlayerForces();
     const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;

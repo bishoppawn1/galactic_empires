@@ -39,7 +39,7 @@ import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
   ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  hasUnlimitedBuildingCapacity, orbitalDefenseOffset,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, orbitalDefenseOffset, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -287,12 +287,35 @@ export function migrateGameState(input: GameState): GameState {
   state.aiFactions ??= state.mode === 'solo' ? ['enemy'] : [];
   state.elapsed ??= 0;
   state.nextId ??= 100;
+  const migrateUnitRoster = (savedUnit: Unit) => {
+    if (savedUnit.faction !== 'neutral') {
+      const migratedKind = civilizationUnitKind(empireCivilization(state, savedUnit.faction), savedUnit.kind);
+      if (migratedKind !== savedUnit.kind) {
+        const definition = UNITS[migratedKind];
+        const hullRatio = savedUnit.maxHp > 0 ? savedUnit.hp / savedUnit.maxHp : 1;
+        const shieldRatio = savedUnit.maxShields > 0 ? savedUnit.shields / savedUnit.maxShields : 1;
+        savedUnit.kind = migratedKind;
+        savedUnit.maxHp = definition.hp;
+        savedUnit.hp = Math.max(0, Math.min(definition.hp, definition.hp * hullRatio));
+        savedUnit.maxShields = definition.shields;
+        savedUnit.shields = Math.max(0, Math.min(definition.shields, definition.shields * shieldRatio));
+      }
+    }
+    savedUnit.cargo?.forEach(migrateUnitRoster);
+  };
   for (const p of state.planets) {
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
     p.groundUnits = Array.isArray(p.groundUnits) ? p.groundUnits : [];
     p.orbitUnits = Array.isArray(p.orbitUnits) ? p.orbitUnits : [];
     p.groundQueue = Array.isArray(p.groundQueue) ? p.groundQueue : [];
     p.spaceQueue = Array.isArray(p.spaceQueue) ? p.spaceQueue : [];
+    if (p.owner && empireCivilization(state, p.owner) === 'brood') {
+      p.groundQueue.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); });
+      p.spaceQueue.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); });
+      p.buildings.forEach(building => building.spaceQueue?.forEach(item => { item.kind = civilizationUnitKind('brood', item.kind); }));
+    }
+    p.groundUnits.forEach(migrateUnitRoster);
+    p.orbitUnits.forEach(migrateUnitRoster);
   }
   if (!state.neutralGarrisonsInitialized) {
     seedNeutralGarrisons(state.planets.filter(p => !state.battles.some(battle => battle.planetId === p.id)));
@@ -315,11 +338,14 @@ export function migrateGameState(input: GameState): GameState {
     ensureOrbitPositions(p);
   }
   for (const fleet of state.fleets) {
+    migrateUnitRoster(fleet.unit);
     fleet.route ??= [];
     fleet.finalDestinationId ??= fleet.destinationId;
     fleet.phase ??= 'tunnel';
   }
   for (const battle of state.battles) {
+    battle.attackers.forEach(migrateUnitRoster);
+    battle.defenders.forEach(migrateUnitRoster);
     const attackingUnitFaction = battle.attackers[0]?.faction;
     battle.attackerFaction ??= attackingUnitFaction && attackingUnitFaction !== 'neutral' ? attackingUnitFaction : 'player';
     ensureGroundDefenseBattleUnits(state, battle);
@@ -391,8 +417,12 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
 
 export function queueUnit(input: GameState, planetId: string, kind: UnitKind, yardIds?: string[]): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = UNITS[kind];
-  if (kind === 'defenseTurret') return fail(input, 'Defense Turrets deploy automatically from Ground Defenses.');
+  if (kind === 'defenseTurret' || kind === 'spineTower') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
   if (!p || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
+  const civilization = empireCivilization(state);
+  if (!unitAvailableToCivilization(kind, civilization)) return fail(input, civilization === 'brood'
+    ? 'That organism is not part of the Brood genome.'
+    : 'That unit is unavailable to this civilization.');
   const needed = def.factory === 'ground' ? 'groundFactory' : 'spaceFactory';
   if (!p.buildings.some(b => b.kind === needed || b.kind === `advanced${needed[0].toUpperCase()}${needed.slice(1)}`)) return fail(input, `Requires a ${def.factory === 'ground' ? 'Ground Factory' : 'Space Yard'}.`);
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
@@ -584,7 +614,7 @@ export const dispatchTransport = dispatchSpaceUnit;
 
 function groundDefenseUnit(state: GameState, building: Building, faction: Exclude<Faction, null>): Unit {
   const power = state.aiFactions?.includes(faction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
-  const turret = unit(`ground-defense-${building.id}`, 'defenseTurret', faction);
+  const turret = unit(`ground-defense-${building.id}`, groundDefenseKindForCivilization(empireCivilization(state, faction)), faction);
   turret.maxHp = Math.round(turret.maxHp * power);
   turret.hp = turret.maxHp;
   turret.maxShields = Math.round(turret.maxShields * power);
@@ -1149,7 +1179,7 @@ function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount
 
 function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Building) {
   const def = UNITS[kind];
-  if (!enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
+  if (!unitAvailableToCivilization(kind, empireCivilization(state, 'enemy')) || !enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
   if (def.factory === 'ground') {
     if (!p.buildings.some(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory')) return false;
     if (def.advancedFactory && !p.buildings.some(building => building.kind === 'advancedGroundFactory')) return false;
@@ -1180,6 +1210,9 @@ function advanceEnemyResearch(state: GameState) {
 
 function runEnemyStrategicAction(state: GameState) {
   advanceEnemyResearch(state);
+  const civilization = empireCivilization(state, 'enemy');
+  const groundKind = (kind: GroundUnitKind) => civilizationUnitKind(civilization, kind) as GroundUnitKind;
+  const spaceKind = (kind: SpaceUnitKind) => civilizationUnitKind(civilization, kind) as SpaceUnitKind;
   const colonies = state.planets.filter(p => p.owner === 'enemy' && !state.battles.some(battle => battle.planetId === p.id));
   const forceTarget = state.config.difficulty === 'cadet' ? 4 : state.config.difficulty === 'admiral' ? 8 : 6;
   for (const p of colonies) {
@@ -1193,9 +1226,9 @@ function runEnemyStrategicAction(state: GameState) {
 
     if (p.groundUnits.length + p.groundQueue.length < forceTarget && p.groundQueue.length < 2) {
       const advancedKind: GroundUnitKind = state.enemyCompletedResearch.includes('heavyArmor')
-        ? (state.nextId % 3 === 0 ? 'railgunTank' : state.nextId % 2 ? 'plasmaTank' : 'siegeWalker')
-        : 'shockTrooper';
-      const basicKind: GroundUnitKind = state.nextId % 3 === 0 ? 'artillery' : state.nextId % 2 ? 'lightTank' : 'infantry';
+        ? groundKind(state.nextId % 3 === 0 ? 'railgunTank' : state.nextId % 2 ? 'plasmaTank' : 'siegeWalker')
+        : groundKind('shockTrooper');
+      const basicKind: GroundUnitKind = groundKind(state.nextId % 3 === 0 ? 'artillery' : state.nextId % 2 ? 'lightTank' : 'infantry');
       if (!enemyQueueUnit(state, p, advancedKind)) enemyQueueUnit(state, p, basicKind);
     }
 
@@ -1204,11 +1237,11 @@ function runEnemyStrategicAction(state: GameState) {
       if (yard.spaceQueue?.length) continue;
       const queuedKinds = spaceYards(p).flatMap(other => other.spaceQueue ?? []).map(item => item.kind);
       const hasCarrier = [...factionShips.map(ship => ship.kind), ...queuedKinds].some(kind => (UNITS[kind].capacity ?? 0) > 0);
-      let desired: SpaceUnitKind = !hasCarrier ? 'transport' : state.nextId % 2 ? 'missileFrigate' : 'escortFrigate';
-      if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && !hasCarrier) desired = 'assaultCarrier';
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && hasCarrier) desired = 'dreadnought';
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && hasCarrier) desired = 'battlecruiser';
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = 'destroyer';
+      let desired: SpaceUnitKind = !hasCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
+      if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && !hasCarrier) desired = spaceKind('assaultCarrier');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && hasCarrier) desired = spaceKind('dreadnought');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && hasCarrier) desired = spaceKind('battlecruiser');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = spaceKind('destroyer');
       enemyQueueUnit(state, p, desired, yard);
     }
   }

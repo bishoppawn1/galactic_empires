@@ -1,4 +1,4 @@
-import { RESEARCH, RESEARCH_UNLOCKS, empireCivilization, formatFactionCost, type GameCommand, type GameState, type ResearchId } from '../../game';
+import { RESEARCH, empireCivilization, formatFactionCost, researchUnlocksForCivilization, type GameCommand, type GameState, type ResearchId } from '../../game';
 
 function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameState; hasLab: boolean; act: (command: GameCommand) => void }) {
   const def = RESEARCH[id];
@@ -7,10 +7,11 @@ function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameS
   const prerequisiteMet = !def.requires || state.completedResearch.includes(def.requires);
   const status = done ? 'complete' : active ? 'active-research' : !prerequisiteMet || !hasLab ? 'locked-tech' : 'available-tech';
   const buttonLabel = done ? 'COMPLETE' : active ? `${Math.ceil(active.remaining)}s` : !hasLab ? 'LAB REQUIRED' : !prerequisiteMet ? 'PREREQUISITE' : 'RESEARCH';
+  const unlocks = researchUnlocksForCivilization(id, empireCivilization(state));
   return <article className={`tech-node ${status}`} data-tech-id={id} data-requires={def.requires ?? ''}>
     <header><span>{done ? '✓' : active ? '◌' : '⌬'}</span><div><small>{def.requires ? `REQUIRES ${RESEARCH[def.requires].label.toUpperCase()}` : 'FOUNDATIONAL TECHNOLOGY'}</small><b>{def.label}</b></div></header>
     <p>{def.description}</p>
-    {!!RESEARCH_UNLOCKS[id]?.length && <div className="tech-unlocks"><small>UNLOCKS</small><span>{RESEARCH_UNLOCKS[id]!.join(' · ')}</span></div>}
+    {!!unlocks?.length && <div className="tech-unlocks"><small>UNLOCKS</small><span>{unlocks.join(' · ')}</span></div>}
     {active ? <div className="research-progress" aria-label={`${def.label} progress`}><i style={{ width: `${100 * (1 - active.remaining / active.total)}%` }} /></div> : <em>{formatFactionCost(def.cost, empireCivilization(state))} · {def.time}s</em>}
     <button disabled={done || !!active || !hasLab || !prerequisiteMet} onClick={() => act({ type: 'beginResearch', id })}>{buttonLabel}</button>
   </article>;

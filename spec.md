@@ -32,7 +32,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 ## Playable factions
 
 - The Human Coalition is the balanced combined-arms baseline with broad technology and no severe weakness.
-- The Brood is the growth and swarm faction. Its first implemented faction mechanic is the complete Biomass economy; its dedicated living unit roster will replace the temporary baseline production roster in the next faction pass.
+- The Brood is the growth and swarm faction. It uses a complete, exclusive living roster alongside its Biomass economy: Brood players and AI cannot produce Coalition units, and other civilizations cannot produce Brood organisms.
 - The Aegis Directorate is the planned armored-advance faction, centered on heavy shields, defensive coordination, and siege formations. Its identity and campaign selection are persisted now; its Shield Monitor, Bastion Tank, Citadel Carrier, and supporting roster are the next production pass.
 - The Iron Covenant is the planned mechanical-attrition faction, centered on repair systems, salvage, and modular machines. Its identity and campaign selection are persisted now; its Repair Drone, Salvage Frigate, Assembly Ark, and supporting roster are the next production pass.
 - Faction identity is stored separately from map ownership, allowing any multiplayer command seat to carry its own civilization, economy, and future roster through perspective translation.
@@ -57,11 +57,14 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 Advanced factory types are gated by research, but individual buildings never have tiers.
 Every Space Defense is represented by a distinct armed orbital platform inside its planet's gravity well. Platforms use the owning faction's color and automatically damage hostile ships in that well.
-Every Ground Defense deploys one stationary, long-range Defense Turret whenever its planet is invaded, even if no mobile ground troops are present. Turrets are visible and targetable on the ground battlefield. A destroyed turret removes its corresponding Ground Defense building; surviving installations remain ready for later invasions.
+Every Ground Defense deploys one stationary, long-range Defense Turret whenever its planet is invaded, even if no mobile ground troops are present. Brood defenses instead grow a tougher, longer-ranged Spine Tower. Both are visible and targetable on the ground battlefield. A destroyed emplacement removes its corresponding Ground Defense building; surviving installations remain ready for later invasions.
 
 ## Units and production
 
 The Ground Factory produces Infantry, Anti-Vehicle Infantry, Light Recon Vehicles, Light Tanks, and Light Artillery. Advanced Ground Factories produce shielded Shock Troopers after Ground Warfare and add Railgun Tanks, Plasma Tanks, and long-range Siege Walkers after Heavy Armor. The Space Yard produces Transports, Escort Frigates, Missile Frigates, and researched Light Cruisers. Advanced Space Yards add Phase Destroyers after Orbital Engineering, eight-squad Assault Carriers after Carrier Operations, Battlecruisers after Capital Ship Doctrine, and the Titan Dreadnought after Titan Engineering. Every ship class uses its own top-down hull artwork in production, force lists, orbit, selection status, and phase transit; map scale increases visibly from transports through frigates, cruisers, carriers, battlecruisers, and dreadnoughts. Ship art has no circular marker background. Player-controlled ships use a square control frame that brightens when selected, while hostile ships remain unframed. Ships turn to face their current maneuver or route direction and retain their last heading when stationary. Every ground-force class, including deployed Defense Turrets, uses distinct top-down artwork in production, force lists, and tactical battles.
+
+The Brood replaces that production roster rather than reskinning its names. Basic ground organisms are Broodling Packs, Acid Spitters, Skitterers, Carapace Beasts, and Spore Lobbers. Ground Warfare unlocks Synapse Guards; Heavy Armor unlocks Crusher Beasts, Acid Behemoths, and Siege Crawlers. Its living fleet begins with five-organism Spore Arks, Claw Frigates, and long-range Needle Frigates. Orbital Engineering unlocks Hive Cruisers and advanced Void Stalkers; Carrier Operations unlocks ten-organism Brood Carriers; Capital Ship Doctrine unlocks Leviathans; and Titan Engineering unlocks the World Eater. These organisms have faction-specific health, shields, speed, range, weapons, cargo capacity, costs, and construction times. Brood unit art receives a distinct organic green treatment throughout production, force lists, orbit, phase transit, and ground combat.
+Older Brood campaign saves automatically convert already deployed, embarked, queued, in-transit, and battling Coalition units into their equivalent living organisms while preserving hull and shield damage percentages.
 
 Advanced units require both their listed research project and the matching advanced factory. Standard and advanced factories still contribute together to local production speed; advanced hull orders must specifically target Advanced Space Yards.
 
@@ -99,7 +102,7 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 - Interactive map and planet selection.
 - Symmetric one-world, zero-unit starts for player and AI.
 - Pre-campaign starter-faction, map-size, and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
-- Per-empire Human, Brood, Aegis, and Iron Covenant identities, with a functional Brood Biomass economy funded by controlled planets and friendly or hostile combat casualties.
+- Per-empire Human, Brood, Aegis, and Iron Covenant identities, with a functional Brood Biomass economy and an exclusive full Brood ground, space, transport, capital, and defensive roster for human or AI empires.
 - Code-based two-to-four-player competitive lobby with separate empires, optional AI slots, a host-controlled launch, and synchronized authoritative simulation.
 - Unlimited planet economy with local mine-count limits and output modifiers.
 - Quantity-based construction with per-planet maxima, costs, and research gates.

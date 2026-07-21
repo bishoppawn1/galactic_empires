@@ -57,6 +57,12 @@ describe('Galactic Empires interface', () => {
     expect(saved.config.playerFaction).toBe('brood');
     expect(saved.empireCivilizations.player).toBe('brood');
     expect(saved.resources.biomass).toBe(550);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+    expect(screen.getByRole('button', { name: /Broodling Pack/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Spore Ark/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {

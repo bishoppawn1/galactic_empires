@@ -8,7 +8,7 @@ import railgunTank from '../../assets/ground/railgun-tank.png';
 import recon from '../../assets/ground/recon.png';
 import shockTrooper from '../../assets/ground/shock-trooper.png';
 import siegeWalker from '../../assets/ground/siege-walker.png';
-import type { GroundUnitKind, UnitKind } from '../../game';
+import { BROOD_GROUND_KINDS, type GroundUnitKind, type UnitKind } from '../../game';
 
 const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   infantry,
@@ -21,11 +21,23 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   plasmaTank,
   siegeWalker,
   defenseTurret,
+  broodling: infantry,
+  acidSpitter: antiVehicle,
+  skitterer: recon,
+  carapaceBeast: lightTank,
+  sporeLobber: artillery,
+  synapseGuard: shockTrooper,
+  crusherBeast: railgunTank,
+  acidBehemoth: plasmaTank,
+  siegeCrawler: siegeWalker,
+  spineTower: defenseTurret,
 };
+
+const BROOD_GROUND_IMAGES = new Set<GroundUnitKind>([...BROOD_GROUND_KINDS, 'spineTower']);
 
 export const isGroundUnit = (kind: UnitKind): kind is GroundUnitKind => kind in GROUND_UNIT_IMAGES;
 
 export function GroundUnitImage({ kind, className = '' }: { kind: UnitKind; className?: string }) {
   if (!isGroundUnit(kind)) return null;
-  return <img className={`ground-unit-image ${className}`} src={GROUND_UNIT_IMAGES[kind]} alt="" aria-hidden="true" draggable={false} />;
+  return <img className={`ground-unit-image ${BROOD_GROUND_IMAGES.has(kind) ? 'brood-organic' : ''} ${className}`} src={GROUND_UNIT_IMAGES[kind]} alt="" aria-hidden="true" draggable={false} />;
 }

@@ -1,4 +1,4 @@
-import type { BuildingKind, Definition, GroundUnitKind, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
+import type { BuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
 
 export const pool = (metal = 0, crystal = 0, gold = 0): ResourcePool => ({ metal, crystal, gold });
 
@@ -35,6 +35,24 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   assaultCarrier: { label: 'Assault Carrier', description: 'Eight-squad carrier whose attack drones harry nearby ships.', cost: pool(360, 250, 145), time: 58, factory: 'space', hp: 650, shields: 330, range: 320, moveSpeed: 0, weapon: { label: 'Strike-Drone Wing', damage: 1.5, cooldown: .92, projectiles: 4, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 8 },
   battlecruiser: { label: 'Battlecruiser', description: 'Capital hull armed with two heavy rail batteries.', cost: pool(520, 360, 240), time: 78, factory: 'space', hp: 980, shields: 520, range: 400, moveSpeed: 0, weapon: { label: 'Twin Capital Railguns', damage: 8, cooldown: 1, projectiles: 2, effect: 'railgun' }, requires: 'capitalShips', advancedFactory: true },
   dreadnought: { label: 'Titan Dreadnought', description: 'Ultimate capital ship firing three colossal siege beams.', cost: pool(900, 680, 460), time: 120, factory: 'space', hp: 1900, shields: 1050, range: 460, moveSpeed: 0, weapon: { label: 'Tri-Core Siege Beams', damage: 10, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true },
+  broodling: { label: 'Broodling Pack', description: 'A cheap, fast clutch of razor-limbed organisms that overwhelms isolated prey.', cost: pool(20, 5, 2), time: 7, factory: 'ground', hp: 68, shields: 0, range: 7, moveSpeed: 11, weapon: { label: 'Rending Claws', damage: 1, cooldown: .55, projectiles: 2, effect: 'kinetic' } },
+  acidSpitter: { label: 'Acid Spitter', description: 'A fragile hunter that dissolves armor with pressurized corrosive bile.', cost: pool(39, 12, 5), time: 12, factory: 'ground', hp: 82, shields: 0, range: 21, moveSpeed: 6, weapon: { label: 'Caustic Glob', damage: 8, cooldown: 1.8, projectiles: 1, effect: 'plasma' } },
+  skitterer: { label: 'Skitterer', description: 'A fleet reconnaissance organism that sprays clouds of hardened spines.', cost: pool(45, 14, 5), time: 13, factory: 'ground', hp: 100, shields: 0, range: 10, moveSpeed: 14, weapon: { label: 'Spine Volley', damage: .8, cooldown: .35, projectiles: 3, effect: 'kinetic' } },
+  carapaceBeast: { label: 'Carapace Beast', description: 'Dense living armor that crashes through front lines behind a plated skull.', cost: pool(74, 22, 10), time: 19, factory: 'ground', hp: 245, shields: 0, range: 12, moveSpeed: 5.8, weapon: { label: 'Bone Ram', damage: 9, cooldown: 1.1, projectiles: 1, effect: 'kinetic' } },
+  sporeLobber: { label: 'Spore Lobber', description: 'A rooted bombardment organism that arcs explosive spore sacs over the battle line.', cost: pool(70, 30, 12), time: 21, factory: 'ground', hp: 95, shields: 0, range: 34, moveSpeed: 3, weapon: { label: 'Burst Spore', damage: 16, cooldown: 2.2, projectiles: 1, effect: 'artillery' } },
+  synapseGuard: { label: 'Synapse Guard', description: 'A psychic assault caste that steadies nearby swarms through the hive mind.', cost: pool(78, 46, 24), time: 25, factory: 'ground', hp: 190, shields: 20, range: 16, moveSpeed: 8.5, weapon: { label: 'Synaptic Lance', damage: 2.4, cooldown: .65, projectiles: 3, effect: 'pulse' }, requires: 'groundWarfare', advancedFactory: true },
+  crusherBeast: { label: 'Crusher Beast', description: 'A massive shock organism bred to pulverize armor at close range.', cost: pool(160, 92, 42), time: 38, factory: 'ground', hp: 500, shields: 0, range: 10, moveSpeed: 6.5, weapon: { label: 'Siege Horn', damage: 30, cooldown: 1.6, projectiles: 1, effect: 'kinetic' }, requires: 'heavyArmor', advancedFactory: true },
+  acidBehemoth: { label: 'Acid Behemoth', description: 'A towering reservoir beast that projects sustained streams of molten bile.', cost: pool(148, 84, 40), time: 36, factory: 'ground', hp: 410, shields: 0, range: 23, moveSpeed: 4, weapon: { label: 'Bile Lance', damage: 15, cooldown: 1.15, projectiles: 1, effect: 'plasma' }, requires: 'heavyArmor', advancedFactory: true },
+  siegeCrawler: { label: 'Siege Crawler', description: 'A slow living fortress that hurls quake cysts across the battlefield.', cost: pool(200, 124, 64), time: 48, factory: 'ground', hp: 590, shields: 0, range: 40, moveSpeed: 2.4, weapon: { label: 'Quake Cyst', damage: 29, cooldown: 2, projectiles: 1, effect: 'siege' }, requires: 'heavyArmor', advancedFactory: true },
+  spineTower: { label: 'Spine Tower', description: 'A rooted defensive organism that launches volleys of armor-piercing barbs.', cost: pool(), factory: 'ground', hp: 380, shields: 20, range: 35, moveSpeed: 0, weapon: { label: 'Impaler Spines', damage: 5, cooldown: .9, projectiles: 3, effect: 'kinetic' } },
+  sporeArk: { label: 'Spore Ark', description: 'A living landing vessel that carries five ground organisms inside armored gestation sacs.', cost: pool(68, 42, 16), time: 16, factory: 'space', hp: 240, shields: 45, range: 140, moveSpeed: 0, weapon: { label: 'Defensive Spores', damage: .18, cooldown: .3, projectiles: 2, effect: 'drone' }, capacity: 5 },
+  clawFrigate: { label: 'Claw Frigate', description: 'An aggressive hunter organism built for close orbital interception.', cost: pool(112, 62, 28), time: 23, factory: 'space', hp: 300, shields: 70, range: 220, moveSpeed: 0, weapon: { label: 'Ripper Talons', damage: .7, cooldown: .32, projectiles: 3, effect: 'kinetic' } },
+  needleFrigate: { label: 'Needle Frigate', description: 'A brittle long-range organism that launches a single colossal void spine.', cost: pool(128, 76, 34), time: 27, factory: 'space', hp: 200, shields: 80, range: 470, moveSpeed: 0, weapon: { label: 'Void Needle', damage: 15, cooldown: 2.8, projectiles: 1, effect: 'missile' } },
+  hiveCruiser: { label: 'Hive Cruiser', description: 'A synaptic war organism coordinating volleys of bioplasma nodules.', cost: pool(235, 152, 88), time: 42, factory: 'space', hp: 560, shields: 170, range: 320, moveSpeed: 0, weapon: { label: 'Bioplasma Nodes', damage: 1.8, cooldown: .85, projectiles: 5, effect: 'plasma' }, requires: 'orbitalEngineering' },
+  voidStalker: { label: 'Void Stalker', description: 'A hardened ambush organism that tears targets apart with phase-edged spines.', cost: pool(310, 198, 112), time: 50, factory: 'space', hp: 650, shields: 280, range: 380, moveSpeed: 0, weapon: { label: 'Phase Spines', damage: 4.3, cooldown: .9, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', advancedFactory: true },
+  broodCarrier: { label: 'Brood Carrier', description: 'A mobile hive carrying ten ground organisms and clouds of attack spawn.', cost: pool(350, 232, 130), time: 54, factory: 'space', hp: 720, shields: 220, range: 300, moveSpeed: 0, weapon: { label: 'Attack Spawn', damage: 1.4, cooldown: .7, projectiles: 6, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 10 },
+  leviathan: { label: 'Leviathan', description: 'A capital predator that batters fleets with paired organs of incandescent bile.', cost: pool(500, 330, 210), time: 72, factory: 'space', hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Twin Nova Glands', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', advancedFactory: true },
+  worldEater: { label: 'World Eater', description: 'The apex Brood organism, grown to crack orbital fortresses and consume worlds.', cost: pool(860, 630, 410), time: 112, factory: 'space', hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true },
 };
 
 export const RESEARCH: Record<ResearchId, Definition> = {
@@ -43,10 +61,10 @@ export const RESEARCH: Record<ResearchId, Definition> = {
   fleetLogistics: { label: 'Fleet Logistics', description: 'Prepares the empire for larger fleet operations.', cost: pool(320, 250, 210), time: 60, requires: 'advancedIndustry' },
   orbitalEngineering: { label: 'Orbital Engineering', description: 'Develop reinforced cruiser hulls and deep-space weapon systems.', cost: pool(300, 275, 190), time: 62, requires: 'advancedIndustry' },
   quantumExtraction: { label: 'Quantum Extraction', description: 'Increase all imperial resource output by 25 percent.', cost: pool(260, 300, 220), time: 58, requires: 'advancedIndustry' },
-  heavyArmor: { label: 'Heavy Armor', description: 'Unlock railgun tanks, plasma armor, and siege walkers.', cost: pool(430, 330, 235), time: 78, requires: 'groundWarfare' },
-  carrierOperations: { label: 'Carrier Operations', description: 'Unlock Assault Carriers and eight-squad planetary assaults.', cost: pool(460, 370, 280), time: 82, requires: 'fleetLogistics' },
-  capitalShips: { label: 'Capital Ship Doctrine', description: 'Unlock Battlecruisers and capital-fleet command systems.', cost: pool(520, 420, 320), time: 90, requires: 'orbitalEngineering' },
-  titanEngineering: { label: 'Titan Engineering', description: 'Unlock the colossal Titan Dreadnought.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
+  heavyArmor: { label: 'Heavy Armor', description: 'Unlock the heaviest ground assault and siege organisms or vehicles.', cost: pool(430, 330, 235), time: 78, requires: 'groundWarfare' },
+  carrierOperations: { label: 'Carrier Operations', description: 'Unlock specialized carriers for large planetary assaults.', cost: pool(460, 370, 280), time: 82, requires: 'fleetLogistics' },
+  capitalShips: { label: 'Capital Ship Doctrine', description: 'Unlock capital warships and their fleet-command systems.', cost: pool(520, 420, 320), time: 90, requires: 'orbitalEngineering' },
+  titanEngineering: { label: 'Titan Engineering', description: 'Unlock each civilization’s colossal apex warship.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
 };
 
 export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
@@ -60,6 +78,21 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   capitalShips: ['Battlecruiser'],
   titanEngineering: ['Titan Dreadnought'],
 };
+
+const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
+  advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'],
+  groundWarfare: ['Synapse Guard'],
+  fleetLogistics: ['Brood Carrier doctrine'],
+  orbitalEngineering: ['Hive Cruiser', 'Void Stalker'],
+  quantumExtraction: ['+25% planetary biomass'],
+  heavyArmor: ['Crusher Beast', 'Acid Behemoth', 'Siege Crawler'],
+  carrierOperations: ['Brood Carrier'],
+  capitalShips: ['Leviathan'],
+  titanEngineering: ['World Eater'],
+};
+
+export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) =>
+  civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS[id] : RESEARCH_UNLOCKS[id];
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ORBITAL_DEFENSE_RANGE = 400;
@@ -80,8 +113,26 @@ export const LANDING_APPROACH_SPEED = 14;
 export const SYSTEM_EXIT_SPEED = 18;
 export const PHASE_GATE_CHARGE_SECONDS = 2;
 
-export const GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
-export const SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought'];
+export const COALITION_GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
+export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter', 'skitterer', 'carapaceBeast', 'sporeLobber', 'synapseGuard', 'crusherBeast', 'acidBehemoth', 'siegeCrawler'];
+export const COALITION_SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought'];
+export const BROOD_SPACE_KINDS: SpaceUnitKind[] = ['sporeArk', 'clawFrigate', 'needleFrigate', 'hiveCruiser', 'voidStalker', 'broodCarrier', 'leviathan', 'worldEater'];
+export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower'];
+export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS];
+
+const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
+  infantry: 'broodling', antiVehicle: 'acidSpitter', recon: 'skitterer', lightTank: 'carapaceBeast', artillery: 'sporeLobber',
+  shockTrooper: 'synapseGuard', railgunTank: 'crusherBeast', plasmaTank: 'acidBehemoth', siegeWalker: 'siegeCrawler', defenseTurret: 'spineTower',
+  transport: 'sporeArk', escortFrigate: 'clawFrigate', missileFrigate: 'needleFrigate', lightCruiser: 'hiveCruiser', destroyer: 'voidStalker',
+  assaultCarrier: 'broodCarrier', battlecruiser: 'leviathan', dreadnought: 'worldEater',
+};
+const BROOD_UNIT_KINDS = new Set<UnitKind>([...BROOD_GROUND_KINDS, 'spineTower', ...BROOD_SPACE_KINDS]);
+
+export const groundUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_GROUND_KINDS : COALITION_GROUND_KINDS;
+export const spaceUnitKindsForCivilization = (civilization: PlayableFaction) => civilization === 'brood' ? BROOD_SPACE_KINDS : COALITION_SPACE_KINDS;
+export const civilizationUnitKind = (civilization: PlayableFaction, baseline: UnitKind): UnitKind => civilization === 'brood' ? BROOD_EQUIVALENTS[baseline] ?? baseline : baseline;
+export const unitAvailableToCivilization = (kind: UnitKind, civilization: PlayableFaction) => civilization === 'brood' ? BROOD_UNIT_KINDS.has(kind) : !BROOD_UNIT_KINDS.has(kind);
+export const groundDefenseKindForCivilization = (civilization: PlayableFaction): GroundUnitKind => civilization === 'brood' ? 'spineTower' : 'defenseTurret';
 export const BUILDING_KINDS = Object.keys(BUILDINGS) as BuildingKind[];
 export const UNLIMITED_BUILDING_KINDS: ReadonlySet<BuildingKind> = new Set([
   'groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory',

@@ -4,7 +4,7 @@ import {
   applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
-  BROOD_BIOMASS_PER_PLANET, BROOD_STARTING_BIOMASS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -159,8 +159,11 @@ describe('starter faction foundations', () => {
     const state = createInitialState(broodConfig);
     const built = constructBuilding(state, 'terra', 'groundDefense'); expectOk(built);
     expect(built.state.resources.biomass).toBe(BROOD_STARTING_BIOMASS - biomassCost({ metal: 100, crystal: 45, gold: 25 }));
-    const queued = queueUnit(built.state, 'terra', 'infantry'); expectOk(queued);
-    expect(queued.state.resources.biomass).toBe(built.state.resources.biomass! - biomassCost(UNITS.infantry.cost));
+    const queued = queueUnit(built.state, 'terra', 'broodling'); expectOk(queued);
+    expect(queued.state.resources.biomass).toBe(built.state.resources.biomass! - biomassCost(UNITS.broodling.cost));
+    expect(queued.state.planets[0].groundQueue[0].kind).toBe('broodling');
+    const coalitionUnit = queueUnit(queued.state, 'terra', 'infantry');
+    expect(coalitionUnit.ok).toBe(false);
     const mine = constructBuilding(queued.state, 'terra', 'metalMine');
     expect(mine.ok).toBe(false);
     if (!mine.ok) expect(mine.error).toContain('naturally');
@@ -168,7 +171,7 @@ describe('starter faction foundations', () => {
 
   it('harvests destroyed enemy ground forces in a Brood battle', () => {
     const state = createInitialState(broodConfig); state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    const attacker = { ...makeUnit('brood-siege', 'siegeWalker', 'player'), battleX: 40, battleY: 50 };
+    const attacker = { ...makeUnit('brood-siege', 'siegeCrawler', 'player'), battleX: 40, battleY: 50 };
     const victim = { ...makeUnit('harvested-infantry', 'infantry', 'enemy'), hp: 1, shields: 0, battleX: 60, battleY: 50 };
     state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [attacker], defenders: [victim] }];
     const before = state.resources.biomass!;
@@ -180,7 +183,7 @@ describe('starter faction foundations', () => {
   it('recycles its own destroyed ships and their dead cargo', () => {
     const state = createInitialState(broodConfig); const terra = state.planets[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    const doomed = { ...makeUnit('doomed-spore-ark', 'transport', 'player'), hp: 1, shields: 0, orbitX: 0, orbitY: 0, cargo: [makeUnit('lost-brood', 'infantry', 'player')] };
+    const doomed = { ...makeUnit('doomed-spore-ark', 'sporeArk', 'player'), hp: 1, shields: 0, orbitX: 0, orbitY: 0, cargo: [makeUnit('lost-brood', 'broodling', 'player')] };
     terra.orbitUnits = [doomed, { ...makeUnit('executioner', 'dreadnought', 'enemy'), orbitX: 80, orbitY: 0 }];
     const before = state.resources.biomass!;
     const resolved = tick(state, .1);
@@ -207,7 +210,41 @@ describe('starter faction foundations', () => {
     const advanced = tick(state, .1); const enemyHome = advanced.planets.find(planet => planet.owner === 'enemy')!;
     expect(enemyHome.buildings.some(building => ['metalMine', 'crystalMine', 'goldMine'].includes(building.kind))).toBe(false);
     expect(enemyHome.buildings.filter(building => building.kind === 'groundFactory')).toHaveLength(2);
+    expect(enemyHome.groundQueue.length).toBeGreaterThan(0);
+    expect(enemyHome.groundQueue.every(item => BROOD_GROUND_KINDS.includes(item.kind as GroundUnitKind))).toBe(true);
+    const enemySpaceQueue = enemyHome.buildings.flatMap(building => building.spaceQueue ?? []);
+    expect(enemySpaceQueue.length).toBeGreaterThan(0);
+    expect(enemySpaceQueue.every(item => BROOD_SPACE_KINDS.includes(item.kind as typeof BROOD_SPACE_KINDS[number]))).toBe(true);
     expect(advanced.enemyResources.biomass).toBeLessThan(BROOD_STARTING_BIOMASS);
+  });
+
+  it('provides a complete production roster that never overlaps Coalition units', () => {
+    expect(BROOD_GROUND_KINDS).toHaveLength(9);
+    expect(BROOD_SPACE_KINDS).toHaveLength(8);
+    const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
+    expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
+    expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
+    expect(BROOD_GROUND_KINDS.map(kind => UNITS[kind].label)).toEqual(expect.arrayContaining(['Broodling Pack', 'Spore Lobber', 'Siege Crawler']));
+    expect(BROOD_SPACE_KINDS.map(kind => UNITS[kind].label)).toEqual(expect.arrayContaining(['Spore Ark', 'Brood Carrier', 'World Eater']));
+
+    const coalition = createInitialState();
+    expect(queueUnit(coalition, 'terra', 'broodling').ok).toBe(false);
+    expect(queueUnit(coalition, 'terra', 'sporeArk').ok).toBe(false);
+  });
+
+  it('upgrades legacy Brood saves from Coalition units to living equivalents', () => {
+    const legacy = createInitialState(broodConfig); const terra = legacy.planets[0];
+    terra.groundUnits = [{ ...makeUnit('legacy-infantry', 'infantry', 'player'), hp: 50, shields: 10 }];
+    terra.orbitUnits = [{ ...makeUnit('legacy-transport', 'transport', 'player'), cargo: [makeUnit('legacy-cargo', 'antiVehicle', 'player')] }];
+    terra.groundQueue = [{ id: 'legacy-ground-queue', kind: 'artillery', remaining: 5, total: 24 }];
+    terra.buildings.find(building => building.kind === 'spaceFactory')!.spaceQueue = [{ id: 'legacy-space-queue', kind: 'escortFrigate', remaining: 8, total: 26 }];
+
+    const migrated = migrateGameState(legacy); const home = migrated.planets[0];
+    expect(home.groundUnits[0]).toMatchObject({ kind: 'broodling', hp: UNITS.broodling.hp / 2, shields: 0 });
+    expect(home.orbitUnits[0].kind).toBe('sporeArk');
+    expect(home.orbitUnits[0].cargo?.[0].kind).toBe('acidSpitter');
+    expect(home.groundQueue[0].kind).toBe('sporeLobber');
+    expect(home.buildings.find(building => building.kind === 'spaceFactory')?.spaceQueue?.[0].kind).toBe('clawFrigate');
   });
 });
 

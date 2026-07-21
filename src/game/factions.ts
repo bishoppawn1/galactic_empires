@@ -25,7 +25,7 @@ export const PLAYABLE_FACTION_DEFINITIONS: Record<PlayableFaction, PlayableFacti
     label: 'The Brood', shortLabel: 'Brood', doctrine: 'Overwhelming growth',
     description: 'Living armies grown rapidly from planetary biomass and the remains of every battlefield.',
     strengths: 'Single-resource economy · casualty recycling', weakness: 'Weak individual organisms',
-    signatureUnits: ['Spore Ark', 'Needle Swarm', 'Living Artillery'], color: '#9bd85b',
+    signatureUnits: ['Spore Ark', 'Spore Lobber', 'World Eater'], color: '#9bd85b',
   },
   aegis: {
     label: 'Aegis Directorate', shortLabel: 'Aegis', doctrine: 'Armored advance',

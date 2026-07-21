@@ -1,6 +1,7 @@
 import {
-  BUILDINGS, BUILDING_KINDS, GROUND_KINDS, LANDING_APPROACH_SPEED, SPACE_KINDS, UNITS,
+  BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
   BROOD_BIOMASS_PER_PLANET, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
+  groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
@@ -76,6 +77,8 @@ function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; sp
 
 function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
   const civilization = empireCivilization(state);
+  const groundKinds = groundUnitKindsForCivilization(civilization);
+  const spaceKinds = spaceUnitKindsForCivilization(civilization);
   const groundSpeed = groundProductionMultiplier(planet);
   const groundFactoryCount = planet.buildings.filter(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length;
   const yards = spaceYards(planet);
@@ -94,12 +97,12 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   };
   const groundProduction = <div className={`production-group ${focus === 'ground' ? 'focused' : ''}`}>
     <h3>Ground factories · {groundFactoryCount} online · {groundSpeed}× speed</h3>
-    <div className="unit-grid">{GROUND_KINDS.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
+    <div className="unit-grid">{groundKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
     {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically'}.</p>}
-    <div className="unit-grid">{SPACE_KINDS.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
+    <div className="unit-grid">{spaceKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
     <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} showEmpty /></article>)}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />

@@ -22,8 +22,12 @@ export type BuildingKind =
   | 'spaceDefense'
   | 'researchLab';
 
-export type GroundUnitKind = 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret';
-export type SpaceUnitKind = 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought';
+export type GroundUnitKind =
+  | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
+  | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower';
+export type SpaceUnitKind =
+  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
+  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 

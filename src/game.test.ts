@@ -583,6 +583,46 @@ describe('transport and colonization', () => {
     expect(inTunnel.fleets[0].travelTime).toBeLessThan(previousTunnelTime);
   });
 
+  it('cancels a jump during system exit without teleporting the ship', () => {
+    const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const order = dispatchSpaceUnit(state, 'terra', transport.id, 'halcyon'); expectOk(order);
+    const leaving = tick(order.state, 1);
+    const fleet = leaving.fleets[0];
+    const terra = leaving.planets.find(planet => planet.id === 'terra')!;
+    const halcyon = leaving.planets.find(planet => planet.id === 'halcyon')!;
+    const dx = halcyon.x - terra.x, dy = halcyon.y - terra.y, distance = Math.hypot(dx, dy);
+    const progress = fleet.progress / fleet.travelTime;
+    const expectedX = fleet.departureX! + (dx / distance * MAX_SHIP_ORBIT_RADIUS - fleet.departureX!) * progress;
+    const expectedY = fleet.departureY! + (dy / distance * MAX_SHIP_ORBIT_RADIUS - fleet.departureY!) * progress;
+
+    const canceled = maneuverSpaceUnit(leaving, terra.id, transport.id, 80, 40); expectOk(canceled);
+    const returned = canceled.state.planets.find(planet => planet.id === terra.id)!.orbitUnits.find(unit => unit.id === transport.id)!;
+    expect(canceled.state.fleets.some(candidate => candidate.unit.id === transport.id)).toBe(false);
+    expect(returned.orbitX).toBeCloseTo(expectedX);
+    expect(returned.orbitY).toBeCloseTo(expectedY);
+    expect(returned).toMatchObject({ orbitTargetX: 80, orbitTargetY: 40 });
+    expect(canceled.state.messages[0]).toBe('Jump canceled — 1 ship maneuvering inside Terra Nova gravity well.');
+  });
+
+  it('allows cancellation while charging but commits the jump after tunnel entry', () => {
+    const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const order = dispatchSpaceUnit(state, 'terra', transport.id, 'halcyon'); expectOk(order);
+    const atBorder = tick(order.state, order.state.fleets[0].travelTime);
+    expect(atBorder.fleets[0].phase).toBe('charging');
+
+    const canceled = maneuverSpaceUnit(atBorder, 'terra', transport.id, 50, -20); expectOk(canceled);
+    const returned = canceled.state.planets[0].orbitUnits.find(unit => unit.id === transport.id)!;
+    expect(Math.hypot(returned.orbitX!, returned.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
+
+    const inTunnel = tick(atBorder, PHASE_GATE_CHARGE_SECONDS);
+    expect(inTunnel.fleets[0].phase).toBe('tunnel');
+    const tooLate = maneuverSpaceUnit(inTunnel, 'terra', transport.id, 50, -20);
+    expect(tooLate.ok).toBe(false);
+    if (!tooLate.ok) expect(tooLate.error).toContain('already entered the phase tunnel');
+  });
+
   it('holds arrived combat ships at the system edge ready for immediate orders', () => {
     const state = createInitialState();
     state.planets[0].orbitUnits.push({ id: 'frigate', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130 });

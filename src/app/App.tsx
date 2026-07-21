@@ -64,6 +64,17 @@ export default function App() {
   useEffect(() => { if (state && !controllerRef.current) localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
   useEffect(() => { if (toast) { const timer = setTimeout(() => setToast(undefined), 2400); return () => clearTimeout(timer); } }, [toast]);
   useEffect(() => { if (battleId && state && !state.battles.some(candidate => candidate.planetId === battleId)) setBattleId(undefined); }, [state, battleId]);
+  useEffect(() => {
+    if (!state) return;
+    const selectableIds = new Set([
+      ...state.planets.flatMap(planet => planet.orbitUnits.filter(unit => unit.faction === 'player').map(unit => unit.id)),
+      ...state.fleets.filter(fleet => fleet.faction === 'player' && (fleet.phase === 'exiting' || fleet.phase === 'charging')).map(fleet => fleet.unit.id),
+    ]);
+    setSelectedShipIds(current => {
+      const next = current.filter(id => selectableIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [state]);
   useEffect(() => () => controllerRef.current?.close(), []);
 
   const resetInterface = (nextState?: GameState) => { setView('galaxy'); setSelectedId(nextState?.planets.find(planet => planet.owner === 'player')?.id ?? 'terra'); setTab('command'); setProductionFocus(undefined); setBattleId(undefined); setSelectedShipIds([]); setSelectedYardIds([]); };

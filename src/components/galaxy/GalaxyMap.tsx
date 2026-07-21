@@ -144,10 +144,17 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     const offset = orbitalDefenseOffset(index, count);
     return { x: CANVAS_WIDTH * p.x / 100 + offset.x, y: CANVAS_HEIGHT * p.y / 100 + offset.y };
   };
-  const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => selectedShipIds.every(id => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'))) : undefined;
+  const interruptibleFleets = state.fleets.filter(fleet => fleet.faction === 'player' && (fleet.phase === 'exiting' || fleet.phase === 'charging'));
+  const selectedOriginIds = new Set(selectedShipIds.flatMap(id => {
+    const orbit = state.planets.find(planet => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'));
+    const fleet = interruptibleFleets.find(candidate => candidate.unit.id === id);
+    return orbit ? [orbit.id] : fleet ? [fleet.originId] : [];
+  }));
+  const selectedOriginId = selectedOriginIds.size === 1 ? [...selectedOriginIds][0] : undefined;
+  const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => planet.id === selectedOriginId) : undefined;
   const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
   const selectedShips = selectedShipIds.flatMap(id => {
-    const ship = orbitShips.find(unit => unit.id === id && unit.faction === 'player');
+    const ship = orbitShips.find(unit => unit.id === id && unit.faction === 'player') ?? interruptibleFleets.find(fleet => fleet.unit.id === id)?.unit;
     return ship ? [ship] : [];
   });
   const gatePosition = (origin: Planet, destination: Planet) => {
@@ -172,13 +179,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         const distance = Math.hypot(dragEnd.x - dragStart.x, dragEnd.y - dragStart.y);
         if (distance > 8) {
           const left = Math.min(dragStart.x, dragEnd.x), right = Math.max(dragStart.x, dragEnd.x), top = Math.min(dragStart.y, dragEnd.y), bottom = Math.max(dragStart.y, dragEnd.y);
-          const ids = state.planets.flatMap(p => p.orbitUnits.map((ship, index) => ({ ship, ...shipPosition(p, ship, index) }))).filter(item => item.ship.faction === 'player' && !item.ship.phaseArrival && item.x >= left && item.x <= right && item.y >= top && item.y <= bottom).map(item => item.ship.id);
+          const orbitItems = state.planets.flatMap(p => p.orbitUnits.map((ship, index) => ({ ship, ...shipPosition(p, ship, index) })));
+          const fleetItems = interruptibleFleets.map(fleet => ({ ship: fleet.unit, ...fleetMapPosition(fleet, state.planets) }));
+          const ids = [...orbitItems, ...fleetItems].filter(item => item.ship.faction === 'player' && !item.ship.phaseArrival && item.x >= left && item.x <= right && item.y >= top && item.y <= bottom).map(item => item.ship.id);
           onGroupSelect(ids);
         } else if (selectedShipIds.length) {
-          const origin = state.planets.find(p => selectedShipIds.every(id => p.orbitUnits.some(u => u.id === id)));
-          if (origin) {
-            const localX = dragEnd.x - CANVAS_WIDTH * origin.x / 100;
-            const localY = dragEnd.y - CANVAS_HEIGHT * origin.y / 100;
+          if (selectedOrigin) {
+            const localX = dragEnd.x - CANVAS_WIDTH * selectedOrigin.x / 100;
+            const localY = dragEnd.y - CANVAS_HEIGHT * selectedOrigin.y / 100;
             if (Math.hypot(localX, localY) > GRAVITY_WELL_RADIUS) onGroupSelect([]);
           }
         }
@@ -269,7 +277,15 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const position = fleetMapPosition(fleet, state.planets);
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
           const displaySize = shipDisplaySize(fleet.unit.kind);
-          return <div className={`transit-ship ${fleet.faction} ${position.phase}`} style={{ left: x, top: y, '--ship-heading': `${fleetHeading(fleet, state.planets)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 7}px` } as React.CSSProperties} key={fleet.id}><ShipImage kind={fleet.unit.kind} /><small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></div>;
+          const selectable = fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging');
+          const origin = state.planets.find(planet => planet.id === fleet.originId)!;
+          const destination = state.planets.find(planet => planet.id === fleet.destinationId)!;
+          const className = `transit-ship ${fleet.faction} ${position.phase} ${selectable ? 'interruptible' : ''} ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
+          const style = { left: x, top: y, '--ship-heading': `${fleetHeading(fleet, state.planets)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 7}px` } as React.CSSProperties;
+          const content = <><ShipImage kind={fleet.unit.kind} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></>;
+          return selectable
+            ? <button key={fleet.id} aria-label={`${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, event.shiftKey); }}>{content}</button>
+            : <div className={className} style={style} key={fleet.id}>{content}</div>;
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>

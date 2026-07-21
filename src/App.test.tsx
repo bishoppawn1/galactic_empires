@@ -299,6 +299,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText(/CLEARING WELL/).length).toBeGreaterThan(0);
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
+
+    const cancellable = screen.getByRole('button', { name: 'Transport clearing well from Terra Nova toward Nyx — jump can be canceled' });
+    fireEvent.click(cancellable);
+    expect(cancellable).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
+    fireEvent.contextMenu(document.querySelector('.galaxy-canvas') as HTMLElement, { clientX: 2666, clientY: 4928 });
+
+    expect(screen.getByText('Jump canceled — 1 ship maneuvering inside Terra Nova gravity well.')).toBeInTheDocument();
+    expect(document.querySelector('.transit-ship')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' })).toHaveClass('selected');
   });
 
   it('right-clicks a distant system to take the shortest multi-lane path', () => {

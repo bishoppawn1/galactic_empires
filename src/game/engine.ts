@@ -457,8 +457,21 @@ export const dockSpaceUnit = (input: GameState, planetId: string, unitId: string
 
 export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: string[], orbitX: number, orbitY: number): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId);
-  const ships = p?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
-  if (!p || !ships.length || ships.length !== unitIds.length) return fail(input, 'Selected ships are not inside this gravity well.');
+  const requestedIds = new Set(unitIds);
+  const orbitShips = p?.orbitUnits.filter(u => requestedIds.has(u.id) && u.faction === 'player') ?? [];
+  const interruptedFleets = state.fleets.filter(fleet => requestedIds.has(fleet.unit.id) && fleet.faction === 'player' && fleet.originId === planetId && (fleet.phase === 'exiting' || fleet.phase === 'charging'));
+  if (!p || !requestedIds.size || orbitShips.length + interruptedFleets.length !== requestedIds.size) return fail(input, 'Selected ships are not inside this gravity well or have already entered the phase tunnel.');
+  const interruptedIds = new Set(interruptedFleets.map(fleet => fleet.id));
+  for (const fleet of interruptedFleets) {
+    const destination = getPlanet(state, fleet.destinationId)!;
+    const border = systemBorderOffset(p, destination);
+    const progress = fleet.phase === 'charging' || fleet.travelTime <= 0 ? 1 : Math.min(1, fleet.progress / fleet.travelTime);
+    fleet.unit.orbitX = (fleet.departureX ?? 0) + (border.x - (fleet.departureX ?? 0)) * progress;
+    fleet.unit.orbitY = (fleet.departureY ?? 0) + (border.y - (fleet.departureY ?? 0)) * progress;
+    p.orbitUnits.push(fleet.unit);
+  }
+  if (interruptedIds.size) state.fleets = state.fleets.filter(fleet => !interruptedIds.has(fleet.id));
+  const ships = unitIds.map(id => p.orbitUnits.find(unit => unit.id === id)!).filter(Boolean);
   ships.forEach((ship, index) => {
     delete ship.docked;
     delete ship.phaseArrival;
@@ -472,7 +485,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     ship.orbitTargetX = targetX * scale; ship.orbitTargetY = targetY * scale;
     ship.heading = headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading);
   });
-  addMessage(state, `${ships.length} ship${ships.length === 1 ? '' : 's'} maneuvering inside ${p.name} gravity well.`);
+  addMessage(state, `${interruptedFleets.length ? 'Jump canceled — ' : ''}${ships.length} ship${ships.length === 1 ? '' : 's'} maneuvering inside ${p.name} gravity well.`);
   return pass(state);
 }
 

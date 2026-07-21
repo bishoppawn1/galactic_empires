@@ -242,7 +242,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const selectable = ship.faction === 'player';
           if (!selectable && !ship.pendingLanding && !ship.pendingEmbark) return [];
           const position = shipMapPosition(p, ship, index);
-          if (!selectedShipIds.includes(ship.id) && !pointInViewport(viewportBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
+          if (!selectable && !selectedShipIds.includes(ship.id) && !pointInViewport(viewportBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const cargoCount = ship.cargo?.length ?? 0;
@@ -255,7 +255,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
           const displaySize = shipDisplaySize(fleet.unit.kind);
           const selectable = fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging');
-          if (!selectable || (!selectedShipIds.includes(fleet.unit.id) && !pointInViewport(viewportBounds, x, y, displaySize))) return [];
+          if (!selectable) return [];
           const origin = state.planets.find(planet => planet.id === fleet.originId)!;
           const destination = state.planets.find(planet => planet.id === fleet.destinationId)!;
           const className = `transit-ship player ${position.phase} interruptible ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;

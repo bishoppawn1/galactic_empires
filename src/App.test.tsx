@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
+import { GalaxyMap } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
@@ -497,6 +498,22 @@ describe('Galactic Empires interface', () => {
     expect(escort.querySelector('.ship-control-frame')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
+  });
+
+  it('keeps unselected player ships mounted outside the cached viewport', () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(850);
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
+    const state = createInitialState();
+    const vesta = state.planets.find(planet => planet.id === 'vesta')!;
+    vesta.owner = 'player';
+    vesta.orbitUnits = [makeUnit('remote-player-ship', 'escortFrigate', 'player')];
+
+    const view = render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Escort Frigate orbiting Vesta' })).toBeInTheDocument();
+    view.unmount();
+    width.mockRestore();
+    height.mockRestore();
   });
 
   it('batches dense hostile fleets into one canvas layer', () => {

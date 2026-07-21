@@ -4,6 +4,7 @@ import {
   type Fleet, type GameState, type Planet, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel, unitGlyph } from '../shared/presentation';
+import { FleetSelectionHud } from './FleetSelectionHud';
 
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'ENEMY' : 'NEUTRAL';
 
@@ -105,6 +106,11 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: CANVAS_WIDTH * p.x / 100 + Math.cos(angle) * radius, y: CANVAS_HEIGHT * p.y / 100 + Math.sin(angle) * radius };
   };
   const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => selectedShipIds.every(id => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'))) : undefined;
+  const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
+  const selectedShips = selectedShipIds.flatMap(id => {
+    const ship = orbitShips.find(unit => unit.id === id && unit.faction === 'player');
+    return ship ? [ship] : [];
+  });
   const gatePosition = (origin: Planet, destination: Planet) => {
     const originX = CANVAS_WIDTH * origin.x / 100, originY = CANVAS_HEIGHT * origin.y / 100;
     const dx = CANVAS_WIDTH * (destination.x - origin.x) / 100, dy = CANVAS_HEIGHT * (destination.y - origin.y) / 100;
@@ -163,8 +169,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
             const playerDefended = p.owner === 'player' && defenses.length > 0;
             const enemyDefended = p.owner === 'enemy' && defenses.length > 0;
-            const targetedEnemy = enemies.find(ship => ship.pendingLanding) ?? enemies[0];
-            const targetedPlayer = players.find(ship => ship.pendingLanding) ?? players[0];
+            const targetedEnemy = enemies.find(ship => ship.pendingLanding || ship.pendingEmbark) ?? enemies[0];
+            const targetedPlayer = players.find(ship => ship.pendingLanding || ship.pendingEmbark) ?? players[0];
             const playerTarget = shipPosition(p, targetedEnemy, p.orbitUnits.findIndex(unit => unit.id === targetedEnemy.id));
             const enemyTarget = shipPosition(p, targetedPlayer, p.orbitUnits.findIndex(unit => unit.id === targetedPlayer.id));
             return [
@@ -223,10 +229,10 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {state.planets.flatMap(p => p.orbitUnits.map((ship, index) => {
           const position = shipPosition(p, ship, index);
           const capacity = UNITS[ship.kind].capacity;
-          const approach = ship.pendingLanding ? ' landing approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
+          const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const selectable = ship.faction === 'player' && (!ship.phaseArrival || !!ship.pendingLanding);
           const cargoCount = ship.cargo?.length ?? 0;
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.map((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);
@@ -237,7 +243,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       </div>
     </div>
     <div className="zoom-controls" aria-label="Map zoom controls"><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
-    {selectedShipIds.length > 0 && <div className="fleet-command-hint">{selectedShipIds.length} SHIP{selectedShipIds.length === 1 ? '' : 'S'} SELECTED <span>Drag to group-select · Shift-click to add · Click inside the well to maneuver · Click outside the well to clear · Use a JUMP gate or reachable planet</span></div>}
+    <FleetSelectionHud ships={selectedShips} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
     <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>ENEMY EMPIRE</b><strong>{ownershipCounts.enemy}</strong></span><span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
   </main>;

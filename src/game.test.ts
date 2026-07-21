@@ -483,6 +483,7 @@ describe('transport and colonization', () => {
 
   it('maneuvers and docks ships gradually within a gravity well', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 40, 25); expectOk(moved);
     expect(moved.state.planets[0].orbitUnits[0]).toMatchObject({ orbitTargetX: 40, orbitTargetY: 25 });
     expect(moved.state.planets[0].orbitUnits[0].orbitY).toBe(-180);
@@ -493,8 +494,28 @@ describe('transport and colonization', () => {
     const positioned = tick(underway, 20);
     expect(positioned.planets[0].orbitUnits[0]).toMatchObject({ orbitX: 40, orbitY: 25 });
     const docked = dockSpaceUnit(positioned, 'terra', transport.id); expectOk(docked);
-    expect(docked.state.planets[0].orbitUnits[0].orbitTargetX).toBeTypeOf('number');
-    expect(docked.state.planets[0].orbitUnits[0].cargo).toHaveLength(3);
+    expect(docked.state.planets[0].orbitUnits[0]).toMatchObject({ pendingEmbark: true, orbitTargetX: 0, orbitTargetY: 0 });
+    expect(docked.state.planets[0].orbitUnits[0].cargo).toBeUndefined();
+    expect(docked.state.planets[0].groundUnits).toHaveLength(3);
+    const embarked = tick(docked.state, fullLandingApproachSeconds);
+    expect(embarked.planets[0].orbitUnits[0]).toMatchObject({ docked: true, orbitX: 0, orbitY: 0 });
+    expect(embarked.planets[0].orbitUnits[0].pendingEmbark).toBeUndefined();
+    expect(embarked.planets[0].orbitUnits[0].cargo).toHaveLength(3);
+    expect(embarked.planets[0].groundUnits).toHaveLength(0);
+  });
+
+  it('allows hostile ships to destroy a transport during embarkation without killing waiting squads', () => {
+    const state = createInitialState(); const terra = seedPlayerForces(state); const transport = terra.orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    transport.hp = 1; transport.shields = 0;
+    terra.orbitUnits.push({ ...makeUnit('embark-interceptor', 'escortFrigate', 'enemy'), orbitX: 180, orbitY: 0 });
+    const docking = dockSpaceUnit(state, terra.id, transport.id); expectOk(docking);
+    expect(docking.state.planets[0].orbitUnits.find(unit => unit.id === transport.id)?.pendingEmbark).toBe(true);
+
+    const intercepted = tick(docking.state, 1);
+    expect(intercepted.planets[0].orbitUnits.some(unit => unit.id === transport.id)).toBe(false);
+    expect(intercepted.planets[0].groundUnits).toHaveLength(3);
+    expect(intercepted.messages.some(message => message.includes('destroyed while attempting to embark'))).toBe(true);
   });
 
   it('uses the expanded gravity-well radius for maneuver orders', () => {
@@ -507,6 +528,7 @@ describe('transport and colonization', () => {
 
   it('keeps docked ship groups in separate orbital slots', () => {
     const state = createInitialState(); const terra = seedPlayerForces(state); const ids = terra.orbitUnits.map(unit => unit.id);
+    terra.groundUnits = [];
     state.planets[0].orbitUnits.forEach(unit => { unit.orbitX = 0; unit.orbitY = 0; });
     const docked = dockSpaceUnits(state, 'terra', ids); expectOk(docked);
     const positions = docked.state.planets[0].orbitUnits.map(unit => `${unit.orbitTargetX},${unit.orbitTargetY}`);

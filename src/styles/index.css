@@ -52,6 +52,7 @@ button { color: inherit; }
 .orbit-ship span { font-size: 20px; }.orbit-ship small { position: absolute; left: 34px; top: -7px; padding: 4px 6px; background: #0b1116f2; color: #8fa0a8; border: 1px solid #2b3942; font: 700 10px/1 Inter; white-space: nowrap; box-shadow: 0 2px 8px #000b; }
 .orbit-ship .transport-capacity { min-width: 42px; text-align: center; color: #dce8e7; border-width: 2px; font-size: 12px; }
 .orbit-ship .transport-capacity.full { border-color: var(--cyan); background: #12312ff5; color: #cafff6; box-shadow: 0 0 12px #55d6be66; }
+.orbit-ship.embark-approach { border-color: var(--gold); box-shadow: 0 0 0 10px #ffc85712,0 0 30px #ffc85788; animation: phase-arrival-pulse 1s ease-in-out infinite alternate; }
 .orbit-ship.player:hover, .orbit-ship.selected { transform: scale(1.2); border-color: white; color: white; box-shadow: 0 0 18px #55d6beaa; }.orbit-ship.enemy { color: var(--red); border-color: #82445a; cursor: default; opacity: .85; }
 .orbit-ship.phase-arrival { border-style: double; border-width: 4px; opacity: 1; box-shadow: 0 0 0 10px #55d6be12,0 0 30px currentColor; animation: phase-arrival-pulse 1s ease-in-out infinite alternate; }.orbit-ship.landing-approach small { left: 38px; color: var(--gold); border-color: #8a672e; white-space: nowrap; }.orbit-ship.enemy.landing-approach { box-shadow: 0 0 0 10px #e86a9212,0 0 32px #e86a92aa; }
 .orbit-ship.docked { border-color: var(--gold); box-shadow: 0 0 0 5px #ffc85714, 0 0 18px #ffc85755; }.orbit-ship.docked small { color: #ffd983; border-color: #8a672e; white-space: nowrap; }

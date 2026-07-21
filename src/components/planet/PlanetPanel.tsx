@@ -101,6 +101,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     {planet.orbitUnits.some(unit => unit.faction === 'player') && <div className="transport-order"><b>GRAVITY WELL CONTROL</b><small>Select a ship marker, then click inside this gravity well to maneuver over time. Click the planet center to dock and automatically embark squads, or click any reachable planet to plot the shortest phase-lane route.</small></div>}
     {state.fleets.filter(fleet => (fleet.finalDestinationId ?? fleet.destinationId) === planet.id).map(fleet => <div className={`incoming ${fleet.phase ?? 'tunnel'}`} key={fleet.id}>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label.toUpperCase()} <b>{Math.ceil(fleet.travelTime - fleet.progress)}s</b></div>)}
     {planet.orbitUnits.filter(unit => unit.pendingLanding).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`landing-${unit.id}`}>{unit.faction === 'enemy' ? 'HOSTILE' : 'FRIENDLY'} {UNITS[unit.kind].label.toUpperCase()} LANDING APPROACH <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
+    {planet.orbitUnits.filter(unit => unit.pendingEmbark).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`embark-${unit.id}`}>{unit.faction === 'enemy' ? 'HOSTILE' : 'FRIENDLY'} {UNITS[unit.kind].label.toUpperCase()} EMBARKING <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
   </section>;
 }
 

@@ -104,7 +104,7 @@ function ensureOrbitPositions(planet: Planet) {
       continue;
     }
     const hasPosition = typeof ship.orbitX === 'number' && typeof ship.orbitY === 'number'
-      && (ship.pendingLanding || Math.hypot(ship.orbitX, ship.orbitY) >= 24);
+      && (ship.pendingLanding || ship.pendingEmbark || Math.hypot(ship.orbitX, ship.orbitY) >= 24);
     const overlaps = hasPosition && placed.some(other => typeof other.orbitX === 'number' && typeof other.orbitY === 'number'
       && Math.hypot(other.orbitX - ship.orbitX!, other.orbitY - ship.orbitY!) < 8);
     if (!hasPosition || overlaps) placeInOpenOrbit(planet, ship, placed);
@@ -232,7 +232,8 @@ export function migrateGameState(input: GameState): GameState {
     if (p.orbitFocusTargetId && !p.buildings.some(building => building.id === p.orbitFocusTargetId && building.kind === 'spaceDefense')) delete p.orbitFocusTargetId;
     if (p.enemyOrbitFocusTargetId && !p.buildings.some(building => building.id === p.enemyOrbitFocusTargetId && building.kind === 'spaceDefense')) delete p.enemyOrbitFocusTargetId;
     for (const ship of p.orbitUnits) {
-      if (ship.pendingLanding) { ship.phaseArrival = true; ship.orbitTargetX ??= 0; ship.orbitTargetY ??= 0; }
+      if (ship.pendingLanding) ship.phaseArrival = true;
+      if (ship.pendingLanding || ship.pendingEmbark) { ship.orbitTargetX ??= 0; ship.orbitTargetY ??= 0; }
     }
     ensureOrbitPositions(p);
   }
@@ -351,12 +352,22 @@ export function dockSpaceUnits(input: GameState, planetId: string, unitIds: stri
   if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot receive new orders until their phase arrival is complete.');
   const selectedIds = new Set(unitIds);
   const occupied = p.orbitUnits.filter(ship => !selectedIds.has(ship.id));
+  let availableSquads = p.groundUnits.filter(unit => unit.faction === 'player').length;
   ships.forEach(ship => {
-    targetOpenOrbit(p, ship, occupied);
+    const openCapacity = Math.max(0, (UNITS[ship.kind].capacity ?? 0) - (ship.cargo?.length ?? 0));
+    if (openCapacity && availableSquads) {
+      delete ship.docked;
+      ship.pendingEmbark = true;
+      ship.orbitTargetX = 0;
+      ship.orbitTargetY = 0;
+      availableSquads -= Math.min(openCapacity, availableSquads);
+    } else targetOpenOrbit(p, ship, occupied);
     occupied.push(ship);
-    embarkAvailableSquads(state, p, ship);
   });
-  addMessage(state, `${ships.length} ship${ships.length === 1 ? '' : 's'} moving to dock over ${p.name}.`);
+  const embarking = ships.filter(ship => ship.pendingEmbark).length;
+  addMessage(state, embarking
+    ? `${embarking} transport${embarking === 1 ? '' : 's'} approaching ${p.name} to embark ground forces.`
+    : `${ships.length} ship${ships.length === 1 ? '' : 's'} repositioning over ${p.name}.`);
   return pass(state);
 }
 
@@ -369,6 +380,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
   if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot receive new orders until their phase arrival is complete.');
   ships.forEach((ship, index) => {
     delete ship.docked;
+    delete ship.pendingEmbark;
     const column = index % 4, row = Math.floor(index / 4);
     const targetX = orbitX + (column - Math.min(ships.length - 1, 3) / 2) * 24;
     const targetY = orbitY + row * 24;
@@ -422,6 +434,7 @@ export function dispatchSpaceUnits(input: GameState, originId: string, unitIds: 
   const ships = origin?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
   if (!origin || !destination || !ships.length || ships.length !== unitIds.length || origin.id === destination.id) return fail(input, 'Selected ships must share one gravity well.');
   if (ships.some(ship => ship.phaseArrival)) return fail(input, 'Ships cannot jump again until their phase arrival is complete.');
+  if (ships.some(ship => ship.pendingEmbark)) return fail(input, 'Transports must complete embarkation before jumping.');
   const path = findPlanetPath(state.planets, originId, destinationId);
   if (!path || path.length < 2) return fail(input, 'No phase-lane route reaches that gravity well.');
   dispatchFactionUnits(state, origin, ships, destination, 'player');
@@ -620,9 +633,11 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
 function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const players = p.orbitUnits.filter(u => u.faction === 'player');
   const enemies = p.orbitUnits.filter(u => u.faction === 'enemy');
-  const playerTarget = players.find(unit => unit.pendingLanding) ?? players[0];
-  const enemyTarget = enemies.find(unit => unit.pendingLanding) ?? enemies[0];
-  const landingShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding).map(unit => [unit.id, unit]));
+  const playerPriorityTarget = players.find(unit => unit.pendingLanding || unit.pendingEmbark);
+  const enemyPriorityTarget = enemies.find(unit => unit.pendingLanding || unit.pendingEmbark);
+  const playerTarget = playerPriorityTarget ?? players[0];
+  const enemyTarget = enemyPriorityTarget ?? enemies[0];
+  const vulnerableShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding || unit.pendingEmbark).map(unit => [unit.id, unit]));
   const defenses = p.buildings.filter(b => b.kind === 'spaceDefense');
   defenses.forEach(ensureOrbitalDefenseHealth);
   const playerDefenses = p.owner === 'player' ? defenses : [];
@@ -638,12 +653,14 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   if (players.length && (enemyDefenses.length || enemies.length)) {
     const preferred = enemyDefenses.find(defense => defense.id === p.orbitFocusTargetId);
     const defenseTarget = preferred ?? enemyDefenses[0];
-    if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, playerShipDamage) : building);
+    if (enemyPriorityTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyPriorityTarget.id ? damageUnit(unit, playerShipDamage) : unit);
+    else if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, playerShipDamage) : building);
     else if (enemyTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyTarget.id ? damageUnit(unit, playerShipDamage) : unit);
   }
   if (enemies.length && (playerDefenses.length || players.length)) {
     const defenseTarget = playerDefenses.find(defense => defense.id === p.enemyOrbitFocusTargetId) ?? playerDefenses[0];
-    if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, enemyShipDamage) : building);
+    if (playerPriorityTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerPriorityTarget.id ? damageUnit(unit, enemyShipDamage) : unit);
+    else if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, enemyShipDamage) : building);
     else if (playerTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerTarget.id ? damageUnit(unit, enemyShipDamage) : unit);
   }
   if (enemyTarget && playerInstallationDamage) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyTarget.id ? damageUnit(unit, playerInstallationDamage) : unit);
@@ -657,8 +674,10 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     addMessage(state, `${destroyedDefenses.length} orbital defense platform${destroyedDefenses.length === 1 ? '' : 's'} destroyed at ${p.name}.`);
   }
   p.orbitUnits = p.orbitUnits.filter(unit => unit.hp > 0);
-  for (const [id, ship] of landingShipsBeforeCombat) {
-    if (!p.orbitUnits.some(unit => unit.id === id)) addMessage(state, `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed during landing approach at ${p.name}; all embarked forces lost.`);
+  for (const [id, ship] of vulnerableShipsBeforeCombat) {
+    if (!p.orbitUnits.some(unit => unit.id === id)) addMessage(state, ship.pendingEmbark
+      ? `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed while attempting to embark forces at ${p.name}; waiting ground squads survived, but any existing cargo was lost.`
+      : `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed during landing approach at ${p.name}; all embarked forces lost.`);
   }
 }
 
@@ -666,7 +685,7 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
-  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
+  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
@@ -690,6 +709,17 @@ function resolveLandingApproaches(state: GameState, p: Planet) {
     ship.orbitY = 0;
     ship.docked = true;
     addMessage(state, `${UNITS[ship.kind].label} docked after completing its landing approach at ${p.name}.`);
+  }
+}
+
+function resolveEmbarkApproaches(state: GameState, p: Planet) {
+  for (const ship of p.orbitUnits.filter(unit => unit.pendingEmbark && typeof unit.orbitTargetX !== 'number' && typeof unit.orbitTargetY !== 'number')) {
+    delete ship.pendingEmbark;
+    const boarded = embarkAvailableSquads(state, p, ship, ship.faction === 'enemy' ? 'enemy' : 'player');
+    ship.orbitX = 0;
+    ship.orbitY = 0;
+    ship.docked = true;
+    if (!boarded) addMessage(state, `${UNITS[ship.kind].label} reached ${p.name}, but no squads were available to embark.`);
   }
 }
 
@@ -882,7 +912,7 @@ export function tick(input: GameState, seconds: number): GameState {
   }
 
   for (const battle of [...state.battles]) tickBattle(state, battle, seconds);
-  for (const p of state.planets) resolveLandingApproaches(state, p);
+  for (const p of state.planets) { resolveEmbarkApproaches(state, p); resolveLandingApproaches(state, p); }
   const traveling: Fleet[] = [];
   const arrivals = new Map<string, Array<{ unit: Unit; seconds: number }>>();
   for (const fleet of state.fleets) {

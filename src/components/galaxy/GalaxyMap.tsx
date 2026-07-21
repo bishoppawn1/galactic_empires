@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, headingForVector, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
+  BUILDINGS, GRAVITY_WELL_RADIUS, MAX_SHIP_ORBIT_RADIUS, UNITS, headingForVector, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
   type Fleet, type GameState, type Planet, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel } from '../shared/presentation';
@@ -19,7 +19,7 @@ const systemBorderPoint = (from: Planet, to: Planet) => {
   const fromX = CANVAS_WIDTH * from.x / 100, fromY = CANVAS_HEIGHT * from.y / 100;
   const dx = CANVAS_WIDTH * (to.x - from.x) / 100, dy = CANVAS_HEIGHT * (to.y - from.y) / 100;
   const distance = Math.hypot(dx, dy) || 1;
-  const radius = GRAVITY_WELL_RADIUS - 18;
+  const radius = MAX_SHIP_ORBIT_RADIUS;
   return { x: fromX + dx / distance * radius, y: fromY + dy / distance * radius };
 };
 

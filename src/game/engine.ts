@@ -31,7 +31,7 @@ import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
-  ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
+  ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
   ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   orbitalDefenseOffset,
@@ -48,16 +48,24 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
 });
 
 const orbitSlot = (index: number) => {
-  const slotsPerRing = 8;
-  const ring = Math.floor(index / slotsPerRing);
-  const slot = index % slotsPerRing;
-  const radius = 180 + ring * 54;
-  const angle = -Math.PI / 2 + slot * Math.PI * 2 / slotsPerRing + ring * Math.PI / slotsPerRing;
-  return { orbitX: Math.cos(angle) * radius, orbitY: Math.sin(angle) * radius };
+  const innerRadius = 150, ringSpacing = 42, slotSeparation = 38;
+  const ringCount = Math.floor((MAX_SHIP_ORBIT_RADIUS - innerRadius) / ringSpacing) + 1;
+  let remaining = Math.max(0, index);
+  for (let ring = 0; ring < ringCount; ring += 1) {
+    const radius = Math.min(MAX_SHIP_ORBIT_RADIUS, innerRadius + ring * ringSpacing);
+    const slots = Math.max(8, Math.floor(Math.PI * 2 * radius / slotSeparation));
+    if (remaining < slots || ring === ringCount - 1) {
+      const slot = remaining % slots;
+      const angle = -Math.PI / 2 + slot * Math.PI * 2 / slots + (ring % 2 ? Math.PI / slots : 0);
+      return { orbitX: Math.cos(angle) * radius, orbitY: Math.sin(angle) * radius };
+    }
+    remaining -= slots;
+  }
+  return { orbitX: 0, orbitY: -MAX_SHIP_ORBIT_RADIUS };
 };
 
 function nextOpenOrbitPosition(ships: Unit[]) {
-  for (let slot = 0; slot < 64; slot += 1) {
+  for (let slot = 0; slot < 512; slot += 1) {
     const candidate = orbitSlot(slot);
     if (ships.every(ship => {
       const x = ship.orbitTargetX ?? ship.orbitX, y = ship.orbitTargetY ?? ship.orbitY;
@@ -65,6 +73,26 @@ function nextOpenOrbitPosition(ships: Unit[]) {
     })) return candidate;
   }
   return orbitSlot(ships.length);
+}
+
+const clampOrbitPoint = (x: number, y: number) => {
+  const radius = Math.hypot(x, y);
+  if (radius <= MAX_SHIP_ORBIT_RADIUS || radius === 0) return { x, y };
+  const scale = MAX_SHIP_ORBIT_RADIUS / radius;
+  return { x: x * scale, y: y * scale };
+};
+
+function keepShipInsideGravityWell(ship: Unit) {
+  if (Number.isFinite(ship.orbitX) && Number.isFinite(ship.orbitY)) {
+    const position = clampOrbitPoint(ship.orbitX!, ship.orbitY!);
+    ship.orbitX = position.x;
+    ship.orbitY = position.y;
+  }
+  if (Number.isFinite(ship.orbitTargetX) && Number.isFinite(ship.orbitTargetY)) {
+    const target = clampOrbitPoint(ship.orbitTargetX!, ship.orbitTargetY!);
+    ship.orbitTargetX = target.x;
+    ship.orbitTargetY = target.y;
+  }
 }
 
 function placeInOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUnits) {
@@ -88,7 +116,7 @@ function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   const formationIndex = destination.orbitUnits.filter(unit => Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) >= GRAVITY_WELL_RADIUS - 48).length;
   const formationOffset = formationIndex === 0 ? 0 : Math.ceil(formationIndex / 2) * (formationIndex % 2 ? .075 : -.075);
   const angle = baseAngle + formationOffset;
-  const radius = GRAVITY_WELL_RADIUS - 18;
+  const radius = MAX_SHIP_ORBIT_RADIUS;
   ship.orbitX = Math.cos(angle) * radius;
   ship.orbitY = Math.sin(angle) * radius;
   ship.heading = headingForVector(destination.x - origin.x, destination.y - origin.y, ship.heading);
@@ -112,6 +140,7 @@ function ensureOrbitPositions(planet: Planet) {
       delete ship.orbitTargetY;
       continue;
     }
+    keepShipInsideGravityWell(ship);
     const maneuvering = typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number';
     const hasPosition = typeof ship.orbitX === 'number' && typeof ship.orbitY === 'number'
       && (maneuvering || ship.pendingLanding || ship.pendingEmbark || Math.hypot(ship.orbitX, ship.orbitY) >= 24);
@@ -438,7 +467,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     const column = index % 4, row = Math.floor(index / 4);
     const targetX = orbitX + (column - Math.min(ships.length - 1, 3) / 2) * 24;
     const targetY = orbitY + row * 24;
-    const maximumRadius = GRAVITY_WELL_RADIUS - 24;
+    const maximumRadius = MAX_SHIP_ORBIT_RADIUS;
     const length = Math.hypot(targetX, targetY); const scale = length > maximumRadius ? maximumRadius / length : 1;
     ship.orbitTargetX = targetX * scale; ship.orbitTargetY = targetY * scale;
     ship.heading = headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading);
@@ -454,7 +483,7 @@ const phaseTravelTime = (from: Planet, to: Planet) => Math.max(12, Math.hypot(to
 const systemBorderOffset = (from: Planet, to: Planet) => {
   const dx = to.x - from.x, dy = to.y - from.y;
   const distance = Math.hypot(dx, dy) || 1;
-  const radius = GRAVITY_WELL_RADIUS - 18;
+  const radius = MAX_SHIP_ORBIT_RADIUS;
   return { x: dx / distance * radius, y: dy / distance * radius };
 };
 

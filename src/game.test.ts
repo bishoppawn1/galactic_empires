@@ -3,7 +3,7 @@ import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
   applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
-  GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -468,7 +468,7 @@ describe('enemy strategy', () => {
       arrived = tick(arrived, activeLeg.travelTime - activeLeg.progress);
     }
     const landingTransport = arrived.planets[0].orbitUnits.find(unit => unit.id === 'enemy-transport')!;
-    expect(Math.hypot(landingTransport.orbitX!, landingTransport.orbitY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 18);
+    expect(Math.hypot(landingTransport.orbitX!, landingTransport.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
     expect(landingTransport.pendingLanding).toBe(true);
     expect(arrived.battles).toHaveLength(0);
     const landed = tick(arrived, fullLandingApproachSeconds);
@@ -589,7 +589,7 @@ describe('transport and colonization', () => {
     const order = dispatchSpaceUnit(state, 'terra', 'frigate', 'halcyon'); expectOk(order);
     const arrived = advanceFleetToArrival(order.state, 'frigate');
     const frigate = arrived.planets.find(p => p.id === 'halcyon')!.orbitUnits.find(u => u.id === 'frigate')!;
-    expect(Math.hypot(frigate.orbitX!, frigate.orbitY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 18, 1);
+    expect(Math.hypot(frigate.orbitX!, frigate.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
     expect(frigate.phaseArrival).toBeUndefined();
     expect(frigate.orbitTargetX).toBeUndefined();
 
@@ -673,7 +673,7 @@ describe('transport and colonization', () => {
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 1000, 1000); expectOk(moved);
     const target = moved.state.planets[0].orbitUnits[0];
     expect(GRAVITY_WELL_RADIUS).toBe(600);
-    expect(Math.hypot(target.orbitTargetX!, target.orbitTargetY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 24);
+    expect(Math.hypot(target.orbitTargetX!, target.orbitTargetY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
   });
 
   it('keeps docked ship groups in separate orbital slots', () => {
@@ -693,6 +693,29 @@ describe('transport and colonization', () => {
     const positions = migrated.planets[0].orbitUnits.map(unit => `${unit.orbitX},${unit.orbitY}`);
     expect(new Set(positions).size).toBe(state.planets[0].orbitUnits.length);
     expect(migrated.planets[0].orbitUnits.every(unit => Math.hypot(unit.orbitX!, unit.orbitY!) >= 24)).toBe(true);
+  });
+
+  it('keeps crowded fleets inside the gravity well in distinct bounded orbit slots', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = Array.from({ length: 96 }, (_, index) => ({
+      ...makeUnit(`crowded-${index}`, 'escortFrigate', 'enemy'), orbitX: 0, orbitY: 0,
+    }));
+
+    const positioned = tick(state, 0).planets[0].orbitUnits;
+    expect(new Set(positioned.map(ship => `${ship.orbitX},${ship.orbitY}`)).size).toBe(positioned.length);
+    expect(positioned.every(ship => Math.hypot(ship.orbitX!, ship.orbitY!) <= MAX_SHIP_ORBIT_RADIUS)).toBe(true);
+  });
+
+  it('clamps legacy positions and maneuver targets to the system boundary', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [{
+      ...makeUnit('outside-system', 'missileFrigate', 'enemy'),
+      orbitX: 900, orbitY: 200, orbitTargetX: 850, orbitTargetY: -300,
+    }];
+
+    const bounded = tick(state, 0).planets[0].orbitUnits[0];
+    expect(Math.hypot(bounded.orbitX!, bounded.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
+    expect(Math.hypot(bounded.orbitTargetX!, bounded.orbitTargetY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
   });
 
   it('moves and phase-jumps a selected ship group in formation', () => {
@@ -773,7 +796,7 @@ describe('transport and colonization', () => {
     const halcyonEdge = arrived.planets.find(p => p.id === 'halcyon')!;
     const approaching = halcyonEdge.orbitUnits.find(u => u.id === transport.id)!;
     expect(halcyonEdge.owner).toBeNull();
-    expect(Math.hypot(approaching.orbitX!, approaching.orbitY!)).toBeCloseTo(GRAVITY_WELL_RADIUS - 18, 1);
+    expect(Math.hypot(approaching.orbitX!, approaching.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
     expect(approaching.pendingLanding).toBe(true);
     expect(approaching.phaseArrival).toBeUndefined();
     expect(approaching.cargo).toHaveLength(3);
@@ -832,7 +855,7 @@ describe('transport and colonization', () => {
     terra.orbitUnits.push({ ...makeUnit('interceptor', 'escortFrigate', 'player'), orbitX: 275, orbitY: 50 });
     terra.orbitUnits.push({
       ...makeUnit('doomed-transport', 'transport', 'enemy'),
-      orbitX: GRAVITY_WELL_RADIUS - 18, orbitY: 0, orbitTargetX: 0, orbitTargetY: 0,
+      orbitX: MAX_SHIP_ORBIT_RADIUS, orbitY: 0, orbitTargetX: 0, orbitTargetY: 0,
       phaseArrival: true, pendingLanding: true, cargo: [makeUnit('embarked-enemy', 'infantry', 'enemy')], loadedUnitIds: ['embarked-enemy'],
     });
     expect(SPACE_COMBAT_DAMAGE_MULTIPLIER).toBe(4);

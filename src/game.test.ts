@@ -16,6 +16,27 @@ const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit
 
 const fullLandingApproachSeconds = Math.ceil((GRAVITY_WELL_RADIUS - 18) / LANDING_APPROACH_SPEED);
 
+describe('unit weapon definitions', () => {
+  it('gives every space and ground unit a distinct weapon profile', () => {
+    const definitions = Object.values(UNITS);
+    expect(new Set(definitions.map(definition => definition.weapon.label)).size).toBe(definitions.length);
+    definitions.forEach(definition => {
+      expect(definition.weapon.damage).toBeGreaterThan(0);
+      expect(definition.weapon.cooldown).toBeGreaterThan(0);
+      expect(definition.weapon.projectiles).toBeGreaterThan(0);
+    });
+  });
+
+  it('defines escort lasers as frequent multi-shot fire and the missile frigate as one slow heavy launcher', () => {
+    const lasers = UNITS.escortFrigate.weapon;
+    const missile = UNITS.missileFrigate.weapon;
+    expect(lasers).toMatchObject({ projectiles: 3, effect: 'laser' });
+    expect(missile).toMatchObject({ projectiles: 1, effect: 'missile' });
+    expect(lasers.cooldown).toBeLessThan(missile.cooldown);
+    expect(lasers.damage * lasers.projectiles).toBeLessThan(missile.damage);
+  });
+});
+
 function seedPlayerForces(state: ReturnType<typeof createInitialState>) {
   const terra = state.planets[0];
   terra.groundUnits = [makeUnit('u1', 'infantry', 'player'), makeUnit('u3', 'infantry', 'player'), makeUnit('u4', 'antiVehicle', 'player')];
@@ -804,6 +825,28 @@ describe('combat recovery rules', () => {
     const afterFire = tick(state, 1); const ships = afterFire.planets.find(p => p.id === 'terra')!.orbitUnits;
     expect(ships.find(unit => unit.id === hostile.id)!.shields).toBeLessThan(hostile.shields);
     expect(ships.find(unit => unit.id === escort.id)!.shields).toBeLessThan(escort.shields);
+  });
+
+  it('resolves rapid laser volleys separately from slow heavy missile salvos', () => {
+    const duel = (kind: 'escortFrigate' | 'missileFrigate') => {
+      const state = createInitialState(); const terra = state.planets[0];
+      state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+      terra.orbitUnits = [
+        { ...makeUnit(`attacker-${kind}`, kind, 'player'), orbitX: 0, orbitY: 0 },
+        { ...makeUnit(`target-${kind}`, 'dreadnought', 'enemy'), hp: 2000, maxHp: 2000, shields: 0, maxShields: 0, orbitX: 100, orbitY: 0 },
+      ];
+      return tick(state, .1);
+    };
+    const laserOpening = duel('escortFrigate');
+    const missileOpening = duel('missileFrigate');
+    const laserTarget = laserOpening.planets[0].orbitUnits.find(unit => unit.id === 'target-escortFrigate')!;
+    const missileTarget = missileOpening.planets[0].orbitUnits.find(unit => unit.id === 'target-missileFrigate')!;
+    expect(2000 - missileTarget.hp).toBeGreaterThan(2000 - laserTarget.hp);
+
+    const laserFollowup = tick(laserOpening, .5).planets[0].orbitUnits.find(unit => unit.id === 'target-escortFrigate')!;
+    const missileFollowup = tick(missileOpening, .5).planets[0].orbitUnits.find(unit => unit.id === 'target-missileFrigate')!;
+    expect(laserFollowup.hp).toBeLessThan(laserTarget.hp);
+    expect(missileFollowup.hp).toBe(missileTarget.hp);
   });
 
   it('requires ships to maneuver into weapon range before exchanging fire', () => {

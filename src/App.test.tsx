@@ -380,6 +380,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
 
     expect(document.querySelectorAll('.orbital-fire line.ship-fire')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire line.weapon-laser')).toHaveLength(2);
     expect(document.querySelectorAll('img.ship-image').length).toBeGreaterThanOrEqual(2);
   });
 
@@ -391,6 +392,7 @@ describe('Galactic Empires interface', () => {
     const marker = screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' });
     expect(marker.querySelector('img.ship-image')).not.toBeNull();
     expect(marker.querySelector('.ship-range-ring')).toHaveStyle({ '--ship-range': `${UNITS.escortFrigate.range * 2}px` });
+    expect(marker).toHaveAttribute('title', expect.stringContaining('Triple Laser Array'));
   });
 
   it('starts non-instant movement toward an open point inside its gravity well', () => {
@@ -461,6 +463,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     expect(screen.getByText(/Units advance automatically/)).toBeInTheDocument();
     expect(screen.getAllByText(/RNG 14/)).toHaveLength(2);
+    expect(screen.getAllByText(/Tri-Burst Pulse Rifle/)).toHaveLength(2);
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();

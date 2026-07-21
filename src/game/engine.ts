@@ -25,6 +25,7 @@ import {
   type UnitDefinition,
   type UnitFaction,
   type UnitKind,
+  type WeaponEffect,
 } from './types';
 import { findPlanetPath } from './navigation';
 import { viewStateForFaction } from './perspective';
@@ -620,6 +621,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
   return units.map(unit => {
     const restored = { ...unit, hp: unit.maxHp, shields: unit.maxShields };
     delete restored.battleX; delete restored.battleY;
+    delete restored.weaponCooldown; delete restored.weaponFlash;
     return restored;
   });
 }
@@ -665,14 +667,37 @@ function nearestBattleTarget(unit: Unit, enemies: Unit[], preferredId?: string) 
   return preferred ?? enemies.reduce<Unit | undefined>((nearest, enemy) => !nearest || battleDistance(unit, enemy) < battleDistance(unit, nearest) ? enemy : nearest, undefined);
 }
 
+function tickUnitWeapon(unit: Unit, seconds: number, firing: boolean) {
+  const weapon = UNITS[unit.kind].weapon;
+  unit.weaponFlash = Math.max(0, (unit.weaponFlash ?? 0) - seconds);
+  const cooldown = Math.max(0, unit.weaponCooldown ?? 0);
+  if (!firing || seconds <= 0) {
+    unit.weaponCooldown = Math.max(0, cooldown - seconds);
+    return 0;
+  }
+  if (cooldown > seconds) {
+    unit.weaponCooldown = cooldown - seconds;
+    return 0;
+  }
+  const activeTime = seconds - cooldown;
+  const followupVolleys = Math.floor((activeTime + 1e-9) / weapon.cooldown);
+  const timeSinceLastVolley = Math.max(0, activeTime - followupVolleys * weapon.cooldown);
+  unit.weaponCooldown = Math.max(0, weapon.cooldown - timeSinceLastVolley);
+  const flashDuration = Math.max(.12, Math.min(.75, weapon.cooldown * .3));
+  unit.weaponFlash = Math.max(0, flashDuration - timeSinceLastVolley);
+  return (followupVolleys + 1) * weapon.damage * weapon.projectiles;
+}
+
 function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, damage: Map<string, number>, preferredId?: string, power = 1) {
   const target = nearestBattleTarget(unit, enemies, preferredId);
-  if (!target) return;
+  if (!target) { tickUnitWeapon(unit, seconds, false); return; }
   const distance = battleDistance(unit, target), definition = UNITS[unit.kind];
   if (distance <= definition.range) {
-    damage.set(target.id, (damage.get(target.id) ?? 0) + definition.damage * seconds * .24 * power);
+    const salvoDamage = tickUnitWeapon(unit, seconds, true);
+    if (salvoDamage) damage.set(target.id, (damage.get(target.id) ?? 0) + salvoDamage * power);
     return;
   }
+  tickUnitWeapon(unit, seconds, false);
   const travel = Math.min(definition.moveSpeed * seconds, Math.max(0, distance - definition.range * .92));
   if (!travel || !distance) return;
   unit.battleX = (unit.battleX ?? 0) + ((target.battleX ?? 0) - (unit.battleX ?? 0)) / distance * travel;
@@ -723,6 +748,7 @@ export interface OrbitalCombatShot {
   targetType: 'ship' | 'defense';
   faction: EmpireFaction;
   damage: number;
+  weaponEffect: WeaponEffect;
 }
 
 const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) => Math.hypot(toX - fromX, toY - fromY);
@@ -753,8 +779,10 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
       ? preferredDefense
       : hostileDefenses.find(defenseInRange);
     const shipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
-    if (shipTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: UNITS[attacker.kind].damage });
-    else if (defenseTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: UNITS[attacker.kind].damage });
+    const weapon = UNITS[attacker.kind].weapon;
+    const salvoDamage = weapon.damage * weapon.projectiles;
+    if (shipTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect });
+    else if (defenseTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect });
   }
 
   if (!p.owner) return shots;
@@ -766,7 +794,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
       return orbitDistance(from.x, from.y, to.x, to.y) <= ORBITAL_DEFENSE_RANGE;
     };
     const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
-    if (target) shots.push({ attackerId: defense.id, attackerType: 'defense', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: ORBITAL_DEFENSE_STATS.damage });
+    if (target) shots.push({ attackerId: defense.id, attackerType: 'defense', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: ORBITAL_DEFENSE_STATS.damage, weaponEffect: 'pulse' });
   });
   p.buildings.filter(building => building.kind === 'antiSpaceDefense').forEach(battery => {
     const inRange = (target: Unit) => {
@@ -774,7 +802,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
       return orbitDistance(0, 0, to.x, to.y) <= ANTI_SPACE_BATTERY_RANGE;
     };
     const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
-    if (target) shots.push({ attackerId: battery.id, attackerType: 'battery', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: 12 });
+    if (target) shots.push({ attackerId: battery.id, attackerType: 'battery', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: 12, weaponEffect: 'plasma' });
   });
   return shots;
 }
@@ -783,14 +811,23 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const vulnerableShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding || unit.pendingEmbark).map(unit => [unit.id, unit]));
   const defenses = p.buildings.filter(b => b.kind === 'spaceDefense');
   defenses.forEach(ensureOrbitalDefenseHealth);
-  const scale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
+  const installationScale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
   const enemyPower = enemyDifficultyMultiplier(state.config.difficulty);
   const shipDamage = new Map<string, number>();
   const defenseDamage = new Map<string, number>();
-  orbitalCombatShots(p).forEach(shot => {
-    const damage = shot.damage * scale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
+  const shots = orbitalCombatShots(p);
+  const shipShots = new Map(shots.filter(shot => shot.attackerType === 'ship').map(shot => [shot.attackerId, shot]));
+  p.orbitUnits.forEach(unit => {
+    const shot = shipShots.get(unit.id);
+    const salvoDamage = tickUnitWeapon(unit, seconds, !!shot);
+    if (!shot || !salvoDamage) return;
+    const damage = salvoDamage * SPACE_COMBAT_DAMAGE_MULTIPLIER * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
     const ledger = shot.targetType === 'ship' ? shipDamage : defenseDamage;
     ledger.set(shot.targetId, (ledger.get(shot.targetId) ?? 0) + damage);
+  });
+  shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
+    const damage = shot.damage * installationScale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
+    shipDamage.set(shot.targetId, (shipDamage.get(shot.targetId) ?? 0) + damage);
   });
   p.orbitUnits = p.orbitUnits.map(unit => shipDamage.has(unit.id) ? damageUnit(unit, shipDamage.get(unit.id)!) : unit);
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);

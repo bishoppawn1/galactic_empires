@@ -24,6 +24,7 @@ export type BuildingKind =
 export type GroundUnitKind = 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret';
 export type SpaceUnitKind = 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
+export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number }
 export interface Building {
@@ -56,6 +57,8 @@ export interface Unit {
   sourceBuildingId?: string;
   loadedUnitIds?: string[];
   cargo?: Unit[];
+  weaponCooldown?: number;
+  weaponFlash?: number;
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {
@@ -147,9 +150,15 @@ export interface UnitDefinition extends Definition {
   factory: 'ground' | 'space';
   hp: number;
   shields: number;
-  damage: number;
   range: number;
   moveSpeed: number;
+  weapon: {
+    label: string;
+    damage: number;
+    cooldown: number;
+    projectiles: number;
+    effect: WeaponEffect;
+  };
   advancedFactory?: boolean;
   capacity?: number;
 }

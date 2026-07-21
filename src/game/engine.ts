@@ -32,6 +32,10 @@ import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
+  GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
+  nearestOpenGroundPosition, separateGroundUnits,
+} from './ground/collision';
+import {
   BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTIONS, biomassCost, empireCivilization,
   recoverableBiomass, startingResources, usesBiomass,
 } from './factions';
@@ -46,6 +50,7 @@ export * from './types';
 export * from './navigation';
 export * from './definitions';
 export * from './factions';
+export * from './ground/collision';
 
 const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp,
@@ -787,12 +792,21 @@ function damageBuilding(target: Building, damage: number): Building {
 }
 
 function ensureBattlePositions(battle: GroundBattle) {
-  const deploy = (units: Unit[], x: number) => units.forEach((unit, index) => {
-    unit.battleX ??= x;
-    unit.battleY ??= 24 + (index + 1) * 52 / (units.length + 1);
+  const deploy = (units: Unit[], x: number, direction: 1 | -1) => units.forEach((unit, index) => {
+    if (typeof unit.battleX === 'number' && typeof unit.battleY === 'number') return;
+    const rowsPerColumn = 13;
+    const column = Math.floor(index / rowsPerColumn), row = index % rowsPerColumn;
+    const rowCount = Math.min(rowsPerColumn, units.length - column * rowsPerColumn);
+    const position = clampGroundPosition(
+      x + column * GROUND_FORMATION_X_SPACING * direction,
+      50 + (row - (rowCount - 1) / 2) * GROUND_FORMATION_Y_SPACING,
+    );
+    unit.battleX = position.battleX;
+    unit.battleY = position.battleY;
   });
-  deploy(battle.attackers, 12);
-  deploy(battle.defenders, 88);
+  deploy(battle.attackers, 12, 1);
+  deploy(battle.defenders, 88, -1);
+  separateGroundUnits([...battle.attackers, ...battle.defenders]);
 }
 
 const battleDistance = (a: Unit, b: Unit) => Math.hypot((b.battleX ?? 0) - (a.battleX ?? 0), (b.battleY ?? 0) - (a.battleY ?? 0));
@@ -923,13 +937,27 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
   const requested = new Set(unitIds);
   const units = battle ? [...battle.attackers, ...battle.defenders].filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId) : [];
   if (!battle || !units.length || units.length !== requested.size) return fail(input, 'Select mobile ground units in the active battle.');
-  const centerX = Math.max(2, Math.min(98, battleX)), centerY = Math.max(4, Math.min(96, battleY));
+  const center = clampGroundPosition(battleX, battleY);
   const columns = Math.min(5, Math.ceil(Math.sqrt(units.length)));
+  const selectedIds = new Set(units.map(unit => unit.id));
+  const occupied = [...battle.attackers, ...battle.defenders]
+    .filter(unit => !selectedIds.has(unit.id))
+    .map(unit => ({
+      id: unit.id,
+      battleX: unit.battleTargetX ?? unit.battleX ?? 0,
+      battleY: unit.battleTargetY ?? unit.battleY ?? 0,
+    }));
   units.forEach((unit, index) => {
     const column = index % columns, row = Math.floor(index / columns);
     const rowCount = Math.min(columns, units.length - row * columns);
-    unit.battleTargetX = Math.max(2, Math.min(98, centerX + (column - (rowCount - 1) / 2) * 2.8));
-    unit.battleTargetY = Math.max(4, Math.min(96, centerY + (row - (Math.ceil(units.length / columns) - 1) / 2) * 4.2));
+    const position = nearestOpenGroundPosition(
+      center.battleX + (column - (rowCount - 1) / 2) * GROUND_FORMATION_X_SPACING,
+      center.battleY + (row - (Math.ceil(units.length / columns) - 1) / 2) * GROUND_FORMATION_Y_SPACING,
+      occupied,
+    );
+    unit.battleTargetX = position.battleX;
+    unit.battleTargetY = position.battleY;
+    occupied.push({ id: unit.id, ...position });
     delete unit.battleRetaliationTargetId;
   });
   return pass(state);
@@ -960,6 +988,7 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
   battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, focus(unit), power(unit)));
   battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, focus(unit), power(unit)));
+  separateGroundUnits([...battle.attackers, ...battle.defenders]);
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
     if (!hit) return unit;

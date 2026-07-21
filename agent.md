@@ -11,6 +11,7 @@ Galactic Empires is a React + TypeScript + Vite strategy prototype. Stable publi
 - `src/game/units/` — faction-specific unit rosters and combat definitions
 - `src/game/navigation.ts` — route calculation and formatting helpers
 - `src/game/ai/` — focused deterministic planning for AI fleet operations
+- `src/game/ground/` — ground-battle positioning and collision rules
 - `src/game/engine.ts` — deterministic state creation, commands, combat, AI, and ticking
 - `src/app/` — top-level UI orchestration, view types, and save migration
 - `src/components/` — feature UI grouped by campaign, planet, research, battle, layout, and shared helpers

@@ -4,6 +4,12 @@ import { isGameCommand, swapPlayerPerspective, type GameCommand, type GameConfig
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PEER_PREFIX = 'galactic-empires-';
 const MAX_PLAYERS = 2;
+export const MULTIPLAYER_SERIALIZATION = 'binary';
+export const STATE_SYNC_INTERVAL_MS = 250;
+export const MAX_BUFFERED_STATE_MESSAGES = 2;
+
+export const canSendStateUpdate = (lastSentAt: number, now: number, bufferedMessages = 0) =>
+  now - lastSentAt >= STATE_SYNC_INTERVAL_MS && bufferedMessages < MAX_BUFFERED_STATE_MESSAGES;
 
 export interface LobbyPlayer {
   id: string;
@@ -56,6 +62,7 @@ function peerErrorMessage(error: unknown) {
   if (typed.type === 'peer-unavailable') return 'No open lobby uses that code.';
   if (typed.type === 'unavailable-id') return 'That lobby code is already active. Try hosting again.';
   if (typed.type === 'browser-incompatible') return 'This browser does not support multiplayer connections.';
+  if (typed.type === 'message-too-big') return 'The multiplayer snapshot exceeded the channel limit. Both commanders should reload the updated game.';
   return typed.message || 'The multiplayer link could not be established.';
 }
 
@@ -80,6 +87,7 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
   const connections = new Map<string, DataConnection>();
   let playing = false;
   let closed = false;
+  let lastStateSentAt = Number.NEGATIVE_INFINITY;
   const lobby = (): LobbySnapshot => ({
     code,
     config,
@@ -89,12 +97,23 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
     ],
   });
   const send = (connection: DataConnection, message: HostMessage) => {
-    if (connection.open) connection.send(message);
+    if (!connection.open) return false;
+    try {
+      connection.send(message);
+      return true;
+    } catch (error) {
+      callbacks.onError(peerErrorMessage(error));
+      return false;
+    }
   };
-  const broadcast = (message: HostMessage, allowBuffered = true) => connections.forEach(connection => {
-    const bufferedMessages = (connection as DataConnection & { bufferSize?: number }).bufferSize ?? 0;
-    if (!allowBuffered || bufferedMessages < 2) send(connection, message);
-  });
+  const broadcast = (message: HostMessage, allowBuffered = true) => {
+    let sent = false;
+    connections.forEach(connection => {
+      const bufferedMessages = (connection as DataConnection & { bufferSize?: number }).bufferSize ?? 0;
+      if (!allowBuffered || bufferedMessages < MAX_BUFFERED_STATE_MESSAGES) sent = send(connection, message) || sent;
+    });
+    return sent;
+  };
   const publishLobby = () => {
     const snapshot = lobby();
     callbacks.onLobby(snapshot);
@@ -129,8 +148,13 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
       if (playing || connections.size === 0) return;
       playing = true;
       broadcast({ type: 'start', state }, false);
+      lastStateSentAt = Date.now();
     },
-    sendState(state) { if (playing) broadcast({ type: 'state', state }); },
+    sendState(state) {
+      const now = Date.now();
+      if (!playing || !canSendStateUpdate(lastStateSentAt, now)) return;
+      if (broadcast({ type: 'state', state })) lastStateSentAt = now;
+    },
     sendCommand() {},
     close() {
       closed = true;
@@ -147,7 +171,7 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
   const peer = new PeerConstructor();
   await waitForPeerOpen(peer).catch(error => { peer.destroy(); throw new Error(peerErrorMessage(error)); });
 
-  const connection = peer.connect(peerIdForCode(code), { reliable: true, serialization: 'json' });
+  const connection = peer.connect(peerIdForCode(code), { reliable: true, serialization: MULTIPLAYER_SERIALIZATION });
   let closed = false;
   connection.on('data', payload => {
     const message = payload as HostMessage;

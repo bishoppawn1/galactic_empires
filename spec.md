@@ -33,7 +33,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 - The lobby holds exactly two commanders. Only the host can start, and launch remains disabled until the rival has joined.
 - Both empires begin with equal resources, structures, production capabilities, unit statistics, and collection rates. Multiplayer ignores AI difficulty bonuses and disables the strategic AI.
 - The host owns the deterministic simulation clock and validates both sides' commands. The rival sends build, research, fleet, maneuver, and targeting orders to the host, then receives the authoritative state from their own empire's perspective.
-- Browser peers connect through WebRTC. The lobby exists only while the host remains online; no account or cloud save is required.
+- Browser peers connect through WebRTC. Authoritative snapshots use PeerJS binary serialization so large late-game states are automatically chunked, and full-state synchronization is capped at four updates per second to prevent channel-buffer overload. Player commands remain immediate. The lobby exists only while the host remains online; no account or cloud save is required.
 
 ## Buildings
 

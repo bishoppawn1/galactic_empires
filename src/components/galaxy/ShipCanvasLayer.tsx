@@ -65,9 +65,8 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
         : [];
     }));
     const traveling = state.fleets.flatMap((fleet, index) => {
-      if (!isSpaceUnit(fleet.unit.kind)) return [];
+      if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return [];
       const position = fleetMapPosition(fleet, state.planets);
-      if (fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging')) return [];
       const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
       return pointInViewport(bounds, x, y, shipDisplaySize(fleet.unit.kind))
         ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x, y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]

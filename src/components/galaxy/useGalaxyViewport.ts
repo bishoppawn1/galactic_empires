@@ -41,7 +41,10 @@ export function useGalaxyViewport(zoom: number) {
       viewport.removeEventListener('scroll', scheduleMeasure);
       observer?.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
-      if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current);
+      if (frameRef.current !== undefined) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = undefined;
+      }
     };
   }, [measure, scheduleMeasure]);
 

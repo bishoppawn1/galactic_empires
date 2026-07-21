@@ -251,16 +251,19 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.flatMap((fleet, index) => {
+          if (fleet.faction !== 'player') return [];
           const position = fleetMapPosition(fleet, state.planets);
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
           const displaySize = shipDisplaySize(fleet.unit.kind);
-          const selectable = fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging');
-          if (!selectable) return [];
+          const selectable = position.phase === 'exiting' || position.phase === 'charging';
           const origin = state.planets.find(planet => planet.id === fleet.originId)!;
           const destination = state.planets.find(planet => planet.id === fleet.destinationId)!;
-          const className = `transit-ship player ${position.phase} interruptible ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
+          const className = `transit-ship player ${position.phase} ${selectable ? 'interruptible' : 'committed'} ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
           const style = { left: x, top: y, '--ship-heading': `${fleetHeading(fleet, state.planets)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 7}px` } as React.CSSProperties;
-          return <button key={fleet.id} aria-label={`${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, event.shiftKey); }}><ShipImage kind={fleet.unit.kind} /><i className="ship-control-frame" aria-hidden="true" /></button>;
+          const content = <><ShipImage kind={fleet.unit.kind} /><i className="ship-control-frame" aria-hidden="true" /></>;
+          return selectable
+            ? <button key={fleet.id} aria-label={`${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, event.shiftKey); }}>{content}</button>
+            : <div key={fleet.id} role="img" aria-label={`${UNITS[fleet.unit.kind].label} in phase transit from ${origin.name} toward ${destination.name}`} className={className} style={style}>{content}</div>;
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>

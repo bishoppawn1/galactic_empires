@@ -575,6 +575,23 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.galaxy')).not.toHaveClass('issuing-order');
   });
 
+  it('keeps a player ship visibly mounted throughout committed phase transit', () => {
+    const state = createInitialState(); const origin = state.planets[0], destination = state.planets[1];
+    state.fleets = [{
+      id: 'player-transit-fleet', faction: 'player', originId: origin.id, destinationId: destination.id,
+      unit: makeUnit('player-transit-ship', 'transport', 'player'),
+      progress: 5, travelTime: 10, phase: 'tunnel',
+    }];
+    saveState(state);
+    render(<App />);
+
+    const marker = screen.getByRole('img', { name: 'Transport in phase transit from Terra Nova toward Nyx' });
+    expect(marker).toHaveClass('transit-ship', 'player', 'tunnel', 'committed');
+    expect(marker.querySelector('img.ship-image')).toBeInTheDocument();
+    expect(marker.querySelector('.ship-control-frame')).toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '0');
+  });
+
   it('caps rendered orbital salvos without reducing combatants', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = Array.from({ length: 80 }, (_, index) => ({

@@ -1015,6 +1015,8 @@ describe('combat recovery rules', () => {
     const missileOpening = duel('missileFrigate');
     const laserTarget = laserOpening.planets[0].orbitUnits.find(unit => unit.id === 'target-escortFrigate')!;
     const missileTarget = missileOpening.planets[0].orbitUnits.find(unit => unit.id === 'target-missileFrigate')!;
+    expect(laserOpening.planets[0].orbitUnits.find(unit => unit.id === 'attacker-escortFrigate')!.weaponFlash).toBeGreaterThan(.3);
+    expect(missileOpening.planets[0].orbitUnits.find(unit => unit.id === 'attacker-missileFrigate')!.weaponFlash).toBeGreaterThan(.7);
     expect(2000 - missileTarget.hp).toBeGreaterThan(2000 - laserTarget.hp);
 
     const laserFollowup = tick(laserOpening, .5).planets[0].orbitUnits.find(unit => unit.id === 'target-escortFrigate')!;

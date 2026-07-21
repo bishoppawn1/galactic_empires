@@ -729,7 +729,7 @@ function tickUnitWeapon(unit: Unit, seconds: number, firing: boolean) {
   const followupVolleys = Math.floor((activeTime + 1e-9) / weapon.cooldown);
   const timeSinceLastVolley = Math.max(0, activeTime - followupVolleys * weapon.cooldown);
   unit.weaponCooldown = Math.max(0, weapon.cooldown - timeSinceLastVolley);
-  const flashDuration = Math.max(.12, Math.min(.75, weapon.cooldown * .3));
+  const flashDuration = Math.max(.45, Math.min(.9, weapon.cooldown * .5));
   unit.weaponFlash = Math.max(0, flashDuration - timeSinceLastVolley);
   return (followupVolleys + 1) * weapon.damage * weapon.projectiles;
 }

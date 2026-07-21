@@ -51,8 +51,10 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const beam = effect === 'laser' || effect === 'siege';
   const count = effect === 'drone' ? 1 : Math.max(1, Math.min(4, projectiles));
-  const imageWidth = beam ? distance : Math.min(distance, size * 2.4);
-  const imageHeight = beam ? size * .8 : size;
+  // The source art has generous transparent padding so it needs a larger SVG
+  // envelope than its apparent bolt size to stay readable on the tactical maps.
+  const imageWidth = beam ? distance : Math.min(distance, size * 3.2);
+  const imageHeight = size * 3;
   const travel = Math.max(0, distance - imageWidth);
   const duration = flightDurations[effect];
   const offsets = Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * size * .22);
@@ -63,7 +65,7 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
       {offsets.map((offset, index) => <image key={`${id}-projectile-${index}`} className="weapon-projectile" href={weaponImages[effect]} x="0" y={-imageHeight / 2 + offset} width={imageWidth} height={imageHeight} preserveAspectRatio="none">
         {beam
           ? <animate attributeName="opacity" values=".35;1;.55" dur={`${duration}s`} begin={`${index * .035}s`} repeatCount="indefinite" />
-          : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="1" fill="freeze" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="1" fill="freeze" /></>}
+          : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
       </image>)}
     </g>
   </g>;

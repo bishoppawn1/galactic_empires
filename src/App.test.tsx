@@ -281,6 +281,13 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByText('Ground factories · 2 online · 2× speed')).toBeInTheDocument();
     expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('5s');
+
+    fireEvent.click(screen.getByRole('button', { name: 'construction' }));
+    fireEvent.click(within(screen.getByText('Ground Factory', { selector: '.card-copy b' }).closest('article')!).getByRole('button', { name: 'BUILD +1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    expect(screen.getByText('Ground factories · 3 online · 3× speed')).toBeInTheDocument();
+    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('3.3s');
   });
 
   it('supports additive fleet selection', () => {

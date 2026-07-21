@@ -67,9 +67,11 @@ function Construction({ state, planet, act }: { state: GameState; planet: Planet
   </section>;
 }
 
+const formatProductionSeconds = (seconds: number) => `${Number(seconds.toFixed(1))}s`;
+
 function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; speed?: number; showEmpty?: boolean }) {
   if (!items.length && !showEmpty) return null;
-  return <div className="queue"><b>PRODUCTION QUEUE · {speed}× SPEED</b>{items.length ? items.map((item, index) => <div key={item.id}><span>{index + 1}. {UNITS[item.kind].label}</span><div><i style={{ width: `${100 * (1 - item.remaining / item.total)}%` }} /></div><em>{Math.ceil(item.remaining / speed)}s</em></div>) : <small>QUEUE EMPTY</small>}</div>;
+  return <div className="queue"><b>PRODUCTION QUEUE · {speed}× SPEED</b>{items.length ? items.map((item, index) => <div key={item.id}><span>{index + 1}. {UNITS[item.kind].label}</span><div><i style={{ width: `${100 * (1 - item.remaining / item.total)}%` }} /></div><em>{formatProductionSeconds(item.remaining / speed)}</em></div>) : <small>QUEUE EMPTY</small>}</div>;
 }
 
 function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
@@ -112,7 +114,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </section>;
 }
 
-function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatFactionCost(definition.cost, faction)} · ${Math.ceil(definition.time! / speed)}s · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s`}</small></button>; }
+function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s`}</small></button>; }
 function UnitRow({ unit }: { unit: Unit }) { const definition = UNITS[unit.kind]; return <div className="unit-row"><span>{isSpaceUnit(unit.kind) ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{unit.faction.toUpperCase()} · {definition.weapon.label} · {definition.weapon.projectiles}× / {definition.weapon.cooldown}s · RNG {definition.range}</small></div></div>; }
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) { return <header className="section-title"><small>{kicker}</small><h2>{title}</h2></header>; }
 function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }

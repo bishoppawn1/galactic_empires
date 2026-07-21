@@ -459,6 +459,17 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   if (transport.faction === 'neutral') return;
   const faction = transport.faction;
   if (!UNITS[transport.kind].capacity || !cargo.length) return;
+  const activeBattle = state.battles.find(battle => battle.planetId === p.id);
+  if (activeBattle) {
+    const attackerFaction = activeBattle.attackerFaction ?? activeBattle.attackers[0]?.faction;
+    const reinforcements = faction === attackerFaction ? activeBattle.attackers : activeBattle.defenders;
+    reinforcements.push(...cargo);
+    ensureBattlePositions(activeBattle);
+    addMessage(state, `${cargo.length} ${faction === attackerFaction ? 'attacking' : 'defending'} squad${cargo.length === 1 ? '' : 's'} reinforced the ground battle on ${p.name}.`);
+    transport.cargo = [];
+    transport.loadedUnitIds = [];
+    return;
+  }
   if (p.owner === null && p.groundUnits.length) {
     const battle: GroundBattle = { planetId: p.id, attackers: cargo, defenders: [...p.groundUnits], attackerFaction: faction, groundDefenseBuildingIds: [] };
     ensureBattlePositions(battle);

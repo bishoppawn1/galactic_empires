@@ -566,6 +566,41 @@ describe('transport and colonization', () => {
     expect(landed.messages.some(message => message.includes('LANDING CONTESTED'))).toBe(true);
   });
 
+  it('merges every simultaneous transport landing into the same ground battle', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const target = state.planets.find(planet => planet.id === 'nyx')!;
+    target.owner = 'enemy';
+    target.buildings = [];
+    target.orbitUnits = [];
+    target.groundUnits = [makeUnit('landing-defender', 'infantry', 'enemy')];
+
+    for (let transportIndex = 0; transportIndex < 10; transportIndex += 1) {
+      const cargo = Array.from({ length: 4 }, (_, squadIndex) => makeUnit(`landing-${transportIndex}-${squadIndex}`, 'infantry', 'player'));
+      target.orbitUnits.push({
+        ...makeUnit(`landing-transport-${transportIndex}`, 'transport', 'player'),
+        orbitX: 0, orbitY: 0, phaseArrival: true, pendingLanding: true,
+        cargo, loadedUnitIds: cargo.map(unit => unit.id),
+      });
+    }
+
+    const landed = tick(state, fullLandingApproachSeconds);
+    const battle = landed.battles.find(candidate => candidate.planetId === target.id)!;
+    const transports = landed.planets.find(planet => planet.id === target.id)!.orbitUnits;
+    expect(battle.attackers).toHaveLength(40);
+    expect(new Set(battle.attackers.map(unit => unit.id)).size).toBe(40);
+    expect(battle.defenders).toHaveLength(1);
+    expect(landed.planets.find(planet => planet.id === target.id)!.owner).toBe('enemy');
+    expect(transports.every(transport => transport.cargo?.length === 0 && transport.loadedUnitIds?.length === 0)).toBe(true);
+
+    let resolved = landed;
+    for (let second = 0; second < 180 && resolved.battles.some(candidate => candidate.planetId === target.id); second += 1) resolved = tick(resolved, 1);
+    const secured = resolved.planets.find(planet => planet.id === target.id)!;
+    expect(resolved.battles.some(candidate => candidate.planetId === target.id)).toBe(false);
+    expect(secured.owner).toBe('player');
+    expect(secured.groundUnits.length).toBeGreaterThan(4);
+  });
+
   it('lets one escort destroy a full-health loaded transport before it reaches the planet', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;

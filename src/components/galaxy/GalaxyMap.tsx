@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, ownerLabel, spaceYards,
+  BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, orbitalCombatShots, orbitalDefenseOffset, ownerLabel, spaceYards,
   type Fleet, type GameState, type Planet, type Unit,
 } from '../../game';
-import { factionName, fleetPhaseLabel, unitGlyph } from '../shared/presentation';
+import { factionName, fleetPhaseLabel } from '../shared/presentation';
+import { ShipImage } from '../shared/ShipImage';
 import { FleetSelectionHud } from './FleetSelectionHud';
 
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'ENEMY' : 'NEUTRAL';
@@ -101,9 +102,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: CANVAS_WIDTH * p.x / 100 + Math.cos(angle) * radius, y: CANVAS_HEIGHT * p.y / 100 + Math.sin(angle) * radius };
   };
   const defensePosition = (p: Planet, index: number, count: number) => {
-    const angle = -Math.PI / 4 + index * (Math.PI * 2 / Math.max(2, count));
-    const radius = 285;
-    return { x: CANVAS_WIDTH * p.x / 100 + Math.cos(angle) * radius, y: CANVAS_HEIGHT * p.y / 100 + Math.sin(angle) * radius };
+    const offset = orbitalDefenseOffset(index, count);
+    return { x: CANVAS_WIDTH * p.x / 100 + offset.x, y: CANVAS_HEIGHT * p.y / 100 + offset.y };
   };
   const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => selectedShipIds.every(id => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'))) : undefined;
   const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
@@ -147,42 +147,22 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         </svg>
         <svg className="orbital-fire" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
-            if (!p.owner) return [];
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
-            const hostileShips = p.orbitUnits.filter(ship => ship.faction !== p.owner);
-            if (!defenses.length || !hostileShips.length) return [];
-            const defense = defenses.find(item => item.id === p.orbitFocusTargetId) ?? defenses[0];
-            const defenseIndex = defenses.findIndex(item => item.id === defense.id);
-            const platform = defensePosition(p, defenseIndex, defenses.length);
-            return hostileShips.flatMap((ship, index) => {
-              const target = shipPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === ship.id));
-              return [
-                <line key={`${defense.id}-fires-${ship.id}`} x1={platform.x} y1={platform.y} x2={target.x} y2={target.y} className={p.owner ?? 'neutral'} />,
-                <line key={`${ship.id}-fires-${defense.id}`} x1={target.x} y1={target.y} x2={platform.x} y2={platform.y} className={`${ship.faction} return-fire`} style={{ '--fire-delay': `${index * .13}s` } as React.CSSProperties} />,
-              ];
+            const mapPosition = (id: string, type: 'ship' | 'defense' | 'battery') => {
+              if (type === 'battery') return { x: CANVAS_WIDTH * p.x / 100, y: CANVAS_HEIGHT * p.y / 100 };
+              if (type === 'defense') {
+                const index = defenses.findIndex(defense => defense.id === id);
+                return index < 0 ? undefined : defensePosition(p, index, defenses.length);
+              }
+              const ship = p.orbitUnits.find(unit => unit.id === id);
+              return ship ? shipPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === id)) : undefined;
+            };
+            return orbitalCombatShots(p).flatMap((shot, index) => {
+              const source = mapPosition(shot.attackerId, shot.attackerType);
+              const target = mapPosition(shot.targetId, shot.targetType);
+              if (!source || !target) return [];
+              return <line key={`${shot.attackerId}-fires-${shot.targetId}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} className={`${shot.faction} ${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} style={{ '--fire-delay': `${index * .11}s` } as React.CSSProperties} />;
             });
-          })}
-          {state.planets.flatMap(p => {
-            const players = p.orbitUnits.filter(ship => ship.faction === 'player');
-            const enemies = p.orbitUnits.filter(ship => ship.faction === 'enemy');
-            if (!players.length || !enemies.length) return [];
-            const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
-            const playerDefended = p.owner === 'player' && defenses.length > 0;
-            const enemyDefended = p.owner === 'enemy' && defenses.length > 0;
-            const targetedEnemy = enemies.find(ship => ship.pendingLanding || ship.pendingEmbark) ?? enemies[0];
-            const targetedPlayer = players.find(ship => ship.pendingLanding || ship.pendingEmbark) ?? players[0];
-            const playerTarget = shipPosition(p, targetedEnemy, p.orbitUnits.findIndex(unit => unit.id === targetedEnemy.id));
-            const enemyTarget = shipPosition(p, targetedPlayer, p.orbitUnits.findIndex(unit => unit.id === targetedPlayer.id));
-            return [
-              ...(!enemyDefended ? players.map((ship, index) => {
-                const source = shipPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === ship.id));
-                return <line key={`${ship.id}-attacks-${targetedEnemy.id}`} x1={source.x} y1={source.y} x2={playerTarget.x} y2={playerTarget.y} className={`player ship-fire ${ship.kind === 'escortFrigate' ? 'escort-attack' : ''}`} style={{ '--fire-delay': `${index * .11}s` } as React.CSSProperties} />;
-              }) : []),
-              ...(!playerDefended ? enemies.map((ship, index) => {
-                const source = shipPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === ship.id));
-                return <line key={`${ship.id}-attacks-${targetedPlayer.id}`} x1={source.x} y1={source.y} x2={enemyTarget.x} y2={enemyTarget.y} className={`enemy ship-fire ${ship.kind === 'escortFrigate' ? 'escort-attack' : ''}`} style={{ '--fire-delay': `${index * .11 + .07}s` } as React.CSSProperties} />;
-              }) : []),
-            ];
           })}
         </svg>
         {selectedOrigin && connections.flatMap(({ from, to }) => {
@@ -232,12 +212,12 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const selectable = ship.faction === 'player';
           const cargoCount = ship.cargo?.length ?? 0;
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><span>{unitGlyph(ship.kind)}</span>{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} /><ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.map((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);
           const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
-          return <div className={`transit-ship ${fleet.faction} ${position.phase}`} style={{ left: x, top: y }} key={fleet.id}><span>{unitGlyph(fleet.unit.kind)}</span><small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></div>;
+          return <div className={`transit-ship ${fleet.faction} ${position.phase}`} style={{ left: x, top: y }} key={fleet.id}><ShipImage kind={fleet.unit.kind} /><small>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label}</small></div>;
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>

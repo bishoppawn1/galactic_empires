@@ -326,14 +326,26 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Priority target locked: orbital defense at Cygnus Reach.')).toBeInTheDocument();
   });
 
-  it('shows escort frigates attacking hostile ships in orbit', () => {
+  it('shows weapon traces only when hostile ships are inside range', () => {
     const state = stateWithPlayerForces(); const terra = state.planets.find(p => p.id === 'terra')!;
     const escort = terra.orbitUnits.find(unit => unit.kind === 'escortFrigate')!;
-    terra.orbitUnits = [escort, { id: 'enemy-escort-ui', kind: 'escortFrigate', faction: 'enemy', hp: 260, maxHp: 260, shields: 130, maxShields: 130 }];
+    escort.orbitX = 0; escort.orbitY = 0;
+    terra.orbitUnits = [escort, { id: 'enemy-escort-ui', kind: 'escortFrigate', faction: 'enemy', hp: 260, maxHp: 260, shields: 130, maxShields: 130, orbitX: 200, orbitY: 0 }];
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
 
-    expect(document.querySelectorAll('.orbital-fire line.escort-attack')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire line.ship-fire')).toHaveLength(2);
+    expect(document.querySelectorAll('img.ship-image').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows the selected ship weapon range on the orbital map', () => {
+    saveState(stateWithPlayerForces());
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }));
+
+    const marker = screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' });
+    expect(marker.querySelector('img.ship-image')).not.toBeNull();
+    expect(marker.querySelector('.ship-range-ring')).toHaveStyle({ '--ship-range': `${UNITS.escortFrigate.range * 2}px` });
   });
 
   it('starts non-instant movement toward an open point inside its gravity well', () => {

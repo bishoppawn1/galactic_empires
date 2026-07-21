@@ -25,9 +25,10 @@ import {
 } from './types';
 import { findPlanetPath } from './navigation';
 import {
-  BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
-  ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
+  ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
+  ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
+  orbitalDefenseOffset,
 } from './definitions';
 
 export * from './types';
@@ -648,41 +649,86 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   }
 }
 
+export interface OrbitalCombatShot {
+  attackerId: string;
+  attackerType: 'ship' | 'defense' | 'battery';
+  targetId: string;
+  targetType: 'ship' | 'defense';
+  faction: 'player' | 'enemy';
+  damage: number;
+}
+
+const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) => Math.hypot(toX - fromX, toY - fromY);
+
+export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
+  const shots: OrbitalCombatShot[] = [];
+  const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
+  const defensePosition = (defense: Building) => orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length);
+  const shipPosition = (ship: Unit) => ({ x: ship.orbitX ?? 0, y: ship.orbitY ?? 0 });
+  const shipInRange = (attacker: Unit, target: Unit) => {
+    const from = shipPosition(attacker), to = shipPosition(target);
+    return orbitDistance(from.x, from.y, to.x, to.y) <= UNITS[attacker.kind].range;
+  };
+
+  for (const attacker of p.orbitUnits.filter(unit => unit.faction === 'player' || unit.faction === 'enemy')) {
+    const faction = attacker.faction as 'player' | 'enemy';
+    const hostileFaction = faction === 'player' ? 'enemy' : 'player';
+    const hostileShips = p.orbitUnits.filter(unit => unit.faction === hostileFaction);
+    const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
+    const hostileDefenses = p.owner === hostileFaction ? defenses : [];
+    const focusId = faction === 'player' ? p.orbitFocusTargetId : p.enemyOrbitFocusTargetId;
+    const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);
+    const attackerPosition = shipPosition(attacker);
+    const defenseInRange = (defense: Building) => {
+      const target = defensePosition(defense);
+      return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= UNITS[attacker.kind].range;
+    };
+    const defenseTarget = preferredDefense && defenseInRange(preferredDefense)
+      ? preferredDefense
+      : hostileDefenses.find(defenseInRange);
+    const shipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
+    if (shipTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: UNITS[attacker.kind].damage });
+    else if (defenseTarget) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: UNITS[attacker.kind].damage });
+  }
+
+  if (!p.owner) return shots;
+  const hostileFaction = p.owner === 'player' ? 'enemy' : 'player';
+  const hostileShips = p.orbitUnits.filter(unit => unit.faction === hostileFaction);
+  defenses.forEach((defense, index) => {
+    const from = orbitalDefenseOffset(index, defenses.length);
+    const inRange = (target: Unit) => {
+      const to = shipPosition(target);
+      return orbitDistance(from.x, from.y, to.x, to.y) <= ORBITAL_DEFENSE_RANGE;
+    };
+    const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
+    if (target) shots.push({ attackerId: defense.id, attackerType: 'defense', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: ORBITAL_DEFENSE_STATS.damage });
+  });
+  p.buildings.filter(building => building.kind === 'antiSpaceDefense').forEach(battery => {
+    const inRange = (target: Unit) => {
+      const to = shipPosition(target);
+      return orbitDistance(0, 0, to.x, to.y) <= ANTI_SPACE_BATTERY_RANGE;
+    };
+    const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
+    if (target) shots.push({ attackerId: battery.id, attackerType: 'battery', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: 12 });
+  });
+  return shots;
+}
+
 function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
-  const players = p.orbitUnits.filter(u => u.faction === 'player');
-  const enemies = p.orbitUnits.filter(u => u.faction === 'enemy');
-  const playerPriorityTarget = players.find(unit => unit.pendingLanding || unit.pendingEmbark);
-  const enemyPriorityTarget = enemies.find(unit => unit.pendingLanding || unit.pendingEmbark);
-  const playerTarget = playerPriorityTarget ?? players[0];
-  const enemyTarget = enemyPriorityTarget ?? enemies[0];
   const vulnerableShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding || unit.pendingEmbark).map(unit => [unit.id, unit]));
   const defenses = p.buildings.filter(b => b.kind === 'spaceDefense');
   defenses.forEach(ensureOrbitalDefenseHealth);
-  const playerDefenses = p.owner === 'player' ? defenses : [];
-  const enemyDefenses = p.owner === 'enemy' ? defenses : [];
-  const batteryCount = p.buildings.filter(b => b.kind === 'antiSpaceDefense').length;
   const scale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
   const enemyPower = state.mode === 'competitive' ? 1 : enemyDifficultyMultiplier(state.config.difficulty);
-  const playerShipDamage = players.reduce((sum, u) => sum + UNITS[u.kind].damage, 0) * scale;
-  const enemyShipDamage = enemies.reduce((sum, u) => sum + UNITS[u.kind].damage, 0) * scale * enemyPower;
-  const playerInstallationDamage = (playerDefenses.length * ORBITAL_DEFENSE_STATS.damage + (p.owner === 'player' ? batteryCount * 12 : 0)) * scale;
-  const enemyInstallationDamage = (enemyDefenses.length * ORBITAL_DEFENSE_STATS.damage + (p.owner === 'enemy' ? batteryCount * 12 : 0)) * scale * enemyPower;
-
-  if (players.length && (enemyDefenses.length || enemies.length)) {
-    const preferred = enemyDefenses.find(defense => defense.id === p.orbitFocusTargetId);
-    const defenseTarget = preferred ?? enemyDefenses[0];
-    if (enemyPriorityTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyPriorityTarget.id ? damageUnit(unit, playerShipDamage) : unit);
-    else if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, playerShipDamage) : building);
-    else if (enemyTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyTarget.id ? damageUnit(unit, playerShipDamage) : unit);
-  }
-  if (enemies.length && (playerDefenses.length || players.length)) {
-    const defenseTarget = playerDefenses.find(defense => defense.id === p.enemyOrbitFocusTargetId) ?? playerDefenses[0];
-    if (playerPriorityTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerPriorityTarget.id ? damageUnit(unit, enemyShipDamage) : unit);
-    else if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, enemyShipDamage) : building);
-    else if (playerTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerTarget.id ? damageUnit(unit, enemyShipDamage) : unit);
-  }
-  if (enemyTarget && playerInstallationDamage) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyTarget.id ? damageUnit(unit, playerInstallationDamage) : unit);
-  if (playerTarget && enemyInstallationDamage) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerTarget.id ? damageUnit(unit, enemyInstallationDamage) : unit);
+  const shipDamage = new Map<string, number>();
+  const defenseDamage = new Map<string, number>();
+  orbitalCombatShots(p).forEach(shot => {
+    const damage = shot.damage * scale * (shot.faction === 'enemy' ? enemyPower : 1);
+    const ledger = shot.targetType === 'ship' ? shipDamage : defenseDamage;
+    ledger.set(shot.targetId, (ledger.get(shot.targetId) ?? 0) + damage);
+  });
+  p.orbitUnits = p.orbitUnits.map(unit => shipDamage.has(unit.id) ? damageUnit(unit, shipDamage.get(unit.id)!) : unit);
+  p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);
 
   const destroyedDefenses = p.buildings.filter(building => building.kind === 'spaceDefense' && building.hp! <= 0);
   if (destroyedDefenses.length) {

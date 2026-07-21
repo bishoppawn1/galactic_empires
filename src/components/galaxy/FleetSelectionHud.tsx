@@ -1,5 +1,5 @@
 import { UNITS, type Unit } from '../../game';
-import { unitGlyph } from '../shared/presentation';
+import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
 const statusPercent = (value: number, maximum: number) => maximum > 0
   ? Math.min(100, Math.max(0, value / maximum * 100))
@@ -14,7 +14,7 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
       {ships.map(ship => {
         const label = UNITS[ship.kind].label;
         return <article className="selected-ship-card" role="group" aria-label={`${label} status`} title={label} key={ship.id}>
-          <span className="selected-ship-icon" aria-hidden="true">{unitGlyph(ship.kind)}</span>
+          <span className="selected-ship-icon" aria-hidden="true">{isSpaceUnit(ship.kind) && <ShipImage kind={ship.kind} />}</span>
           <div className="selected-ship-bars">
             <span className="selected-ship-health" role="meter" aria-label={`${label} hull`} aria-valuemin={0} aria-valuemax={ship.maxHp} aria-valuenow={Math.max(0, ship.hp)}>
               <i style={{ width: `${statusPercent(ship.hp, ship.maxHp)}%` }} />
@@ -26,6 +26,6 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
         </article>;
       })}
     </div>
-    <small>Drag to group-select · Shift-click to add · Click inside the well to maneuver · Use a JUMP gate or reachable planet</small>
+    <small>Weapon range shown around selected ships · Maneuver into range · Use a JUMP gate or reachable planet</small>
   </section>;
 }

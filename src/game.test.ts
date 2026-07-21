@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
   applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick,
-  localPlanetConnections,
+  localPlanetConnections, orbitalCombatShots,
   GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
@@ -647,7 +647,7 @@ describe('transport and colonization', () => {
   it('lets one escort destroy a full-health loaded transport before it reaches the planet', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    terra.orbitUnits.push(makeUnit('interceptor', 'escortFrigate', 'player'));
+    terra.orbitUnits.push({ ...makeUnit('interceptor', 'escortFrigate', 'player'), orbitX: 275, orbitY: 50 });
     terra.orbitUnits.push({
       ...makeUnit('doomed-transport', 'transport', 'enemy'),
       orbitX: GRAVITY_WELL_RADIUS - 18, orbitY: 0, orbitTargetX: 0, orbitTargetY: 0,
@@ -733,6 +733,34 @@ describe('combat recovery rules', () => {
     const afterFire = tick(state, 1); const ships = afterFire.planets.find(p => p.id === 'terra')!.orbitUnits;
     expect(ships.find(unit => unit.id === hostile.id)!.shields).toBeLessThan(hostile.shields);
     expect(ships.find(unit => unit.id === escort.id)!.shields).toBeLessThan(escort.shields);
+  });
+
+  it('requires ships to maneuver into weapon range before exchanging fire', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const player = { ...makeUnit('range-player', 'escortFrigate', 'player'), orbitX: -150, orbitY: 0 };
+    const enemy = { ...makeUnit('range-enemy', 'escortFrigate', 'enemy'), orbitX: 150, orbitY: 0 };
+    terra.orbitUnits = [player, enemy];
+
+    const outOfRange = tick(state, 1);
+    expect(outOfRange.planets[0].orbitUnits.map(unit => unit.shields)).toEqual([player.shields, enemy.shields]);
+    expect(orbitalCombatShots(terra)).toHaveLength(0);
+
+    const maneuvered = maneuverSpaceUnit(outOfRange, terra.id, player.id, -120, 0); expectOk(maneuvered);
+    const inRange = tick(maneuvered.state, 2);
+    const ships = inRange.planets[0].orbitUnits;
+    expect(ships.find(unit => unit.id === enemy.id)!.shields).toBeLessThan(enemy.shields);
+    expect(ships.find(unit => unit.id === player.id)!.shields).toBeLessThan(player.shields);
+  });
+
+  it('gives missile frigates a longer engagement range than escort frigates', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    const missile = { ...makeUnit('long-range', 'missileFrigate', 'player'), orbitX: 0, orbitY: 0 };
+    const escort = { ...makeUnit('short-range', 'escortFrigate', 'enemy'), orbitX: 350, orbitY: 0 };
+    terra.orbitUnits = [missile, escort];
+
+    expect(UNITS.missileFrigate.range).toBeGreaterThan(UNITS.escortFrigate.range);
+    expect(orbitalCombatShots(terra)).toEqual([expect.objectContaining({ attackerId: missile.id, targetId: escort.id })]);
   });
 
   it('gives legacy orbital defenses persistent shields and hull', () => {

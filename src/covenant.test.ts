@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COVENANT_GROUND_HULL_REGEN, COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, ORBITAL_DEFENSE_STATS, UNITS,
+  COVENANT_FIELD_REPAIR_PER_SECOND, COVENANT_GROUND_HULL_REGEN, COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, ORBITAL_DEFENSE_STATS, UNITS,
   createCompetitiveState, createInitialState, migrateGameState, orbitalCombatShots, queueUnit, recoverSpaceUnit, spaceYards, tick,
   type GameState, type Unit, type UnitKind,
 } from './game';
@@ -65,8 +65,19 @@ describe('Iron Covenant', () => {
     state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [cohort, drone], defenders: [enemy] }];
 
     const repaired = tick(state, 1).battles[0].attackers;
-    expect(repaired.find(unit => unit.id === 'cohort')!.hp).toBe(100 + COVENANT_GROUND_HULL_REGEN + 4);
+    expect(repaired.find(unit => unit.id === 'cohort')!.hp).toBe(100 + COVENANT_GROUND_HULL_REGEN + COVENANT_FIELD_REPAIR_PER_SECOND);
     expect(repaired.find(unit => unit.id === 'drone')!.hp).toBe(100 + COVENANT_GROUND_HULL_REGEN);
+  });
+
+  it('lets sustained infantry fire visibly damage a supported Iron Cohort', () => {
+    const state = quietState();
+    const cohort = { ...makeUnit('cohort', 'covenantCohort', 'player', 40, 50), battleTargetX: 40, battleTargetY: 50 };
+    const drone = { ...makeUnit('drone', 'covenantRepairDrone', 'player', 42, 58), battleTargetX: 42, battleTargetY: 58, weaponCooldown: 999 };
+    const infantry = { ...makeUnit('infantry', 'infantry', 'enemy', 50, 50), battleTargetX: 50, battleTargetY: 50 };
+    state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [cohort, drone], defenders: [infantry] }];
+
+    const result = tick(state, 10).battles[0].attackers.find(unit => unit.id === 'cohort')!;
+    expect(result.hp).toBeLessThan(result.maxHp - 10);
   });
 
   it('uses modular fire, shield breaking, ablative armor, and Juggernaut splash on the ground', () => {

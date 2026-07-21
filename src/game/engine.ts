@@ -765,7 +765,8 @@ export const AEGIS_GROUND_SHIELD_REGEN = 1.5;
 export const AEGIS_SHIELD_PROJECTION_RANGE = 220;
 export const AEGIS_WARD_INTERCEPTION_RANGE = 180;
 export const AEGIS_REPAIR_DRONE_RANGE = 240;
-export const COVENANT_GROUND_HULL_REGEN = 1.5;
+export const COVENANT_GROUND_HULL_REGEN = .5;
+export const COVENANT_FIELD_REPAIR_PER_SECOND = 1;
 export const COVENANT_FIELD_REPAIR_RANGE = 18;
 export const COVENANT_ASSEMBLY_REPAIR_RANGE = 220;
 export const COVENANT_FOUNDRY_REPAIR_RANGE = 280;
@@ -1025,7 +1026,7 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
     if (civilization === 'aegis') return { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * AEGIS_GROUND_SHIELD_REGEN) };
     if (civilization !== 'covenant') return unit;
     const fieldRepair = units.some(ally => ally.id !== unit.id && UNITS[ally.kind].ability?.kind === 'fieldRepair' && battleDistance(unit, ally) <= COVENANT_FIELD_REPAIR_RANGE);
-    const healing = seconds * (COVENANT_GROUND_HULL_REGEN + (fieldRepair ? 4 : 0));
+    const healing = seconds * (COVENANT_GROUND_HULL_REGEN + (fieldRepair ? COVENANT_FIELD_REPAIR_PER_SECOND : 0));
     return { ...unit, hp: Math.min(unit.maxHp, unit.hp + healing) };
   });
   battle.attackers = restoreFactionSystems(battle.attackers);

@@ -98,6 +98,23 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
+  it('recolors conquered planets for their current owner instead of their original owner', () => {
+    const state = createInitialState();
+    state.planets.find(planet => planet.id === 'terra')!.owner = 'enemy';
+    state.planets.find(planet => planet.id === 'cygnus')!.owner = 'player';
+    saveState(state);
+    render(<App />);
+
+    const lostHomeworld = screen.getByRole('button', { name: 'Terra Nova HOSTILE' });
+    const conqueredWorld = screen.getByRole('button', { name: 'Cygnus Reach COLONY' });
+    expect(lostHomeworld).toHaveStyle({ '--planet': '#e86a92' });
+    expect(conqueredWorld).toHaveStyle({ '--planet': '#55d6be' });
+    expect(document.querySelector('.mini-planet')).toHaveStyle({ '--planet': '#e86a92' });
+
+    fireEvent.click(conqueredWorld);
+    expect(document.querySelector('.mini-planet')).toHaveStyle({ '--planet': '#55d6be' });
+  });
+
   it('reports the small garrison defending an unclaimed planet', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Halcyon UNCHARTED' }));

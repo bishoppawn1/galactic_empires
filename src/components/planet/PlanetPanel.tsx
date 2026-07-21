@@ -4,7 +4,7 @@ import {
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
-import { buildingIcon, factionName, fleetPhaseLabel } from '../shared/presentation';
+import { buildingIcon, factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
@@ -13,7 +13,7 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
 }) {
   return <aside className="panel">
     <header className="planet-header">
-      <div className="mini-planet" style={{ '--planet': planet.color } as React.CSSProperties} />
+      <div className="mini-planet" style={{ '--planet': planetDisplayColor(planet) } as React.CSSProperties} />
       <div><small>{factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world'}</p></div>
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}

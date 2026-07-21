@@ -2,6 +2,12 @@ import type { BuildingKind, Fleet, Planet, UnitKind } from '../../game';
 
 export const factionName = (owner: Planet['owner']) => owner === 'player' ? 'YOUR EMPIRE' : owner ? `RIVAL EMPIRE ${owner === 'enemy' ? 'A' : owner === 'rival2' ? 'B' : 'C'}` : 'NEUTRAL';
 
+const factionPlanetColors: Record<Exclude<Planet['owner'], null>, string> = {
+  player: '#55d6be', enemy: '#e86a92', rival2: '#ffc857', rival3: '#a98bff',
+};
+
+export const planetDisplayColor = (planet: Pick<Planet, 'color' | 'owner'>) => planet.owner ? factionPlanetColors[planet.owner] : planet.color;
+
 export const fleetPhaseLabel = (fleet: Fleet) => fleet.phase === 'exiting' ? 'CLEARING WELL' : fleet.phase === 'charging' ? 'GATE CHARGE' : 'IN TUNNEL';
 
 export const buildingIcon = (kind: BuildingKind) => kind.includes('Mine') ? '⌁' : kind.includes('Factory') ? '▰' : kind.includes('Defense') ? '⌂' : '⌬';

@@ -57,6 +57,7 @@ export interface Unit {
   battleY?: number;
   battleTargetX?: number;
   battleTargetY?: number;
+  battleRetaliationTargetId?: string;
   sourceBuildingId?: string;
   loadedUnitIds?: string[];
   cargo?: Unit[];

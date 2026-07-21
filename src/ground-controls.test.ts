@@ -43,6 +43,29 @@ describe('manual ground controls', () => {
     if (!ordered.ok) return;
     const fired = tick(ordered.state, 1);
     expect(fired.battles[0].attackers[0].battleX).toBe(40);
+    expect(fired.battles[0].attackers[0].battleTargetX).toBe(20);
     expect(fired.battles[0].defenders[0].shields).toBeLessThan(UNITS.infantry.shields);
+  });
+
+  it('pursues an out-of-range artillery unit after taking fire and retaliates in range', () => {
+    const state = createInitialState();
+    state.battles = [{ planetId: 'draven', attackers: [combatUnit('infantry', 'infantry', 'player', 40)], defenders: [combatUnit('artillery', 'artillery', 'enemy', 70)] }];
+    const holding = maneuverGroundUnits(state, 'draven', ['infantry'], 40, 50);
+    expect(holding.ok).toBe(true);
+    if (!holding.ok) return;
+
+    const hit = tick(holding.state, 1);
+    expect(hit.battles[0].attackers[0].battleX).toBe(40);
+    expect(hit.battles[0].attackers[0].battleRetaliationTargetId).toBe('artillery');
+    expect(hit.battles[0].attackers[0].battleTargetX).toBeUndefined();
+    const redirected = maneuverGroundUnits(hit, 'draven', ['infantry'], 25, 50);
+    expect(redirected.ok).toBe(true);
+    if (redirected.ok) expect(redirected.state.battles[0].attackers[0].battleRetaliationTargetId).toBeUndefined();
+
+    const pursuing = tick(hit, 1);
+    expect(pursuing.battles[0].attackers[0].battleX).toBeGreaterThan(40);
+    const inRange = tick(pursuing, 4);
+    const retaliating = tick(inRange, 1);
+    expect(retaliating.battles[0].defenders[0].shields).toBeLessThan(UNITS.artillery.shields);
   });
 });

@@ -668,6 +668,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     delete restored.battleX; delete restored.battleY;
     delete restored.weaponCooldown; delete restored.weaponFlash;
     delete restored.battleTargetX; delete restored.battleTargetY;
+    delete restored.battleRetaliationTargetId;
     return restored;
   });
 }
@@ -742,13 +743,46 @@ const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number)
   unit.battleY = (unit.battleY ?? 0) + dy / distance * travel;
 };
 
-function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, damage: Map<string, number>, preferredId?: string, power = 1) {
+interface GroundHit {
+  damage: number;
+  retaliationTargetId?: string;
+  strongestRetaliationHit: number;
+}
+
+function recordGroundHit(hits: Map<string, GroundHit>, attacker: Unit, target: Unit, damage: number) {
+  const current = hits.get(target.id);
+  if (!current) {
+    hits.set(target.id, { damage, strongestRetaliationHit: 0 });
+  } else {
+    current.damage += damage;
+  }
+  const hit = hits.get(target.id)!;
+  if (battleDistance(target, attacker) <= UNITS[target.kind].range) return;
+  if (damage > hit.strongestRetaliationHit || (damage === hit.strongestRetaliationHit && (!hit.retaliationTargetId || attacker.id < hit.retaliationTargetId))) {
+    hit.retaliationTargetId = attacker.id;
+    hit.strongestRetaliationHit = damage;
+  }
+}
+
+function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
+  const retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
+  if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
+  if (retaliationTarget) {
+    if (battleDistance(unit, retaliationTarget) <= definition.range) {
+      const salvoDamage = tickUnitWeapon(unit, seconds, true);
+      if (salvoDamage) recordGroundHit(hits, unit, retaliationTarget, salvoDamage * power);
+    } else {
+      tickUnitWeapon(unit, seconds, false);
+      moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds);
+    }
+    return;
+  }
   const enemiesInRange = enemies.filter(enemy => battleDistance(unit, enemy) <= definition.range);
   const targetInRange = nearestBattleTarget(unit, enemiesInRange, preferredId);
   if (targetInRange) {
     const salvoDamage = tickUnitWeapon(unit, seconds, true);
-    if (salvoDamage) damage.set(targetInRange.id, (damage.get(targetInRange.id) ?? 0) + salvoDamage * power);
+    if (salvoDamage) recordGroundHit(hits, unit, targetInRange, salvoDamage * power);
     return;
   }
   tickUnitWeapon(unit, seconds, false);
@@ -778,6 +812,7 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
     const rowCount = Math.min(columns, units.length - row * columns);
     unit.battleTargetX = Math.max(2, Math.min(98, centerX + (column - (rowCount - 1) / 2) * 2.8));
     unit.battleTargetY = Math.max(4, Math.min(96, centerY + (row - (Math.ceil(units.length / columns) - 1) / 2) * 4.2));
+    delete unit.battleRetaliationTargetId;
   });
   return pass(state);
 }
@@ -794,13 +829,22 @@ const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !un
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
   ensureBattlePositions(battle);
-  const damage = new Map<string, number>();
+  const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.defenders, seconds, damage, focus(unit), power(unit)));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.attackers, seconds, damage, focus(unit), power(unit)));
-  battle.attackers = battle.attackers.map(unit => damage.has(unit.id) ? damageUnit(unit, damage.get(unit.id)!) : unit).filter(unit => unit.hp > 0);
-  battle.defenders = battle.defenders.map(unit => damage.has(unit.id) ? damageUnit(unit, damage.get(unit.id)!) : unit).filter(unit => unit.hp > 0);
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.defenders, seconds, hits, focus(unit), power(unit)));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.attackers, seconds, hits, focus(unit), power(unit)));
+  const applyHit = (unit: Unit) => {
+    const hit = hits.get(unit.id);
+    if (!hit) return unit;
+    if (!hit.retaliationTargetId) return damageUnit(unit, hit.damage);
+    const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
+    delete retaliating.battleTargetX;
+    delete retaliating.battleTargetY;
+    return damageUnit(retaliating, hit.damage);
+  };
+  battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
+  battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
   const p = getPlanet(state, battle.planetId)!;
   if (!battle.defenders.length && battle.attackers.length) {
     const attackingUnitFaction = battle.attackers[0].faction;

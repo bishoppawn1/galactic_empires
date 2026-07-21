@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, GRAVITY_WELL_RADIUS, UNITS, localPlanetConnections, orbitalCombatShots, orbitalCombatView, ownerLabel, spaceYards,
   type GameState, type Planet,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -170,6 +170,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
+            const combatPlanet = orbitalCombatView(state, p);
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
             const mapPosition = (id: string, type: 'ship' | 'defense' | 'battery') => {
               if (type === 'battery') return { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 };
@@ -177,18 +178,18 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
                 const index = defenses.findIndex(defense => defense.id === id);
                 return index < 0 ? undefined : defenseMapPosition(p, index, defenses.length);
               }
-              const ship = p.orbitUnits.find(unit => unit.id === id);
-              return ship ? shipMapPosition(p, ship, p.orbitUnits.findIndex(unit => unit.id === id)) : undefined;
+              const ship = combatPlanet.orbitUnits.find(unit => unit.id === id);
+              return ship ? shipMapPosition(combatPlanet, ship, combatPlanet.orbitUnits.findIndex(unit => unit.id === id)) : undefined;
             };
-            const firingShots = orbitalCombatShots(p).filter(shot => {
-              const firingShip = shot.attackerType === 'ship' ? p.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
+            const firingShots = orbitalCombatShots(combatPlanet).filter(shot => {
+              const firingShip = shot.attackerType === 'ship' ? combatPlanet.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
               return !firingShip || typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0;
             });
             const visibleShotCount = Math.min(MAX_VISIBLE_ORBITAL_SALVOS, firingShots.length);
             const start = firingShots.length ? Math.floor(state.elapsed * 4) * visibleShotCount % firingShots.length : 0;
             const visibleShots = Array.from({ length: visibleShotCount }, (_, index) => firingShots[(start + index) % firingShots.length]);
             return visibleShots.flatMap((shot, index) => {
-              const firingShip = shot.attackerType === 'ship' ? p.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
+              const firingShip = shot.attackerType === 'ship' ? combatPlanet.orbitUnits.find(unit => unit.id === shot.attackerId) : undefined;
               const source = mapPosition(shot.attackerId, shot.attackerType);
               const target = mapPosition(shot.targetId, shot.targetType);
               if (!source || !target) return [];
@@ -205,7 +206,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
-          const hostileOrbit = new Set(p.orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.faction)).size > 1;
+          const hostileOrbit = new Set(orbitalCombatView(state, p).orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.faction)).size > 1;
           return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': planetDisplayColor(p), '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
             {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" /><span className="planet-sphere" />
             <span className="faction-badge">{planetFactionBadge(p.owner)}</span><span className="planet-name">{p.name}</span><span className="planet-status">{factionName(p.owner)}</span>{!!p.orbitUnits.length && <span className="orbit-count">◈ {p.orbitUnits.length}</span>}
@@ -225,10 +226,11 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           });
         })}
         {state.planets.flatMap(p => {
+          const combatPlanet = orbitalCombatView(state, p);
           const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
           return defenses.map((defense, index) => {
             const position = defenseMapPosition(p, index, defenses.length);
-            const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');
+            const targetable = !!p.owner && p.owner !== 'player' && combatPlanet.orbitUnits.some(ship => ship.faction === 'player');
             const focused = p.orbitFocusTargetId === defense.id;
             const content = <><span>⌾</span><i /><div className="defense-health"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small>{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
             const className = `orbital-defense ${p.owner ?? 'neutral'} ${targetable ? 'targetable' : ''} ${focused ? 'focused' : ''}`;

@@ -483,6 +483,23 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
   });
 
+  it('shows ship and defense fire against a hostile fleet clearing the gravity well', () => {
+    const state = createInitialState(); const terra = state.planets[0]; const destination = state.planets[1];
+    terra.orbitUnits = [{ ...makeUnit('exit-interceptor-ui', 'escortFrigate', 'player'), orbitX: 0, orbitY: 0 }];
+    terra.buildings.push({ id: 'exit-defense-ui', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });
+    state.fleets = [{
+      id: 'exit-hostile-fleet-ui', faction: 'enemy', originId: terra.id, destinationId: destination.id,
+      unit: { ...makeUnit('exit-hostile-ui', 'escortFrigate', 'enemy'), orbitX: 160, orbitY: 0 },
+      progress: 0, travelTime: 20, phase: 'exiting', departureX: 160, departureY: 0,
+    }];
+    saveState(state);
+    render(<App />);
+
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire.ship-fire')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire.installation-fire')).toHaveLength(1);
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
+  });
+
   it('renders a missile frigate salvo as one occasional missile image', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = [

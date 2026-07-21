@@ -571,6 +571,28 @@ const systemBorderOffset = (from: Planet, to: Planet) => {
   return { x: dx / distance * radius, y: dy / distance * radius };
 };
 
+export function fleetSystemOrbitPosition(fleet: Fleet, planets: Planet[]) {
+  if ((fleet.phase ?? 'tunnel') === 'tunnel') return undefined;
+  const origin = planets.find(planet => planet.id === fleet.originId);
+  const destination = planets.find(planet => planet.id === fleet.destinationId);
+  if (!origin || !destination) return undefined;
+  const border = systemBorderOffset(origin, destination);
+  const progress = fleet.phase === 'charging' || fleet.travelTime <= 0 ? 1 : Math.min(1, Math.max(0, fleet.progress / fleet.travelTime));
+  return {
+    x: (fleet.departureX ?? 0) + (border.x - (fleet.departureX ?? 0)) * progress,
+    y: (fleet.departureY ?? 0) + (border.y - (fleet.departureY ?? 0)) * progress,
+  };
+}
+
+export function orbitalCombatView(state: GameState, planet: Planet): Planet {
+  const departingUnits = state.fleets.flatMap(fleet => {
+    if (fleet.originId !== planet.id) return [];
+    const position = fleetSystemOrbitPosition(fleet, state.planets);
+    return position ? [{ ...fleet.unit, orbitX: position.x, orbitY: position.y }] : [];
+  });
+  return departingUnits.length ? { ...planet, orbitUnits: [...planet.orbitUnits, ...departingUnits] } : planet;
+}
+
 function beginSystemExit(fleet: Fleet, origin: Planet, destination: Planet, departureX: number, departureY: number) {
   const border = systemBorderOffset(origin, destination);
   fleet.phase = 'exiting';
@@ -1225,6 +1247,30 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   }
 }
 
+function tickSystemOrbitCombat(state: GameState, planet: Planet, seconds: number) {
+  const localFleetIds = new Set(state.fleets
+    .filter(fleet => fleet.originId === planet.id && fleetSystemOrbitPosition(fleet, state.planets))
+    .map(fleet => fleet.id));
+  if (!localFleetIds.size) {
+    tickOrbitCombat(state, planet, seconds);
+    return;
+  }
+
+  const fleetUnitIds = new Set(state.fleets.filter(fleet => localFleetIds.has(fleet.id)).map(fleet => fleet.unit.id));
+  const combatView = orbitalCombatView(state, planet);
+  tickOrbitCombat(state, combatView, seconds);
+  planet.buildings = combatView.buildings;
+  planet.orbitUnits = combatView.orbitUnits.filter(unit => !fleetUnitIds.has(unit.id));
+  const survivingFleetUnits = new Map(combatView.orbitUnits
+    .filter(unit => fleetUnitIds.has(unit.id))
+    .map(unit => [unit.id, unit]));
+  state.fleets = state.fleets.flatMap(fleet => {
+    if (!localFleetIds.has(fleet.id)) return [fleet];
+    const survivor = survivingFleetUnits.get(fleet.unit.id);
+    return survivor ? [{ ...fleet, unit: survivor }] : [];
+  });
+}
+
 function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
@@ -1481,7 +1527,7 @@ export function tick(input: GameState, seconds: number): GameState {
     tickOrbitMovement(p, seconds);
     p.orbitUnits = p.orbitUnits.map(u => recoverSpaceUnit(u, p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction)));
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
-    tickOrbitCombat(state, p, seconds);
+    tickSystemOrbitCombat(state, p, seconds);
   }
 
   if (state.researchQueue.length) {
@@ -1550,7 +1596,7 @@ export function tick(input: GameState, seconds: number): GameState {
     const p = getPlanet(state, planetId)!;
     for (const arrival of landedFleets) tickOrbitUnitMovement(arrival.unit, arrival.seconds);
     const combatSeconds = Math.max(0, ...landedFleets.map(arrival => arrival.seconds));
-    if (combatSeconds) tickOrbitCombat(state, p, combatSeconds);
+    if (combatSeconds) tickSystemOrbitCombat(state, p, combatSeconds);
     resolveLandingApproaches(state, p);
   }
   return state;

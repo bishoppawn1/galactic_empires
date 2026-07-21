@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
   applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
-  localPlanetConnections, orbitalCombatShots,
+  localPlanetConnections, orbitalCombatShots, orbitalCombatView,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
   BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
@@ -906,6 +906,43 @@ describe('transport and colonization', () => {
     const tooLate = maneuverSpaceUnit(inTunnel, 'terra', transport.id, 50, -20);
     expect(tooLate.ok).toBe(false);
     if (!tooLate.ok) expect(tooLate.error).toContain('already entered the phase tunnel');
+  });
+
+  it('keeps an immediately departing hostile targetable until it enters the phase tunnel', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const connection = localPlanetConnections(state.planets).find(({ from, to }) => from.id === terra.id || to.id === terra.id)!;
+    const destination = connection.from.id === terra.id ? connection.to : connection.from;
+    const defender = { ...makeUnit('departure-interceptor', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 };
+    const hostile = { ...makeUnit('immediate-departure', 'escortFrigate', 'enemy'), orbitX: 0, orbitY: 0 };
+    terra.orbitUnits = [defender];
+    terra.buildings.push({ id: 'departure-defense', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });
+    state.fleets = [{
+      id: 'departing-hostile-fleet', faction: 'enemy', originId: terra.id, destinationId: destination.id, unit: hostile,
+      progress: 0, travelTime: 20, phase: 'exiting', departureX: 0, departureY: 0,
+    }];
+
+    const combatView = orbitalCombatView(state, terra);
+    expect(combatView.orbitUnits.map(unit => unit.id)).toContain(hostile.id);
+    expect(orbitalCombatShots(combatView)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ attackerId: defender.id, targetId: hostile.id }),
+      expect.objectContaining({ attackerId: 'departure-defense', targetId: hostile.id }),
+    ]));
+
+    const underFire = tick(state, .1);
+    const fleeing = underFire.fleets.find(fleet => fleet.unit.id === hostile.id)!;
+    expect(fleeing.unit.shields).toBeLessThan(hostile.shields);
+    expect(underFire.planets[0].orbitUnits.find(unit => unit.id === defender.id)!.weaponFlash).toBeGreaterThan(0);
+
+    fleeing.phase = 'charging'; fleeing.progress = 0; fleeing.travelTime = PHASE_GATE_CHARGE_SECONDS;
+    fleeing.unit.hp = 1; fleeing.unit.shields = 0;
+    const chargingView = orbitalCombatView(underFire, underFire.planets[0]);
+    const chargingTarget = chargingView.orbitUnits.find(unit => unit.id === hostile.id)!;
+    const chargingDefender = underFire.planets[0].orbitUnits.find(unit => unit.id === defender.id)!;
+    chargingDefender.orbitX = chargingTarget.orbitX; chargingDefender.orbitY = chargingTarget.orbitY; chargingDefender.weaponCooldown = 0;
+
+    const destroyedBeforeTunnel = tick(underFire, .1);
+    expect(destroyedBeforeTunnel.fleets.some(fleet => fleet.unit.id === hostile.id)).toBe(false);
   });
 
   it('holds arrived combat ships at the system edge ready for immediate orders', () => {

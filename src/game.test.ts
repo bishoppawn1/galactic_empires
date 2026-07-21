@@ -477,6 +477,63 @@ describe('enemy strategy', () => {
     expect(battle?.attackers.every(unit => unit.faction === 'enemy')).toBe(true);
   });
 
+  it('launches transport-independent strike fleets from every eligible rear colony', () => {
+    const state = createInitialState();
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    const nyx = state.planets.find(planet => planet.id === 'nyx')!;
+    nyx.owner = 'enemy';
+    cygnus.orbitUnits = Array.from({ length: 5 }, (_, index) => makeUnit(`cygnus-warship-${index}`, index % 2 ? 'missileFrigate' : 'escortFrigate', 'enemy'));
+    nyx.orbitUnits = Array.from({ length: 5 }, (_, index) => makeUnit(`nyx-warship-${index}`, index % 2 ? 'escortFrigate' : 'missileFrigate', 'enemy'));
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    const strikeFleets = launched.fleets.filter(fleet => fleet.faction === 'enemy');
+    expect(strikeFleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(3);
+    expect(strikeFleets.filter(fleet => fleet.originId === nyx.id)).toHaveLength(3);
+    expect(strikeFleets.every(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toBe(true);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+    expect(launched.planets.find(planet => planet.id === nyx.id)!.orbitUnits).toHaveLength(2);
+    expect(launched.messages.filter(message => message.includes('HOSTILE STRIKE FLEET'))).toHaveLength(2);
+  });
+
+  it('sends surplus warships alongside a transport invasion instead of limiting the attack to escorts', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    state.planets[0].groundUnits.push(makeUnit('player-defender', 'infantry', 'player'));
+    cygnus.groundUnits.push(makeUnit('enemy-ground-1', 'infantry', 'enemy'), makeUnit('enemy-ground-2', 'lightTank', 'enemy'));
+    cygnus.orbitUnits = [
+      makeUnit('invasion-transport', 'transport', 'enemy'),
+      ...Array.from({ length: 9 }, (_, index) => makeUnit(`invasion-warship-${index}`, index % 2 ? 'missileFrigate' : 'escortFrigate', 'enemy')),
+    ];
+    state.enemyMissionCount = 2;
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    const invasionFleets = launched.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.finalDestinationId === 'terra');
+    expect(invasionFleets.filter(fleet => (UNITS[fleet.unit.kind].capacity ?? 0) > 0)).toHaveLength(1);
+    expect(invasionFleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(7);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+    expect(launched.messages.some(message => message.includes('HOSTILE STRIKE FLEET'))).toBe(true);
+  });
+
+  it('reinforces a friendly colony under orbital attack before launching another strike', () => {
+    const state = createInitialState();
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    const nyx = state.planets.find(planet => planet.id === 'nyx')!;
+    nyx.owner = 'enemy';
+    nyx.orbitUnits = [makeUnit('player-raider', 'escortFrigate', 'player')];
+    cygnus.orbitUnits = Array.from({ length: 5 }, (_, index) => makeUnit(`reserve-warship-${index}`, 'escortFrigate', 'enemy'));
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    const reinforcements = launched.fleets.filter(fleet => fleet.originId === cygnus.id);
+    expect(reinforcements).toHaveLength(3);
+    expect(reinforcements.every(fleet => fleet.finalDestinationId === nyx.id)).toBe(true);
+    expect(launched.messages[0]).toContain('HOSTILE REINFORCEMENTS');
+  });
+
   it('uses expansion missions to colonize neutral planets', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     state.planets.filter(planet => planet.owner === null).forEach(planet => { planet.groundUnits = []; });

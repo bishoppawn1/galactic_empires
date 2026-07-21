@@ -29,6 +29,7 @@ import {
 } from './types';
 import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
+import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED,
   ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
@@ -961,6 +962,7 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
   view.enemyAttackClock -= seconds;
   if (view.enemyAttackClock <= 0) {
     launchEnemyMission(view);
+    launchEnemyCombatFleets(view);
     view.enemyAttackClock += attackInterval;
   }
   if (faction !== 'enemy') {
@@ -1086,6 +1088,17 @@ function launchEnemyMission(state: GameState) {
     addMessage(state, mission.target.owner === null
       ? `HOSTILE EXPANSION FLEET — ${mission.target.name} targeted for colonization.`
       : `HOSTILE FLEET LAUNCHED — ${mission.target.name} is under attack.`);
+  }
+}
+
+function launchEnemyCombatFleets(state: GameState) {
+  for (const operation of planEnemyFleetOperations(state)) {
+    const origin = getPlanet(state, operation.originId), target = getPlanet(state, operation.targetId);
+    const ships = origin?.orbitUnits.filter(ship => operation.shipIds.includes(ship.id) && ship.faction === 'enemy') ?? [];
+    if (!origin || !target || ships.length !== operation.shipIds.length || !dispatchFactionUnits(state, origin, ships, target, 'enemy')) continue;
+    addMessage(state, operation.kind === 'reinforce'
+      ? `HOSTILE REINFORCEMENTS — ${ships.length} warships redeploying to ${target.name}.`
+      : `HOSTILE STRIKE FLEET — ${ships.length} warships advancing on ${target.name}.`);
   }
 }
 

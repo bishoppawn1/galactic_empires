@@ -115,9 +115,7 @@ function ensureOrbitPositions(planet: Planet) {
     const maneuvering = typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number';
     const hasPosition = typeof ship.orbitX === 'number' && typeof ship.orbitY === 'number'
       && (maneuvering || ship.pendingLanding || ship.pendingEmbark || Math.hypot(ship.orbitX, ship.orbitY) >= 24);
-    const overlaps = !maneuvering && hasPosition && placed.some(other => typeof other.orbitX === 'number' && typeof other.orbitY === 'number'
-      && Math.hypot(other.orbitX - ship.orbitX!, other.orbitY - ship.orbitY!) < 8);
-    if (!hasPosition || overlaps) placeInOpenOrbit(planet, ship, placed);
+    if (!hasPosition) placeInOpenOrbit(planet, ship, placed);
     placed.push(ship);
   }
 }

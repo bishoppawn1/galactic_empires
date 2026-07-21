@@ -740,6 +740,22 @@ describe('transport and colonization', () => {
     expect(advanced.planets[0].orbitUnits.every(ship => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number')).toBe(true);
   });
 
+  it('does not relocate an arrived formation ship when another ship crosses its position', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.orbitUnits = [
+      { ...makeUnit('crossing', 'escortFrigate', 'player'), orbitX: 104, orbitY: 100, orbitTargetX: 220, orbitTargetY: 100 },
+      { ...makeUnit('arrived', 'missileFrigate', 'player'), orbitX: 100, orbitY: 100 },
+    ];
+
+    const advanced = tick(state, .25);
+    const arrived = advanced.planets[0].orbitUnits.find(ship => ship.id === 'arrived')!;
+    const crossing = advanced.planets[0].orbitUnits.find(ship => ship.id === 'crossing')!;
+    expect(arrived).toMatchObject({ orbitX: 100, orbitY: 100 });
+    expect(crossing.orbitX).toBeGreaterThan(104);
+    expect(crossing.orbitX).toBeLessThanOrEqual(104 + ORBIT_MANEUVER_SPEED * .25);
+  });
+
   it('cannot colonize without a ground squad to auto-embark', () => {
     const state = createInitialState(); const terra = seedPlayerForces(state); terra.groundUnits = [];
     const moved = dispatchTransport(state, 'terra', terra.orbitUnits[0].id, 'halcyon'); expectOk(moved);

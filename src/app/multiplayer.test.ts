@@ -6,9 +6,10 @@ import {
   MULTIPLAYER_SERIALIZATION,
   PEER_OPEN_TIMEOUT_MS,
   prepareIncomingState,
+  prepareOutgoingCommand,
   STATE_SYNC_INTERVAL_MS,
 } from './multiplayer';
-import { createCompetitiveState, viewStateForFaction } from '../game';
+import { createCompetitiveState, isGameCommand, viewStateForFaction, type GameCommand } from '../game';
 
 describe('multiplayer state transport', () => {
   it('uses PeerJS binary serialization so large snapshots are automatically chunked', () => {
@@ -37,5 +38,14 @@ describe('multiplayer state transport', () => {
     expect(rival.planets.find(planet => planet.id === 'cygnus')?.owner).toBe('player');
     expect(prepareIncomingState({ planets: [] })).toBeUndefined();
     expect(prepareIncomingState(null)).toBeUndefined();
+  });
+
+  it('omits undefined optional fields before binary command serialization', () => {
+    const command: GameCommand = { type: 'queueUnit', planetId: 'cygnus', kind: 'transport', yardIds: undefined };
+    const prepared = prepareOutgoingCommand(command);
+
+    expect(prepared).toEqual({ type: 'queueUnit', planetId: 'cygnus', kind: 'transport' });
+    expect(Object.hasOwn(prepared, 'yardIds')).toBe(false);
+    expect(isGameCommand(prepared)).toBe(true);
   });
 });

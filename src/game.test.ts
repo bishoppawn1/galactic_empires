@@ -312,6 +312,21 @@ describe('competitive multiplayer', () => {
     expect(updatedCanonical.planets.find(planet => planet.id === 'terra')!.buildings.filter(building => building.kind === 'metalMine')).toHaveLength(1);
   });
 
+  it('applies a guest ship order to the host state', () => {
+    const canonical = createCompetitiveState();
+    const guestView = viewStateForFaction(canonical, 'enemy');
+    const guestHome = guestView.planets.find(planet => planet.owner === 'player')!;
+    const yardId = spaceYards(guestHome)[0].id;
+
+    const preview = applyGameCommand(guestView, { type: 'queueUnit', planetId: guestHome.id, kind: 'transport', yardIds: [yardId] });
+    expectOk(preview);
+    const updatedCanonical = viewStateForFaction(preview.state, 'enemy');
+
+    expect(spaceYards(updatedCanonical.planets.find(planet => planet.id === guestHome.id)!)[0].spaceQueue?.[0].kind).toBe('transport');
+    expect(updatedCanonical.enemyResources).toEqual({ metal: 450, crystal: 372, gold: 260 });
+    expect(updatedCanonical.resources).toEqual(canonical.resources);
+  });
+
   it('keeps both empires symmetric and disables strategic AI actions', () => {
     const state = createCompetitiveState({ mapSize: 'medium', difficulty: 'admiral' });
     const firstBefore = { ...state.resources }, secondBefore = { ...state.enemyResources };

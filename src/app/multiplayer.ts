@@ -20,6 +20,10 @@ export function prepareIncomingState(payload: unknown): GameState | undefined {
   }
 }
 
+export const prepareOutgoingCommand = (command: GameCommand): GameCommand => Object.fromEntries(
+  Object.entries(command).filter(([, value]) => value !== undefined),
+) as unknown as GameCommand;
+
 export interface LobbyPlayer {
   id: string;
   label: string;
@@ -241,7 +245,7 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
     sendState() {},
     sendCommand(command) {
       if (!connection.open) { callbacks.onError('The rival command link is not open.'); return; }
-      try { connection.send({ type: 'command', command } satisfies GuestMessage); }
+      try { connection.send({ type: 'command', command: prepareOutgoingCommand(command) } satisfies GuestMessage); }
       catch (error) { callbacks.onError(peerErrorMessage(error)); }
     },
     addAi() {},

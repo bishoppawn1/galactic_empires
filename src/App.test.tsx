@@ -474,13 +474,28 @@ describe('Galactic Empires interface', () => {
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
-    expect(screen.getByText(/Units advance automatically/)).toBeInTheDocument();
+    expect(screen.getByText(/Select friendly troops/)).toBeInTheDocument();
     expect(screen.getAllByText(/RNG 14/)).toHaveLength(2);
     expect(screen.getAllByText(/Tri-Burst Pulse Rifle/)).toHaveLength(2);
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
+  });
+
+  it('selects friendly troops and issues a formation move by right-clicking the battlefield', () => {
+    const state = createInitialState();
+    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Infantry attacker' }));
+    expect(screen.getByText('1 UNIT SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
+
+    const canvas = document.querySelector('.battle-canvas') as HTMLElement;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 2600, height: 1600, right: 2600, bottom: 1600, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.contextMenu(canvas, { clientX: 1300, clientY: 800 });
+    expect(document.querySelector('.battle-orders circle')).not.toBeNull();
   });
 
   it('renders active Ground Defenses as fortified battlefield turrets', () => {

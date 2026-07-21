@@ -625,6 +625,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     const restored = { ...unit, hp: unit.maxHp, shields: unit.maxShields };
     delete restored.battleX; delete restored.battleY;
     delete restored.weaponCooldown; delete restored.weaponFlash;
+    delete restored.battleTargetX; delete restored.battleTargetY;
     return restored;
   });
 }
@@ -691,20 +692,52 @@ function tickUnitWeapon(unit: Unit, seconds: number, firing: boolean) {
   return (followupVolleys + 1) * weapon.damage * weapon.projectiles;
 }
 
+const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number) => {
+  const dx = x - (unit.battleX ?? 0), dy = y - (unit.battleY ?? 0);
+  const distance = Math.hypot(dx, dy), travel = Math.min(UNITS[unit.kind].moveSpeed * seconds, distance);
+  if (!distance || !travel) return;
+  unit.battleX = (unit.battleX ?? 0) + dx / distance * travel;
+  unit.battleY = (unit.battleY ?? 0) + dy / distance * travel;
+};
+
 function advanceOrFire(unit: Unit, enemies: Unit[], seconds: number, damage: Map<string, number>, preferredId?: string, power = 1) {
-  const target = nearestBattleTarget(unit, enemies, preferredId);
-  if (!target) { tickUnitWeapon(unit, seconds, false); return; }
-  const distance = battleDistance(unit, target), definition = UNITS[unit.kind];
-  if (distance <= definition.range) {
+  const definition = UNITS[unit.kind];
+  const enemiesInRange = enemies.filter(enemy => battleDistance(unit, enemy) <= definition.range);
+  const targetInRange = nearestBattleTarget(unit, enemiesInRange, preferredId);
+  if (targetInRange) {
     const salvoDamage = tickUnitWeapon(unit, seconds, true);
-    if (salvoDamage) damage.set(target.id, (damage.get(target.id) ?? 0) + salvoDamage * power);
+    if (salvoDamage) damage.set(targetInRange.id, (damage.get(targetInRange.id) ?? 0) + salvoDamage * power);
     return;
   }
   tickUnitWeapon(unit, seconds, false);
+  if (typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number') {
+    moveBattleUnitToward(unit, unit.battleTargetX, unit.battleTargetY, seconds);
+    return;
+  }
+  const target = nearestBattleTarget(unit, enemies, preferredId);
+  if (!target) return;
+  const distance = battleDistance(unit, target);
   const travel = Math.min(definition.moveSpeed * seconds, Math.max(0, distance - definition.range * .92));
   if (!travel || !distance) return;
   unit.battleX = (unit.battleX ?? 0) + ((target.battleX ?? 0) - (unit.battleX ?? 0)) / distance * travel;
   unit.battleY = (unit.battleY ?? 0) + ((target.battleY ?? 0) - (unit.battleY ?? 0)) / distance * travel;
+}
+
+export function maneuverGroundUnits(input: GameState, planetId: string, unitIds: string[], battleX: number, battleY: number): GameResult {
+  const state = clone(input);
+  const battle = state.battles.find(candidate => candidate.planetId === planetId);
+  const requested = new Set(unitIds);
+  const units = battle ? [...battle.attackers, ...battle.defenders].filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId) : [];
+  if (!battle || !units.length || units.length !== requested.size) return fail(input, 'Select mobile ground units in the active battle.');
+  const centerX = Math.max(2, Math.min(98, battleX)), centerY = Math.max(4, Math.min(96, battleY));
+  const columns = Math.min(5, Math.ceil(Math.sqrt(units.length)));
+  units.forEach((unit, index) => {
+    const column = index % columns, row = Math.floor(index / columns);
+    const rowCount = Math.min(columns, units.length - row * columns);
+    unit.battleTargetX = Math.max(2, Math.min(98, centerX + (column - (rowCount - 1) / 2) * 2.8));
+    unit.battleTargetY = Math.max(4, Math.min(96, centerY + (row - (Math.ceil(units.length / columns) - 1) / 2) * 4.2));
+  });
+  return pass(state);
 }
 
 function resolveGroundDefenseBuildings(p: Planet, battle: GroundBattle, survivingDefenders: Unit[]) {

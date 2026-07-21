@@ -55,6 +55,8 @@ export interface Unit {
   docked?: boolean;
   battleX?: number;
   battleY?: number;
+  battleTargetX?: number;
+  battleTargetY?: number;
   sourceBuildingId?: string;
   loadedUnitIds?: string[];
   cargo?: Unit[];

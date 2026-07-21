@@ -366,7 +366,8 @@ describe('Galactic Empires interface', () => {
     render(<App />);
 
     const platform = screen.getByRole('button', { name: 'Target enemy Orbital Defense Platform 1 at Cygnus Reach' });
-    expect(document.querySelectorAll('.orbital-fire line')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-projectile')).toHaveLength(5);
     fireEvent.click(platform);
     expect(platform).toHaveClass('focused');
     expect(platform).toHaveAttribute('aria-pressed', 'true');
@@ -381,9 +382,27 @@ describe('Galactic Empires interface', () => {
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
 
-    expect(document.querySelectorAll('.orbital-fire line.ship-fire')).toHaveLength(2);
-    expect(document.querySelectorAll('.orbital-fire line.weapon-laser')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire.ship-fire')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire.weapon-laser')).toHaveLength(2);
+    expect(document.querySelectorAll('.orbital-fire .weapon-laser .weapon-projectile')).toHaveLength(6);
+    expect(document.querySelector('.orbital-fire .weapon-laser .weapon-projectile')?.getAttribute('href')).toContain('laser');
     expect(document.querySelectorAll('img.ship-image').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders a missile frigate salvo as one occasional missile image', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('missile-visual', 'missileFrigate', 'player'), orbitX: 0, orbitY: 0 },
+      { ...makeUnit('missile-target', 'escortFrigate', 'enemy'), orbitX: 350, orbitY: 0 },
+    ];
+    saveState(state);
+    render(<App />);
+
+    const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
+    expect(missile).not.toBeNull();
+    expect(missile).toHaveAttribute('data-projectiles', '1');
+    expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
+    expect(missile!.querySelector('.weapon-projectile')?.getAttribute('href')).toContain('missile');
   });
 
   it('shows the selected ship weapon range on the orbital map', () => {
@@ -492,7 +511,7 @@ describe('Galactic Empires interface', () => {
 
   it('shows spatial units and weapon ranges on the ground battlefield', () => {
     const state = createInitialState();
-    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];
+    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 29, battleY: 55 }] }];
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
@@ -501,6 +520,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText(/Tri-Burst Pulse Rifle/)).toHaveLength(2);
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
+    expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
+    expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
   });

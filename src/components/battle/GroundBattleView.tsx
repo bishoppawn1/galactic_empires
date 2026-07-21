@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { UNITS, type GameState, type GroundBattle, type Unit } from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
+import { WeaponFire } from '../shared/WeaponFire';
 
 export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }: {
   state: GameState;
@@ -55,7 +56,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
       }}>
         <div className="terrain-grid" />
         <svg className="battle-orders" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{selectedUnits.filter(unit => typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number').map(unit => <g key={`order-${unit.id}`}><line x1={unit.battleX} y1={unit.battleY} x2={unit.battleTargetX} y2={unit.battleTargetY} /><circle cx={unit.battleTargetX} cy={unit.battleTargetY} r=".8" /></g>)}</svg>
-        <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <line key={unit.id} x1={unit.battleX} y1={unit.battleY} x2={target!.battleX} y2={target!.battleY} className={`${faction} weapon-${UNITS[unit.kind].weapon.effect}`} />)}</svg>
+        <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <WeaponFire key={unit.id} id={unit.id} x1={unit.battleX!} y1={unit.battleY!} x2={target!.battleX!} y2={target!.battleY!} effect={UNITS[unit.kind].weapon.effect} projectiles={UNITS[unit.kind].weapon.projectiles} faction={faction} size={2.6} />)}</svg>
         <div className={`army attackers ${attackerFaction}`}>{battle.attackers.map(combatant)}</div>
         <div className="front-line"><i /><span>CONTESTED ZONE</span><i /></div>
         <div className={`army defenders ${defenderFaction}`}>{battle.defenders.map(combatant)}</div>

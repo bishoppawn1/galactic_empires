@@ -5,6 +5,7 @@ import {
 } from '../../game';
 import { factionName, fleetPhaseLabel } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
+import { WeaponFire } from '../shared/WeaponFire';
 import { FleetSelectionHud } from './FleetSelectionHud';
 
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'RIVAL A' : owner === 'rival2' ? 'RIVAL B' : owner === 'rival3' ? 'RIVAL C' : 'NEUTRAL';
@@ -208,7 +209,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const source = mapPosition(shot.attackerId, shot.attackerType);
               const target = mapPosition(shot.targetId, shot.targetType);
               if (!source || !target) return [];
-              return <line key={`${shot.attackerId}-fires-${shot.targetId}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} className={`${shot.faction} weapon-${shot.weaponEffect} ${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} style={{ '--fire-delay': `${index * .11}s` } as React.CSSProperties} />;
+              const projectiles = firingShip ? UNITS[firingShip.kind].weapon.projectiles : 1;
+              return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={38} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
             });
           })}
         </svg>

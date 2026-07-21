@@ -704,6 +704,42 @@ describe('transport and colonization', () => {
     expect(jump.state.fleets).toHaveLength(ids.length);
   });
 
+  it('never snaps maneuvering ships into open-orbit slots when their formation paths cross', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.orbitUnits = [
+      { ...makeUnit('crossing-a', 'escortFrigate', 'player'), orbitX: 100, orbitY: 0 },
+      { ...makeUnit('crossing-b', 'missileFrigate', 'player'), orbitX: -100, orbitY: 0 },
+    ];
+    const order = maneuverSpaceUnits(state, terra.id, ['crossing-a', 'crossing-b'], 0, 100); expectOk(order);
+    let moving = order.state;
+    for (let step = 0; step < 40; step += 1) {
+      const before = moving.planets[0].orbitUnits.map(ship => ({ id: ship.id, x: ship.orbitX!, y: ship.orbitY! }));
+      moving = tick(moving, .25);
+      moving.planets[0].orbitUnits.forEach(ship => {
+        const previous = before.find(position => position.id === ship.id)!;
+        expect(Math.hypot(ship.orbitX! - previous.x, ship.orbitY! - previous.y)).toBeLessThanOrEqual(ORBIT_MANEUVER_SPEED * .25 + 1e-9);
+      });
+    }
+    expect(moving.planets[0].orbitUnits).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'crossing-a', orbitX: -12, orbitY: 100 }),
+      expect.objectContaining({ id: 'crossing-b', orbitX: 12, orbitY: 100 }),
+    ]));
+  });
+
+  it('lets a docked formation depart the planet center without an open-orbit teleport', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.orbitUnits = [
+      { ...makeUnit('docked-a', 'transport', 'player'), orbitX: 0, orbitY: 0, docked: true },
+      { ...makeUnit('docked-b', 'transport', 'player'), orbitX: 0, orbitY: 0, docked: true },
+    ];
+    const order = maneuverSpaceUnits(state, terra.id, ['docked-a', 'docked-b'], 120, 60); expectOk(order);
+    const advanced = tick(order.state, .25);
+    expect(advanced.planets[0].orbitUnits.every(ship => Math.hypot(ship.orbitX!, ship.orbitY!) <= ORBIT_MANEUVER_SPEED * .25 + 1e-9)).toBe(true);
+    expect(advanced.planets[0].orbitUnits.every(ship => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number')).toBe(true);
+  });
+
   it('cannot colonize without a ground squad to auto-embark', () => {
     const state = createInitialState(); const terra = seedPlayerForces(state); terra.groundUnits = [];
     const moved = dispatchTransport(state, 'terra', terra.orbitUnits[0].id, 'halcyon'); expectOk(moved);

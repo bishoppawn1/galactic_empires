@@ -2,7 +2,18 @@
 
 ## Project
 
-Galactic Empires is a React + TypeScript + Vite strategy prototype. Game rules live in `src/game.ts`; UI orchestration lives in `src/App.tsx`; presentation lives in `src/styles.css`.
+Galactic Empires is a React + TypeScript + Vite strategy prototype. Stable public imports remain available through `src/game.ts` and `src/App.tsx`, while implementation code is organized into focused folders.
+
+## Code map
+
+- `src/game/types.ts` — simulation types and state contracts
+- `src/game/definitions.ts` — buildings, units, research, and shared constants
+- `src/game/navigation.ts` — route calculation and formatting helpers
+- `src/game/engine.ts` — deterministic state creation, commands, combat, AI, and ticking
+- `src/app/` — top-level UI orchestration, view types, and save migration
+- `src/components/` — feature UI grouped by campaign, planet, research, battle, layout, and shared helpers
+- `src/styles/` — application presentation
+- `src/test/` — shared test setup
 
 ## Commands
 

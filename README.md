@@ -1,7 +1,5 @@
 # Galactic Empires
 
-play the game here https://bishoppawn1.github.io/galactic_empires/
-
 A React, TypeScript, and Vite strategy prototype with deterministic game rules and automated UI/rules tests.
 
 Play the current build at [bishoppawn1.github.io/galactic_empires](https://bishoppawn1.github.io/galactic_empires/).

@@ -116,6 +116,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Titan Dreadnought', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
+    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('RNG 14');
   });
 
   it('renders known hostile shipyards on the galaxy map', () => {
@@ -425,6 +427,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText(/Units advance automatically/)).toBeInTheDocument();
     expect(screen.getAllByText(/RNG 14/)).toHaveLength(2);
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
+    expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
   });
@@ -443,6 +446,6 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     expect(screen.getByText('1 FORTIFIED DEFENSE ONLINE')).toBeInTheDocument();
     expect(screen.getByText(/Defense Turret · RNG 32/)).toBeInTheDocument();
-    expect(document.querySelector('.battle-unit.fortification')).not.toBeNull();
+    expect(document.querySelector('.battle-unit.fortification .ground-unit-image')).not.toBeNull();
   });
 });

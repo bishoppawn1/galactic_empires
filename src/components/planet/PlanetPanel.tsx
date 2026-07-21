@@ -4,7 +4,8 @@ import {
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
-import { buildingIcon, factionName, fleetPhaseLabel, unitGlyph } from '../shared/presentation';
+import { buildingIcon, factionName, fleetPhaseLabel } from '../shared/presentation';
+import { GroundUnitImage } from '../shared/GroundUnitImage';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
 export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle }: {
@@ -106,8 +107,8 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </section>;
 }
 
-function UnitButton({ kind, onClick, lockReason, speed = 1 }: { kind: UnitKind; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : unitGlyph(kind)}</span><b>{definition.label}</b><small>{lockReason ?? `${formatCost(definition.cost)} · ${Math.ceil(definition.time! / speed)}s${isSpaceUnit(kind) ? ` · RNG ${definition.range}` : ''}`}</small></button>; }
-function UnitRow({ unit }: { unit: Unit }) { const definition = UNITS[unit.kind]; return <div className="unit-row"><span>{isSpaceUnit(unit.kind) ? <ShipImage kind={unit.kind} /> : unitGlyph(unit.kind)}</span><div><b>{definition.label}</b><small>{unit.faction.toUpperCase()} · HP {Math.ceil(unit.hp)}/{unit.maxHp} · SH {Math.ceil(unit.shields)}/{unit.maxShields}{isSpaceUnit(unit.kind) ? ` · RNG ${definition.range}` : ''}</small></div></div>; }
+function UnitButton({ kind, onClick, lockReason, speed = 1 }: { kind: UnitKind; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatCost(definition.cost)} · ${Math.ceil(definition.time! / speed)}s · RNG ${definition.range}`}</small></button>; }
+function UnitRow({ unit }: { unit: Unit }) { const definition = UNITS[unit.kind]; return <div className="unit-row"><span>{isSpaceUnit(unit.kind) ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{unit.faction.toUpperCase()} · HP {Math.ceil(unit.hp)}/{unit.maxHp} · SH {Math.ceil(unit.shields)}/{unit.maxShields} · RNG {definition.range}</small></div></div>; }
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) { return <header className="section-title"><small>{kicker}</small><h2>{title}</h2></header>; }
 function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }
 function Locked({ text }: { text: string }) { return <div className="locked"><span>⌾</span><p>{text}</p></div>; }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { UNITS, type GameState, type GroundBattle, type Unit, type UnitKind } from '../../game';
+import { UNITS, type GameState, type GroundBattle, type Unit } from '../../game';
+import { GroundUnitImage } from '../shared/GroundUnitImage';
 
 export function GroundBattleView({ state, battle, onFocus, onExit }: { state: GameState; battle: GroundBattle; onFocus: (planetId: string, targetId: string) => void; onExit: () => void }) {
   const planet = state.planets.find(p => p.id === battle.planetId)!;
@@ -40,7 +41,5 @@ function BattleUnit({ unit, index }: { unit: Unit; index: number }) {
 }
 
 function UnitCore({ unit }: { unit: Unit }) {
-  return <div className="unit-core"><span>{unitGlyph(unit.kind)}</span><div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div><div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div></div>;
+  return <div className="unit-core"><GroundUnitImage kind={unit.kind} /><div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div><div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div></div>;
 }
-
-const unitGlyph = (kind: UnitKind) => kind === 'infantry' ? '♟' : kind === 'antiVehicle' ? '⌁' : kind === 'recon' ? '◇' : kind === 'lightTank' ? '▰' : kind === 'artillery' ? '⌖' : kind === 'shockTrooper' ? '♞' : kind === 'railgunTank' ? '▱' : kind === 'plasmaTank' ? '⬣' : kind === 'siegeWalker' ? '♜' : kind === 'defenseTurret' ? '⌂' : kind === 'transport' ? '△' : kind === 'destroyer' ? '◉' : kind === 'assaultCarrier' ? '⬡' : kind.includes('Frigate') ? '◈' : kind === 'battlecruiser' ? '✦' : kind === 'dreadnought' ? '✹' : '◆';

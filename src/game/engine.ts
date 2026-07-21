@@ -751,6 +751,9 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
 
 export const AEGIS_SHIELD_REGEN_BONUS = 3;
 export const AEGIS_GROUND_SHIELD_REGEN = 1.5;
+export const AEGIS_SHIELD_PROJECTION_RANGE = 220;
+export const AEGIS_WARD_INTERCEPTION_RANGE = 180;
+export const AEGIS_REPAIR_DRONE_RANGE = 240;
 
 export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human'): Unit {
   const shieldRecovery = 5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0);
@@ -885,6 +888,9 @@ function groundAbilityDamageMultiplier(unit: Unit, allies: Unit[], target: Unit)
   }
   if (allies.some(ally => UNITS[ally.kind].ability?.kind === 'synapseAura' && battleDistance(unit, ally) <= 22)) multiplier *= 1.25;
   if (ability === 'siegeCharge' && target.sourceBuildingId) multiplier *= 2;
+  const targetIsMoving = typeof target.battleTargetX === 'number' && typeof target.battleTargetY === 'number'
+    && Math.hypot(target.battleTargetX - (target.battleX ?? 0), target.battleTargetY - (target.battleY ?? 0)) > .5;
+  if (ability === 'movingTargetBarrage' && targetIsMoving) multiplier *= 1.75;
   return multiplier;
 }
 
@@ -893,9 +899,30 @@ function fireGroundWeapon(unit: Unit, allies: Unit[], enemies: Unit[], target: U
   if (!salvoDamage) return;
   const damage = salvoDamage * power * groundAbilityDamageMultiplier(unit, allies, target);
   recordGroundHit(hits, unit, target, damage);
-  if (UNITS[unit.kind].ability?.kind !== 'burstSpores') return;
+  const ability = UNITS[unit.kind].ability?.kind;
+  const splash = ability === 'burstSpores' ? .35 : ability === 'judgmentShockwave' ? .45 : 0;
+  if (!splash) return;
   enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
-    .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * .35));
+    .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * splash));
+}
+
+function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
+  for (const target of allies) {
+    const hit = hits.get(target.id);
+    if (!hit || UNITS[target.kind].ability?.kind === 'paladinIntercept') continue;
+    const guard = allies.find(ally => ally.id !== target.id && UNITS[ally.kind].ability?.kind === 'paladinIntercept' && battleDistance(target, ally) <= 16);
+    if (!guard) continue;
+    const intercepted = hit.damage * .4;
+    hit.damage -= intercepted;
+    addGroundDamage(hits, guard.id, intercepted);
+  }
+  for (const target of allies) {
+    const hit = hits.get(target.id);
+    if (!hit) continue;
+    const behindShieldWall = allies.some(ally => ally.shields > 0 && UNITS[ally.kind].ability?.kind === 'shieldWall' && battleDistance(target, ally) <= 18);
+    if (behindShieldWall) hit.damage *= .8;
+    if (UNITS[target.kind].ability?.kind === 'bastionAnchor' && (target.weaponFlash ?? 0) > 0) hit.damage *= .65;
+  }
 }
 
 function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
@@ -988,6 +1015,8 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
   battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, focus(unit), power(unit)));
   battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, focus(unit), power(unit)));
+  protectGroundFormation(hits, battle.attackers);
+  protectGroundFormation(hits, battle.defenders);
   separateGroundUnits([...battle.attackers, ...battle.defenders]);
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
@@ -1066,16 +1095,30 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const defenseTarget = preferredDefense && defenseInRange(preferredDefense)
       ? preferredDefense
       : hostileDefenses.find(defenseInRange);
-    const shipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
+    const initialShipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
+    const ward = initialShipTarget && hostileShips.find(target => target.id !== initialShipTarget.id
+      && target.faction === initialShipTarget.faction
+      && UNITS[target.kind].ability?.kind === 'wardInterception'
+      && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, initialShipTarget.orbitX ?? 0, initialShipTarget.orbitY ?? 0) <= AEGIS_WARD_INTERCEPTION_RANGE
+      && shipInRange(attacker, target));
+    const shipTarget = ward ?? initialShipTarget;
     const weapon = UNITS[attacker.kind].weapon;
     const ability = UNITS[attacker.kind].ability?.kind;
     const salvoDamage = weapon.damage * weapon.projectiles;
     if (shipTarget) {
       const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
-      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
+      const targetPosition = shipPosition(shipTarget);
+      const distance = orbitDistance(attackerPosition.x, attackerPosition.y, targetPosition.x, targetPosition.y);
+      const rangeMultiplier = ability === 'rangeCalibration' ? 1 + .7 * Math.min(1, distance / UNITS[attacker.kind].range) : 1;
+      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier * rangeMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
       if (ability === 'spawnCloud') {
         const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(attacker, target));
         if (secondary) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: secondary.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 });
+      }
+      if (ability === 'sovereignBarrage') {
+        hostileShips.filter(target => target.id !== shipTarget.id && target.faction === shipTarget.faction && shipInRange(attacker, target)
+          && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, targetPosition.x, targetPosition.y) <= 140)
+          .forEach(target => shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: target.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .35 }));
       }
     } else if (defenseTarget) {
       shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: ability === 'planetCracker' ? 2 : 1 });
@@ -1150,9 +1193,18 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   });
   p.orbitUnits = p.orbitUnits.map(unit => {
     const incoming = shipDamage.get(unit.id);
-    const damaged = incoming ? damageUnitPiercing(unit, incoming.damage, incoming.damage > 0 ? incoming.piercingDamage / incoming.damage : 0) : unit;
-    const healing = devourHealing.get(unit.id) ?? 0;
-    return healing ? { ...damaged, hp: Math.min(damaged.maxHp, damaged.hp + healing) } : damaged;
+    const projected = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
+      && UNITS[ally.kind].ability?.kind === 'shieldProjection'
+      && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= AEGIS_SHIELD_PROJECTION_RANGE);
+    const repaired = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
+      && UNITS[ally.kind].ability?.kind === 'repairDrones'
+      && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= AEGIS_REPAIR_DRONE_RANGE);
+    const regenerated = projected ? { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * 10) } : unit;
+    const approachScale = UNITS[unit.kind].ability?.kind === 'armoredApproach' && (unit.pendingLanding || unit.pendingEmbark) ? .55 : 1;
+    const protectionScale = (projected ? .7 : 1) * approachScale;
+    const damaged = incoming ? damageUnitPiercing(regenerated, incoming.damage * protectionScale, incoming.damage > 0 ? incoming.piercingDamage / incoming.damage : 0) : regenerated;
+    const healing = (devourHealing.get(unit.id) ?? 0) + (repaired ? seconds * 6 : 0);
+    return healing && damaged.hp > 0 ? { ...damaged, hp: Math.min(damaged.maxHp, damaged.hp + healing) } : damaged;
   });
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);
 

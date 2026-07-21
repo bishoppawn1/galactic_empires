@@ -260,6 +260,13 @@ describe('starter faction foundations', () => {
     expect(tick(queued.state, UNITS.aegisWarden.time!).planets[0].groundUnits.some(unit => unit.kind === 'aegisWarden')).toBe(true);
   });
 
+  it('gives every Aegis unit its own tactical ability', () => {
+    const kinds = [...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS];
+    const abilities = kinds.map(kind => UNITS[kind].ability?.kind);
+    expect(abilities.every(Boolean)).toBe(true);
+    expect(new Set(abilities).size).toBe(kinds.length);
+  });
+
   it('regenerates Aegis shields faster in orbit and during ground combat', () => {
     const ship = { ...makeUnit('monitor', 'aegisShieldMonitor', 'player'), shields: 10 };
     expect(recoverSpaceUnit(ship, false, 2, 'aegis').shields).toBe(10 + 2 * (5 + AEGIS_SHIELD_REGEN_BONUS));
@@ -269,6 +276,101 @@ describe('starter faction foundations', () => {
     const enemy = { ...makeUnit('distant-enemy', 'infantry', 'enemy'), battleX: 92, battleY: 50, battleTargetX: 92, battleTargetY: 50 };
     state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [warden], defenders: [enemy] }];
     expect(tick(state, 2).battles[0].attackers[0].shields).toBe(20 + 2 * AEGIS_GROUND_SHIELD_REGEN);
+  });
+
+  it('uses Warden walls, Paladin interception, and anchored Bastion armor to protect a ground formation', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const target = { ...makeUnit('target', 'aegisRampartArtillery', 'player'), battleX: 50, battleY: 50 };
+    const warden = { ...makeUnit('warden', 'aegisWarden', 'player'), battleX: 52, battleY: 50 };
+    const paladin = { ...makeUnit('paladin', 'aegisPaladinGuard', 'player'), battleX: 54, battleY: 50 };
+    const tank = { ...makeUnit('tank', 'aegisBastionTank', 'player'), battleX: 50, battleY: 65 };
+    const targetShooter = { ...makeUnit('target-shooter', 'infantry', 'enemy'), battleX: 60, battleY: 50 };
+    const tankShooter = { ...makeUnit('tank-shooter', 'infantry', 'enemy'), battleX: 60, battleY: 65 };
+    state.battles = [{ planetId: 'draven', attackers: [targetShooter], defenders: [target, warden, paladin], enemyFocusTargetId: target.id }];
+    const battle = tick(state, .1).battles[0];
+    const protectedTarget = battle.defenders.find(unit => unit.id === target.id)!;
+    const guardingPaladin = battle.defenders.find(unit => unit.id === paladin.id)!;
+    expect(target.maxShields - protectedTarget.shields).toBeCloseTo(3 * .6 * .8);
+    expect(paladin.maxShields - guardingPaladin.shields).toBeCloseTo(3 * .4 * .8);
+
+    const anchorState = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    anchorState.enemyActionClock = 9999; anchorState.enemyAttackClock = 9999;
+    anchorState.battles = [{ planetId: 'draven', attackers: [tankShooter], defenders: [tank], enemyFocusTargetId: tank.id }];
+    const anchored = tick(anchorState, .1).battles[0].defenders[0];
+    expect(tank.maxShields - anchored.shields).toBeCloseTo(3 * .65);
+  });
+
+  it('lets Rampart batteries punish movement and Fortress Walkers damage clustered ground targets', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const rampart = { ...makeUnit('rampart', 'aegisRampartArtillery', 'player'), battleX: 40, battleY: 30 };
+    const moving = { ...makeUnit('moving', 'infantry', 'enemy'), battleX: 65, battleY: 30, battleTargetX: 85, battleTargetY: 30 };
+    state.battles = [{ planetId: 'draven', attackers: [rampart], defenders: [moving], focusTargetId: moving.id }];
+    const advanced = tick(state, .1).battles[0];
+    const movedTarget = advanced.defenders.find(unit => unit.id === moving.id)!;
+    expect(moving.hp + moving.shields - movedTarget.hp - movedTarget.shields).toBeCloseTo(28 * 1.75);
+
+    const splashState = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    splashState.enemyActionClock = 9999; splashState.enemyAttackClock = 9999;
+    const walker = { ...makeUnit('walker', 'aegisFortressWalker', 'player'), battleX: 40, battleY: 70 };
+    const primary = { ...makeUnit('primary', 'lightTank', 'enemy'), battleX: 65, battleY: 70 };
+    const secondary = { ...makeUnit('secondary', 'lightTank', 'enemy'), battleX: 67, battleY: 70 };
+    splashState.battles = [{ planetId: 'draven', attackers: [walker], defenders: [primary, secondary], focusTargetId: primary.id }];
+    const splashed = tick(splashState, .1).battles[0].defenders.find(unit => unit.id === secondary.id)!;
+    expect(secondary.hp + secondary.shields - splashed.hp - splashed.shields).toBeCloseTo(52 * .45);
+  });
+
+  it('projects Monitor shields and repairs nearby ships with Citadel drones during combat', () => {
+    const fleetState = (withSupport: boolean) => {
+      const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+      state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+      const planet = state.planets[0];
+      const ally = { ...makeUnit('ally', 'aegisLanceFrigate', 'player'), hp: 200, shields: 100, orbitX: 0, orbitY: 0 };
+      const support = withSupport ? [
+        { ...makeUnit('monitor', 'aegisShieldMonitor', 'player'), orbitX: 80, orbitY: 0 },
+        { ...makeUnit('carrier', 'aegisCitadelCarrier', 'player'), orbitX: 100, orbitY: 0 },
+      ] : [];
+      planet.orbitUnits = [ally, ...support, { ...makeUnit('enemy', 'missileFrigate', 'enemy'), orbitX: 280, orbitY: 0 }];
+      return tick(state, 1).planets[0].orbitUnits.find(unit => unit.id === ally.id)!;
+    };
+    const unsupported = fleetState(false);
+    const supported = fleetState(true);
+    expect(supported.shields).toBeGreaterThan(unsupported.shields);
+    expect(supported.hp).toBeGreaterThan(unsupported.hp + 5);
+  });
+
+  it('gives Aegis orbital specialists positional targeting behavior', () => {
+    const planet = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' }).planets[0];
+    const lance = { ...makeUnit('lance', 'aegisLanceFrigate', 'player'), orbitX: 0, orbitY: 0 };
+    const target = { ...makeUnit('target', 'transport', 'enemy'), orbitX: 400, orbitY: 0 };
+    const ward = { ...makeUnit('ward', 'aegisWardCruiser', 'enemy'), orbitX: 420, orbitY: 0 };
+    planet.orbitUnits = [lance, target, ward];
+    const lanceShot = orbitalCombatShots(planet).find(shot => shot.attackerId === lance.id)!;
+    expect(lanceShot.targetId).toBe(ward.id);
+    expect(lanceShot.damageMultiplier).toBeCloseTo(1 + .7 * (420 / UNITS.aegisLanceFrigate.range));
+
+    const sovereign = { ...makeUnit('sovereign', 'aegisSovereignDreadnought', 'player'), orbitX: 0, orbitY: 0 };
+    const clusteredA = { ...makeUnit('cluster-a', 'escortFrigate', 'enemy'), orbitX: 300, orbitY: 0 };
+    const clusteredB = { ...makeUnit('cluster-b', 'escortFrigate', 'enemy'), orbitX: 320, orbitY: 0 };
+    planet.orbitUnits = [sovereign, clusteredA, clusteredB];
+    const barrage = orbitalCombatShots(planet).filter(shot => shot.attackerId === sovereign.id);
+    expect(barrage.map(shot => shot.targetId)).toEqual([clusteredA.id, clusteredB.id]);
+    expect(barrage[1].damageMultiplier).toBe(.35);
+  });
+
+  it('hardens a Bastion Lander only during its troop approach', () => {
+    const shieldAfterVolley = (pendingEmbark: boolean) => {
+      const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+      state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+      const planet = state.planets[0];
+      const lander = { ...makeUnit('lander', 'aegisBastionLander', 'player'), orbitX: 0, orbitY: 0, ...(pendingEmbark ? { pendingEmbark: true, orbitTargetX: 500, orbitTargetY: 0 } : {}) };
+      planet.orbitUnits = [lander, { ...makeUnit('enemy', 'missileFrigate', 'enemy'), orbitX: 180, orbitY: 0 }];
+      return tick(state, .1).planets[0].orbitUnits.find(unit => unit.id === lander.id)!.shields;
+    };
+    const normalLoss = UNITS.aegisBastionLander.shields - shieldAfterVolley(false);
+    const approachLoss = UNITS.aegisBastionLander.shields - shieldAfterVolley(true);
+    expect(approachLoss).toBeCloseTo(normalLoss * .55);
   });
 
   it('makes an AI Aegis empire build only Aegis units', () => {

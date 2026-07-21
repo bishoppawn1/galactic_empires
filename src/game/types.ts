@@ -35,7 +35,9 @@ export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artiller
 export type UnitAbilityKind =
   | 'swarmInstinct' | 'corrosiveBile' | 'evasiveChitin' | 'thornedCarapace' | 'burstSpores'
   | 'synapseAura' | 'siegeCharge' | 'livingHold' | 'transportHunter' | 'shieldPiercing'
-  | 'orbitalSynapse' | 'phaseCarapace' | 'spawnCloud' | 'devour' | 'planetCracker';
+  | 'orbitalSynapse' | 'phaseCarapace' | 'spawnCloud' | 'devour' | 'planetCracker'
+  | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
+  | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {

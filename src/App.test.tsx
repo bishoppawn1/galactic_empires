@@ -38,8 +38,24 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
     const saved = JSON.parse(localStorage.getItem('galactic-empires-save-v5')!);
-    expect(saved.config).toEqual({ mapSize: 'large', difficulty: 'admiral' });
+    expect(saved.config).toEqual({ mapSize: 'large', difficulty: 'admiral', playerFaction: 'human' });
     expect(saved.planets).toHaveLength(15);
+  });
+
+  it('starts a Brood campaign with biomass instead of mineral resources', () => {
+    localStorage.clear();
+    render(<App />);
+    expect(screen.getByRole('button', { name: /Aegis Directorate/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Iron Covenant/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /The Brood/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
+
+    expect(screen.getByText('Biomass')).toBeInTheDocument();
+    expect(screen.queryByText('Metal')).not.toBeInTheDocument();
+    const saved = JSON.parse(localStorage.getItem('galactic-empires-save-v5')!);
+    expect(saved.config.playerFaction).toBe('brood');
+    expect(saved.empireCivilizations.player).toBe('brood');
+    expect(saved.resources.biomass).toBe(550);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {

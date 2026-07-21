@@ -3,7 +3,8 @@ import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
   applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
-  GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  biomassCost, recoverableBiomass,
+  BROOD_BIOMASS_PER_PLANET, BROOD_STARTING_BIOMASS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -133,6 +134,83 @@ describe('economy and construction', () => {
   });
 });
 
+describe('starter faction foundations', () => {
+  const broodConfig = { mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' } as const;
+
+  it('starts the Brood with biomass and no mineral extraction buildings', () => {
+    const state = createInitialState(broodConfig); const terra = state.planets[0];
+    expect(state.empireCivilizations.player).toBe('brood');
+    expect(state.resources).toEqual({ metal: 0, crystal: 0, gold: 0, biomass: BROOD_STARTING_BIOMASS });
+    expect(terra.buildings.map(building => building.kind)).toEqual(['groundFactory', 'spaceFactory']);
+    expect(state.empireCivilizations.enemy).toBe('human');
+  });
+
+  it('grows biomass naturally from every controlled planet', () => {
+    const state = createInitialState(broodConfig); state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const before = state.resources.biomass!;
+    const advanced = tick(state, 10);
+    expect(advanced.resources.biomass! - before).toBe(BROOD_BIOMASS_PER_PLANET * 10);
+    expect(advanced.resources).toMatchObject({ metal: 0, crystal: 0, gold: 0 });
+    state.completedResearch.push('quantumExtraction');
+    expect(tick(state, 10).resources.biomass! - before).toBe(BROOD_BIOMASS_PER_PLANET * 10 * 1.25);
+  });
+
+  it('pays biomass for structures and units while rejecting mineral mines', () => {
+    const state = createInitialState(broodConfig);
+    const built = constructBuilding(state, 'terra', 'groundDefense'); expectOk(built);
+    expect(built.state.resources.biomass).toBe(BROOD_STARTING_BIOMASS - biomassCost({ metal: 100, crystal: 45, gold: 25 }));
+    const queued = queueUnit(built.state, 'terra', 'infantry'); expectOk(queued);
+    expect(queued.state.resources.biomass).toBe(built.state.resources.biomass! - biomassCost(UNITS.infantry.cost));
+    const mine = constructBuilding(queued.state, 'terra', 'metalMine');
+    expect(mine.ok).toBe(false);
+    if (!mine.ok) expect(mine.error).toContain('naturally');
+  });
+
+  it('harvests destroyed enemy ground forces in a Brood battle', () => {
+    const state = createInitialState(broodConfig); state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const attacker = { ...makeUnit('brood-siege', 'siegeWalker', 'player'), battleX: 40, battleY: 50 };
+    const victim = { ...makeUnit('harvested-infantry', 'infantry', 'enemy'), hp: 1, shields: 0, battleX: 60, battleY: 50 };
+    state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [attacker], defenders: [victim] }];
+    const before = state.resources.biomass!;
+    const resolved = tick(state, 1);
+    expect(resolved.resources.biomass).toBe(before + BROOD_BIOMASS_PER_PLANET + recoverableBiomass([victim]));
+    expect(resolved.messages.some(message => message.includes('BROOD HARVEST'))).toBe(true);
+  });
+
+  it('recycles its own destroyed ships and their dead cargo', () => {
+    const state = createInitialState(broodConfig); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const doomed = { ...makeUnit('doomed-spore-ark', 'transport', 'player'), hp: 1, shields: 0, orbitX: 0, orbitY: 0, cargo: [makeUnit('lost-brood', 'infantry', 'player')] };
+    terra.orbitUnits = [doomed, { ...makeUnit('executioner', 'dreadnought', 'enemy'), orbitX: 80, orbitY: 0 }];
+    const before = state.resources.biomass!;
+    const resolved = tick(state, .1);
+    expect(resolved.planets[0].orbitUnits.some(unit => unit.id === doomed.id)).toBe(false);
+    expect(resolved.resources.biomass).toBeCloseTo(before + BROOD_BIOMASS_PER_PLANET * .1 + recoverableBiomass([doomed]));
+  });
+
+  it('swaps civilization identities with multiplayer command perspective', () => {
+    const state = createCompetitiveState(broodConfig, [
+      { faction: 'player', controller: 'human', civilization: 'brood' },
+      { faction: 'enemy', controller: 'human', civilization: 'aegis' },
+    ]);
+    const rivalView = viewStateForFaction(state, 'enemy');
+    expect(rivalView.empireCivilizations).toMatchObject({ player: 'aegis', enemy: 'brood' });
+    expect(viewStateForFaction(rivalView, 'enemy')).toEqual(state);
+  });
+
+  it('lets an AI-controlled Brood empire spend its biomass economy', () => {
+    const state = createCompetitiveState(broodConfig, [
+      { faction: 'player', controller: 'human', civilization: 'human' },
+      { faction: 'enemy', controller: 'ai', civilization: 'brood' },
+    ]);
+    state.enemyActionClock = 0; state.enemyAttackClock = 9999;
+    const advanced = tick(state, .1); const enemyHome = advanced.planets.find(planet => planet.owner === 'enemy')!;
+    expect(enemyHome.buildings.some(building => ['metalMine', 'crystalMine', 'goldMine'].includes(building.kind))).toBe(false);
+    expect(enemyHome.buildings.filter(building => building.kind === 'groundFactory')).toHaveLength(2);
+    expect(advanced.enemyResources.biomass).toBeLessThan(BROOD_STARTING_BIOMASS);
+  });
+});
+
 describe('campaign configuration', () => {
   it('creates the requested number of worlds for every map size', () => {
     expect(createInitialState({ mapSize: 'small', difficulty: 'commander' }).planets).toHaveLength(7);
@@ -154,14 +232,14 @@ describe('campaign configuration', () => {
     delete (legacy as Partial<typeof legacy>).config;
     delete (legacy as Partial<typeof legacy>).enemyMissionCount;
     const migrated = migrateGameState(legacy);
-    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander' });
+    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander', playerFaction: 'human' });
     expect(migrated.enemyMissionCount).toBe(0);
   });
 
   it('repairs missing research and collection fields in older saves', () => {
     const legacy = createInitialState({ mapSize: 'small', difficulty: 'commander' });
     const damaged = legacy as unknown as Record<string, unknown>;
-    for (const key of ['fleets', 'battles', 'completedResearch', 'enemyCompletedResearch', 'researchQueue', 'enemyResearchQueue', 'messages']) delete damaged[key];
+    for (const key of ['fleets', 'battles', 'completedResearch', 'enemyCompletedResearch', 'researchQueue', 'enemyResearchQueue', 'messages', 'empireCivilizations']) delete damaged[key];
     delete (legacy.planets[0] as Partial<typeof legacy.planets[0]>).groundQueue;
     delete (legacy.planets[0] as Partial<typeof legacy.planets[0]>).spaceQueue;
 
@@ -172,6 +250,7 @@ describe('campaign configuration', () => {
     expect(migrated.enemyCompletedResearch).toEqual([]);
     expect(migrated.researchQueue).toEqual([]);
     expect(migrated.enemyResearchQueue).toEqual([]);
+    expect(migrated.empireCivilizations).toMatchObject({ player: 'human', enemy: 'human' });
     expect(migrated.planets[0].groundQueue).toEqual([]);
     expect(migrated.messages[0]).toContain('RECOVERED');
     expect(() => tick(migrated, .1)).not.toThrow();

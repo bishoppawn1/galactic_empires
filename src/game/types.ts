@@ -4,9 +4,10 @@ export type Faction = EmpireFaction | null;
 export type UnitFaction = Exclude<Faction, null> | 'neutral';
 export type MapSize = 'small' | 'medium' | 'large' | 'huge';
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
+export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 
-export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty }
-export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander' };
+export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction }
+export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };
 
 export type BuildingKind =
   | 'metalMine'
@@ -26,7 +27,7 @@ export type SpaceUnitKind = 'transport' | 'escortFrigate' | 'missileFrigate' | '
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 
-export interface ResourcePool { metal: number; crystal: number; gold: number }
+export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {
   id: string;
   kind: BuildingKind;
@@ -118,7 +119,7 @@ export interface EmpireEconomy {
   attackClock: number;
   missionCount: number;
 }
-export interface MatchEmpireSlot { faction: EmpireFaction; controller: 'human' | 'ai' }
+export interface MatchEmpireSlot { faction: EmpireFaction; controller: 'human' | 'ai'; civilization?: PlayableFaction }
 export interface GameState {
   mode?: 'solo' | 'competitive';
   config: GameConfig;
@@ -134,6 +135,7 @@ export interface GameState {
   enemyActionClock: number;
   enemyAttackClock: number;
   enemyMissionCount: number;
+  empireCivilizations: Record<EmpireFaction, PlayableFaction>;
   additionalEmpires?: Partial<Record<'rival2' | 'rival3', EmpireEconomy>>;
   aiFactions?: EmpireFaction[];
   elapsed: number;

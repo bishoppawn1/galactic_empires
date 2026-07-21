@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, GROUND_KINDS, LANDING_APPROACH_SPEED, SPACE_KINDS, UNITS,
-  formatCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
+  BROOD_BIOMASS_PER_PLANET, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
@@ -21,23 +21,24 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
       {(['command', 'construction', 'forces'] as PlanetTab[]).map(section => <button key={section} className={tab === section ? 'active' : ''} onClick={() => setTab(section)}>{section}</button>)}
     </nav>
     <div className="panel-scroll">
-      {tab === 'command' && <Command planet={planet} />}
+      {tab === 'command' && <Command state={state} planet={planet} />}
       {tab === 'construction' && <Construction state={state} planet={planet} act={act} />}
       {tab === 'forces' && <Forces state={state} planet={planet} focus={productionFocus} selectedYardIds={selectedYardIds} act={act} />}
     </div>
   </aside>;
 }
 
-function Command({ planet }: { planet: Planet }) {
+function Command({ state, planet }: { state: GameState; planet: Planet }) {
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);
+  const brood = empireCivilization(state) === 'brood';
   return <section>
     <SectionTitle kicker="PLANETARY COMMAND" title="Colony overview" />
     <div className="stat-grid">
       <Stat label="Structures" value={planet.buildings.length} /><Stat label="Ground forces" value={planet.groundUnits.length} />
       <Stat label="Ships in orbit" value={planet.orbitUnits.length} /><Stat label="Active queues" value={activeQueues} />
     </div>
-    <h3>Unlimited resource output</h3>
-    {(['metal', 'crystal', 'gold'] as const).map(resource => {
+    <h3>{brood ? 'Living planetary yield' : 'Unlimited resource output'}</h3>
+    {brood ? <div className="deposit biomass"><span>biomass</span><div><i style={{ width: '100%' }} /></div><b>{planet.owner === 'player' ? `+${BROOD_BIOMASS_PER_PLANET}/s` : 'DORMANT'} · ∞</b></div> : (['metal', 'crystal', 'gold'] as const).map(resource => {
       const kind = `${resource}Mine` as BuildingKind;
       const count = planet.buildings.filter(building => building.kind === kind).length;
       const maximum = planet.buildingLimits[kind];
@@ -49,14 +50,16 @@ function Command({ planet }: { planet: Planet }) {
 
 function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (command: GameCommand) => void }) {
   if (planet.owner !== 'player') return <Locked text="Construction is only available on your colonies." />;
+  const civilization = empireCivilization(state);
+  const availableBuildings = civilization === 'brood' ? BUILDING_KINDS.filter(kind => !['metalMine', 'crystalMine', 'goldMine'].includes(kind)) : BUILDING_KINDS;
   return <section><SectionTitle kicker="PLANETARY INDUSTRY" title="Build structures" />
     <div className="card-list">
-      {BUILDING_KINDS.map(kind => {
+      {availableBuildings.map(kind => {
         const def = BUILDINGS[kind]; const count = planet.buildings.filter(building => building.kind === kind).length; const maximum = planet.buildingLimits[kind];
         const unlimited = hasUnlimitedBuildingCapacity(kind);
         const locked = !!def.requires && !state.completedResearch.includes(def.requires);
         return <article className={`build-card ${locked ? 'locked-card' : ''}`} key={kind}>
-          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {unlimited ? '∞' : maximum} BUILT · {formatCost(def.cost)}</em></div>
+          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {unlimited ? '∞' : maximum} BUILT · {formatFactionCost(def.cost, civilization)}</em></div>
           <button disabled={locked || (!unlimited && count >= maximum)} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : !unlimited && count >= maximum ? 'MAX' : 'BUILD +1'}</button>
         </article>;
       })}
@@ -70,6 +73,7 @@ function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; sp
 }
 
 function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
+  const civilization = empireCivilization(state);
   const groundSpeed = groundProductionMultiplier(planet);
   const groundFactoryCount = planet.buildings.filter(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length;
   const yards = spaceYards(planet);
@@ -88,12 +92,12 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   };
   const groundProduction = <div className={`production-group ${focus === 'ground' ? 'focused' : ''}`}>
     <h3>Ground factories · {groundFactoryCount} online · {groundSpeed}× speed</h3>
-    <div className="unit-grid">{GROUND_KINDS.map(kind => <UnitButton key={kind} kind={kind} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
+    <div className="unit-grid">{GROUND_KINDS.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
     {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically'}.</p>}
-    <div className="unit-grid">{SPACE_KINDS.map(kind => <UnitButton key={kind} kind={kind} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
+    <div className="unit-grid">{SPACE_KINDS.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
     <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} showEmpty /></article>)}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />
@@ -108,7 +112,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </section>;
 }
 
-function UnitButton({ kind, onClick, lockReason, speed = 1 }: { kind: UnitKind; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatCost(definition.cost)} · ${Math.ceil(definition.time! / speed)}s · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s`}</small></button>; }
+function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) { const definition = UNITS[kind]; return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{isSpaceUnit(kind) ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${formatFactionCost(definition.cost, faction)} · ${Math.ceil(definition.time! / speed)}s · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s`}</small></button>; }
 function UnitRow({ unit }: { unit: Unit }) { const definition = UNITS[unit.kind]; return <div className="unit-row"><span>{isSpaceUnit(unit.kind) ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{unit.faction.toUpperCase()} · {definition.weapon.label} · {definition.weapon.projectiles}× / {definition.weapon.cooldown}s · RNG {definition.range}</small></div></div>; }
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) { return <header className="section-title"><small>{kicker}</small><h2>{title}</h2></header>; }
 function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }

@@ -16,6 +16,7 @@ import {
   type MatchEmpireSlot,
   type Planet,
   type PlanetConnection,
+  type PlayableFaction,
   type QueueItem,
   type ResearchId,
   type Resource,
@@ -31,6 +32,10 @@ import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
+  BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTIONS, biomassCost, empireCivilization,
+  recoverableBiomass, startingResources, usesBiomass,
+} from './factions';
+import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
   ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
@@ -40,6 +45,7 @@ import {
 export * from './types';
 export * from './navigation';
 export * from './definitions';
+export * from './factions';
 
 const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp,
@@ -183,21 +189,21 @@ const seedNeutralGarrisons = (planets: Planet[]) => {
 export const mapPlanetCount = (size: MapSize) => MAP_PLANETS[size];
 export const enemyDifficultyMultiplier = (difficulty: EnemyDifficulty) => difficulty === 'cadet' ? .78 : difficulty === 'admiral' ? 1.38 : 1;
 
+const starterBuildings = (prefix: string, faction: PlayableFaction): Building[] => {
+  const kinds: BuildingKind[] = faction === 'brood'
+    ? ['groundFactory', 'spaceFactory']
+    : ['metalMine', 'crystalMine', 'goldMine', 'groundFactory', 'spaceFactory'];
+  return kinds.map((kind, index) => ({ id: `${prefix}${index + 1}`, kind, ...(kind === 'spaceFactory' ? { spaceQueue: [] } : {}) }));
+};
+
 export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CONFIG, mode: GameState['mode'] = 'solo'): GameState {
-  const config = { ...requestedConfig };
+  const playerFaction = requestedConfig.playerFaction ?? 'human';
+  const config = { ...requestedConfig, playerFaction };
   const terra = planet('terra', 'Terra Nova', 22, 56, '#55d6be', 'player', pool(1, .9, .65), pool(5, 4, 3), 4);
-  terra.buildings = [
-    { id: 'b1', kind: 'metalMine' }, { id: 'b2', kind: 'crystalMine' },
-    { id: 'b3', kind: 'goldMine' }, { id: 'b4', kind: 'groundFactory' },
-    { id: 'b5', kind: 'spaceFactory', spaceQueue: [] },
-  ];
+  terra.buildings = starterBuildings('b', playerFaction);
 
   const cygnus = planet('cygnus', 'Cygnus Reach', 76, 30, '#e86a92', 'enemy', pool(.7, 1.2, .9), pool(3, 5, 4));
-  cygnus.buildings = [
-    { id: 'eb1', kind: 'metalMine' }, { id: 'eb2', kind: 'crystalMine' },
-    { id: 'eb3', kind: 'goldMine' }, { id: 'eb4', kind: 'groundFactory' },
-    { id: 'eb5', kind: 'spaceFactory', spaceQueue: [] },
-  ];
+  cygnus.buildings = starterBuildings('eb', 'human');
 
   const draven = planet('draven', 'Draven', 62, 72, '#e86a92', null, pool(1.1, .6, 1), pool(5, 3, 4));
 
@@ -238,14 +244,15 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   return {
     mode,
     config,
-    resources: pool(520, 420, 280),
+    resources: startingResources(playerFaction),
     enemyResources: pool(520, 420, 280),
     planets,
     fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [], enemyResearchQueue: [],
     enemyActionClock: 8, enemyAttackClock: config.difficulty === 'cadet' ? 180 : config.difficulty === 'admiral' ? 100 : 130, enemyMissionCount: 0,
+    empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
-    messages: ['COMMAND ONLINE — Terra Nova awaits your orders.'],
+    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
   };
 }
 
@@ -263,7 +270,15 @@ export function migrateGameState(input: GameState): GameState {
   state.messages = Array.isArray(state.messages) && state.messages.length ? state.messages : ['SAVED CAMPAIGN RECOVERED — systems online.'];
   state.resources ??= pool(520, 420, 280);
   state.mode ??= 'solo';
-  state.config ??= { mapSize: state.planets.length <= 7 ? 'small' : state.planets.length <= 11 ? 'medium' : state.planets.length <= 15 ? 'large' : 'huge', difficulty: 'commander' };
+  state.config ??= { mapSize: state.planets.length <= 7 ? 'small' : state.planets.length <= 11 ? 'medium' : state.planets.length <= 15 ? 'large' : 'huge', difficulty: 'commander', playerFaction: 'human' };
+  state.config.playerFaction = PLAYABLE_FACTIONS.includes(state.config.playerFaction ?? 'human') ? state.config.playerFaction ?? 'human' : 'human';
+  const savedCivilizations = state.empireCivilizations as Partial<Record<EmpireFaction, PlayableFaction>> | undefined;
+  state.empireCivilizations = {
+    player: state.config.playerFaction,
+    enemy: 'human', rival2: 'human', rival3: 'human',
+    ...savedCivilizations,
+  };
+  if (usesBiomass(state) && typeof state.resources.biomass !== 'number') state.resources = startingResources('brood');
   state.enemyResources ??= pool(520, 420, 280);
   state.enemyActionClock ??= 8;
   state.enemyAttackClock ??= state.config.difficulty === 'cadet' ? 180 : state.config.difficulty === 'admiral' ? 100 : 130;
@@ -321,7 +336,18 @@ const empireEconomy = (state: GameState, faction: EmpireFaction): EmpireEconomy 
   if (faction === 'player') return { resources: state.resources, completedResearch: state.completedResearch, researchQueue: state.researchQueue, actionClock: 0, attackClock: 0, missionCount: 0 };
   if (faction === 'enemy') return { resources: state.enemyResources, completedResearch: state.enemyCompletedResearch, researchQueue: state.enemyResearchQueue, actionClock: state.enemyActionClock, attackClock: state.enemyAttackClock, missionCount: state.enemyMissionCount };
   state.additionalEmpires ??= {};
-  return state.additionalEmpires[faction] ??= newEmpireEconomy(state.config.difficulty);
+  return state.additionalEmpires[faction] ??= newEmpireEconomy(state.config.difficulty, empireCivilization(state, faction));
+};
+const battlefieldFactions = (units: Unit[]) => [...new Set(units.map(unit => unit.faction))]
+  .filter((faction): faction is EmpireFaction => faction !== 'neutral');
+const harvestBattlefieldBiomass = (state: GameState, destroyed: Unit[], participants: EmpireFaction[], location: string) => {
+  const recovered = recoverableBiomass(destroyed);
+  if (!recovered) return;
+  participants.filter(faction => usesBiomass(state, faction)).forEach(faction => {
+    const economy = empireEconomy(state, faction);
+    economy.resources.biomass = (economy.resources.biomass ?? 0) + recovered;
+    if (faction === 'player') addMessage(state, `BROOD HARVEST — ${recovered} biomass recovered ${location}.`);
+  });
 };
 export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('quantumExtraction') ? 1.25 : 1;
 export const groundProductionMultiplier = (planet: Planet) => Math.max(1, planet.buildings.filter(building =>
@@ -331,6 +357,14 @@ export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYar
 const spend = (resources: ResourcePool, cost: ResourcePool) => {
   resources.metal -= cost.metal; resources.crystal -= cost.crystal; resources.gold -= cost.gold;
 };
+const canPlayerAfford = (state: GameState, cost: ResourcePool) => usesBiomass(state)
+  ? (state.resources.biomass ?? 0) >= biomassCost(cost)
+  : canAfford(state.resources, cost);
+const spendPlayerResources = (state: GameState, cost: ResourcePool) => {
+  if (usesBiomass(state)) state.resources.biomass = (state.resources.biomass ?? 0) - biomassCost(cost);
+  else spend(state.resources, cost);
+};
+const insufficientPlayerResources = (state: GameState) => usesBiomass(state) ? 'Insufficient biomass.' : 'Insufficient resources.';
 const hasResearch = (state: GameState, id?: ResearchId) => !id || state.completedResearch.includes(id);
 
 export type GameResult = { ok: true; state: GameState } | { ok: false; state: GameState; error: string };
@@ -340,12 +374,13 @@ const pass = (state: GameState): GameResult => ({ ok: true, state });
 export function constructBuilding(input: GameState, planetId: string, kind: BuildingKind): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = BUILDINGS[kind];
   if (!p || p.owner !== 'player') return fail(input, 'Select one of your colonies.');
+  if (usesBiomass(state) && ['metalMine', 'crystalMine', 'goldMine'].includes(kind)) return fail(input, 'The Brood grows biomass naturally and cannot construct mineral mines.');
   const count = p.buildings.filter(b => b.kind === kind).length;
   const unlimited = hasUnlimitedBuildingCapacity(kind);
   if (!unlimited && count >= p.buildingLimits[kind]) return fail(input, `${p.name} has reached its ${def.label} limit.`);
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
-  if (!canAfford(state.resources, def.cost)) return fail(input, 'Insufficient resources.');
-  spend(state.resources, def.cost);
+  if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
+  spendPlayerResources(state, def.cost);
   const building: Building = { id: `b${state.nextId++}`, kind };
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
@@ -363,8 +398,8 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
   if (def.factory === 'ground') {
     if (def.advancedFactory && !p.buildings.some(building => building.kind === 'advancedGroundFactory')) return fail(input, 'Requires an Advanced Ground Factory.');
-    if (!canAfford(state.resources, def.cost)) return fail(input, 'Insufficient resources.');
-    spend(state.resources, def.cost);
+    if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
+    spendPlayerResources(state, def.cost);
     p.groundQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
     addMessage(state, `${def.label} added to ${p.name} production.`);
     return pass(state);
@@ -379,8 +414,8 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   if (targets.some(yard => !yard)) return fail(input, 'Select a friendly Space Yard at this colony.');
   if (def.advancedFactory && targets.some(yard => yard?.kind !== 'advancedSpaceFactory')) return fail(input, 'Advanced hulls require an Advanced Space Yard.');
   const totalCost = pool(def.cost.metal * targets.length, def.cost.crystal * targets.length, def.cost.gold * targets.length);
-  if (!canAfford(state.resources, totalCost)) return fail(input, `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
-  spend(state.resources, totalCost);
+  if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
+  spendPlayerResources(state, totalCost);
   for (const yard of targets as Building[]) {
     yard.spaceQueue ??= [];
     yard.spaceQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
@@ -395,8 +430,8 @@ export function beginResearch(input: GameState, id: ResearchId): GameResult {
   if (!state.planets.some(p => p.owner === 'player' && p.buildings.some(b => b.kind === 'researchLab'))) return fail(input, 'Construct a Research Lab first.');
   if (state.completedResearch.includes(id) || state.researchQueue.some(r => r.id === id)) return fail(input, 'Research already acquired or active.');
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
-  if (!canAfford(state.resources, def.cost)) return fail(input, 'Insufficient resources.');
-  spend(state.resources, def.cost);
+  if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
+  spendPlayerResources(state, def.cost);
   state.researchQueue.push({ id, remaining: def.time!, total: def.time! });
   addMessage(state, `${def.label} research initiated.`);
   return pass(state);
@@ -634,8 +669,8 @@ export function setOrbitFocusTarget(input: GameState, planetId: string, targetId
 
 export const EMPIRE_FACTIONS: EmpireFaction[] = ['player', 'enemy', 'rival2', 'rival3'];
 
-const newEmpireEconomy = (difficulty: EnemyDifficulty): EmpireEconomy => ({
-  resources: pool(520, 420, 280), completedResearch: [], researchQueue: [], actionClock: 8,
+const newEmpireEconomy = (difficulty: EnemyDifficulty, civilization: PlayableFaction = 'human'): EmpireEconomy => ({
+  resources: startingResources(civilization), completedResearch: [], researchQueue: [], actionClock: 8,
   attackClock: difficulty === 'cadet' ? 180 : difficulty === 'admiral' ? 100 : 130, missionCount: 0,
 });
 
@@ -643,20 +678,24 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
   const slots = requestedSlots?.length ? requestedSlots.slice(0, 4) : [
     { faction: 'player', controller: 'human' }, { faction: 'enemy', controller: 'human' },
   ] satisfies MatchEmpireSlot[];
-  const effectiveConfig = slots.length > 2 && config.mapSize !== 'huge' ? { ...config, mapSize: 'huge' as const } : config;
+  const playerCivilization = slots.find(slot => slot.faction === 'player')?.civilization ?? config.playerFaction ?? 'human';
+  const effectiveConfig = { ...config, playerFaction: playerCivilization, ...(slots.length > 2 && config.mapSize !== 'huge' ? { mapSize: 'huge' as const } : {}) };
   const state = createInitialState(effectiveConfig, 'competitive');
   const homeIds = ['terra', 'cygnus', 'halcyon', 'vesta'];
   const firstEmpire = state.planets.find(planet => planet.id === homeIds[0])!;
-  const starterBuildings = firstEmpire.buildings.map(building => ({ ...building, spaceQueue: building.spaceQueue ? [] : undefined }));
   slots.forEach(slot => {
+    const civilization = slot.civilization ?? (slot.faction === 'player' ? playerCivilization : 'human');
     const home = state.planets.find(planet => planet.id === homeIds[EMPIRE_FACTIONS.indexOf(slot.faction)])!;
+    state.empireCivilizations[slot.faction] = civilization;
     home.owner = slot.faction;
     home.groundUnits = [];
     home.orbitUnits = [];
-    home.buildings = starterBuildings.map((building, buildingIndex) => ({ ...building, id: `${slot.faction}-start-${buildingIndex}`, spaceQueue: building.spaceQueue ? [] : undefined }));
+    home.buildings = starterBuildings(`${slot.faction}-start-`, civilization);
     home.resourceYield = { ...firstEmpire.resourceYield };
     home.buildingLimits = { ...firstEmpire.buildingLimits };
-    if (slot.faction === 'rival2' || slot.faction === 'rival3') state.additionalEmpires![slot.faction] = newEmpireEconomy(config.difficulty);
+    if (slot.faction === 'player') state.resources = startingResources(civilization);
+    else if (slot.faction === 'enemy') state.enemyResources = startingResources(civilization);
+    else state.additionalEmpires![slot.faction] = newEmpireEconomy(config.difficulty, civilization);
   });
   state.aiFactions = slots.filter(slot => slot.controller === 'ai').map(slot => slot.faction);
   state.messages = [`FREE-FOR-ALL LINK ONLINE — ${slots.length} empires await command.`];
@@ -830,6 +869,8 @@ const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !un
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
   ensureBattlePositions(battle);
+  const combatantsBefore = [...battle.attackers, ...battle.defenders];
+  const participants = battlefieldFactions(combatantsBefore);
   const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
@@ -847,6 +888,8 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
   const p = getPlanet(state, battle.planetId)!;
+  const survivors = new Set([...battle.attackers, ...battle.defenders].map(unit => unit.id));
+  harvestBattlefieldBiomass(state, combatantsBefore.filter(unit => !survivors.has(unit.id)), participants, `on ${p.name}`);
   if (!battle.defenders.length && battle.attackers.length) {
     const attackingUnitFaction = battle.attackers[0].faction;
     const winner = battle.attackerFaction ?? (attackingUnitFaction === 'neutral' ? 'player' : attackingUnitFaction);
@@ -945,6 +988,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     p.orbitUnits.forEach(unit => tickUnitWeapon(unit, seconds, false));
     return;
   }
+  const combatantsBefore = [...p.orbitUnits];
+  const participants = battlefieldFactions(combatantsBefore);
   const vulnerableShipsBeforeCombat = new Map(p.orbitUnits.filter(unit => unit.pendingLanding || unit.pendingEmbark).map(unit => [unit.id, unit]));
   const installationScale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
   const enemyPower = enemyDifficultyMultiplier(state.config.difficulty);
@@ -974,6 +1019,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     addMessage(state, `${destroyedDefenses.length} orbital defense platform${destroyedDefenses.length === 1 ? '' : 's'} destroyed at ${p.name}.`);
   }
   p.orbitUnits = p.orbitUnits.filter(unit => unit.hp > 0);
+  const survivingShipIds = new Set(p.orbitUnits.map(unit => unit.id));
+  harvestBattlefieldBiomass(state, combatantsBefore.filter(unit => !survivingShipIds.has(unit.id)), participants, `in orbit of ${p.name}`);
   for (const [id, ship] of vulnerableShipsBeforeCombat) {
     if (!p.orbitUnits.some(unit => unit.id === id)) addMessage(state, ship.pendingEmbark
       ? `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed while attempting to embark forces at ${p.name}; waiting ground squads survived, but any existing cargo was lost.`
@@ -1076,15 +1123,23 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
 }
 
 const enemyHasResearch = (state: GameState, id?: ResearchId) => !id || state.enemyCompletedResearch.includes(id);
+const canEnemyAfford = (state: GameState, cost: ResourcePool) => usesBiomass(state, 'enemy')
+  ? (state.enemyResources.biomass ?? 0) >= biomassCost(cost)
+  : canAfford(state.enemyResources, cost);
+const spendEnemyResources = (state: GameState, cost: ResourcePool) => {
+  if (usesBiomass(state, 'enemy')) state.enemyResources.biomass = (state.enemyResources.biomass ?? 0) - biomassCost(cost);
+  else spend(state.enemyResources, cost);
+};
 
 function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount?: number) {
   const def = BUILDINGS[kind];
   const unlimited = hasUnlimitedBuildingCapacity(kind);
   const desiredCount = targetCount ?? (unlimited ? Number.POSITIVE_INFINITY : p.buildingLimits[kind]);
   const maximum = unlimited ? desiredCount : Math.min(desiredCount, p.buildingLimits[kind]);
+  if (usesBiomass(state, 'enemy') && ['metalMine', 'crystalMine', 'goldMine'].includes(kind)) return false;
   if (p.buildings.filter(building => building.kind === kind).length >= maximum
-    || !enemyHasResearch(state, def.requires) || !canAfford(state.enemyResources, def.cost)) return false;
-  spend(state.enemyResources, def.cost);
+    || !enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
+  spendEnemyResources(state, def.cost);
   const building: Building = { id: `eb${state.nextId++}`, kind };
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
@@ -1094,16 +1149,16 @@ function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount
 
 function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Building) {
   const def = UNITS[kind];
-  if (!enemyHasResearch(state, def.requires) || !canAfford(state.enemyResources, def.cost)) return false;
+  if (!enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
   if (def.factory === 'ground') {
     if (!p.buildings.some(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory')) return false;
     if (def.advancedFactory && !p.buildings.some(building => building.kind === 'advancedGroundFactory')) return false;
-    spend(state.enemyResources, def.cost);
+    spendEnemyResources(state, def.cost);
     p.groundQueue.push({ id: `eq${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
     return true;
   }
   if (!yard || !isSpaceYard(yard) || (def.advancedFactory && yard.kind !== 'advancedSpaceFactory')) return false;
-  spend(state.enemyResources, def.cost);
+  spendEnemyResources(state, def.cost);
   yard.spaceQueue ??= [];
   yard.spaceQueue.push({ id: `eq${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
   return true;
@@ -1118,8 +1173,8 @@ function advanceEnemyResearch(state: GameState) {
   const next = milestones.find(([time, id]) => state.elapsed >= time && !state.enemyCompletedResearch.includes(id));
   if (!next) return;
   const [, id] = next; const def = RESEARCH[id];
-  if (!enemyHasResearch(state, def.requires) || !canAfford(state.enemyResources, def.cost)) return;
-  spend(state.enemyResources, def.cost);
+  if (!enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return;
+  spendEnemyResources(state, def.cost);
   state.enemyCompletedResearch.push(id);
 }
 
@@ -1211,10 +1266,14 @@ export function tick(input: GameState, seconds: number): GameState {
       const economy = empireEconomy(state, p.owner);
       const aiScale = state.aiFactions?.includes(p.owner) && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) * .62 : .7;
       const incomeScale = aiScale * researchIncomeMultiplier(economy.completedResearch);
-      for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
-        const kind = `${resource}Mine` as BuildingKind;
-        const mineCount = p.buildings.filter(b => b.kind === kind).length;
-        economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
+      if (usesBiomass(state, p.owner)) {
+        economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * researchIncomeMultiplier(economy.completedResearch);
+      } else {
+        for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
+          const kind = `${resource}Mine` as BuildingKind;
+          const mineCount = p.buildings.filter(b => b.kind === kind).length;
+          economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
+        }
       }
       tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p), p.owner);
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, 1, p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));

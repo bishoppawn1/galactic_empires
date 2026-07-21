@@ -48,6 +48,7 @@ export function viewStateForFaction(input: GameState, target: EmpireFaction = 'e
   const playerEconomy = economy(state, 'player'), targetEconomy = economy(state, target);
   installEconomy(state, 'player', targetEconomy);
   installEconomy(state, target, playerEconomy);
+  [state.empireCivilizations.player, state.empireCivilizations[target]] = [state.empireCivilizations[target], state.empireCivilizations.player];
   state.aiFactions = state.aiFactions?.map(faction => swapFaction(faction, target));
   for (const planet of state.planets) {
     const focus = swapFocus(planet.orbitFocusTargetId, planet.enemyOrbitFocusTargetId, planet.orbitFocusTargetIds, target);

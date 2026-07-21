@@ -1,4 +1,4 @@
-import { RESEARCH, RESEARCH_UNLOCKS, formatCost, type GameCommand, type GameState, type ResearchId } from '../../game';
+import { RESEARCH, RESEARCH_UNLOCKS, empireCivilization, formatFactionCost, type GameCommand, type GameState, type ResearchId } from '../../game';
 
 function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameState; hasLab: boolean; act: (command: GameCommand) => void }) {
   const def = RESEARCH[id];
@@ -11,7 +11,7 @@ function ResearchNode({ id, state, hasLab, act }: { id: ResearchId; state: GameS
     <header><span>{done ? '✓' : active ? '◌' : '⌬'}</span><div><small>{def.requires ? `REQUIRES ${RESEARCH[def.requires].label.toUpperCase()}` : 'FOUNDATIONAL TECHNOLOGY'}</small><b>{def.label}</b></div></header>
     <p>{def.description}</p>
     {!!RESEARCH_UNLOCKS[id]?.length && <div className="tech-unlocks"><small>UNLOCKS</small><span>{RESEARCH_UNLOCKS[id]!.join(' · ')}</span></div>}
-    {active ? <div className="research-progress" aria-label={`${def.label} progress`}><i style={{ width: `${100 * (1 - active.remaining / active.total)}%` }} /></div> : <em>{formatCost(def.cost)} · {def.time}s</em>}
+    {active ? <div className="research-progress" aria-label={`${def.label} progress`}><i style={{ width: `${100 * (1 - active.remaining / active.total)}%` }} /></div> : <em>{formatFactionCost(def.cost, empireCivilization(state))} · {def.time}s</em>}
     <button disabled={done || !!active || !hasLab || !prerequisiteMet} onClick={() => act({ type: 'beginResearch', id })}>{buttonLabel}</button>
   </article>;
 }

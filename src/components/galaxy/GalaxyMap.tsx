@@ -193,7 +193,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const target = mapPosition(shot.targetId, shot.targetType);
               if (!source || !target) return [];
               const projectiles = firingShip ? UNITS[firingShip.kind].weapon.projectiles : 1;
-              return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={38} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
+              return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={32} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
             });
           })}
         </svg>

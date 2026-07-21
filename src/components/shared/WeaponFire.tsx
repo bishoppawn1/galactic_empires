@@ -59,7 +59,7 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   const duration = flightDurations[effect];
   const offsets = Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * size * .22);
 
-  return <g className={`weapon-fire weapon-${effect} ${faction} ${className}`} data-weapon-effect={effect} data-projectiles={projectiles}>
+  return <g className={`weapon-fire weapon-${effect} ${faction} ${className}`} data-weapon-effect={effect} data-projectiles={projectiles} data-projectile-size={size}>
     <title>{effect} weapon fire</title>
     <g transform={`translate(${x1} ${y1}) rotate(${angle})`}>
       {offsets.map((offset, index) => <image key={`${id}-projectile-${index}`} className="weapon-projectile" href={weaponImages[effect]} x="0" y={-imageHeight / 2 + offset} width={imageWidth} height={imageHeight} preserveAspectRatio="none">

@@ -460,11 +460,12 @@ describe('Galactic Empires interface', () => {
     const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
     expect(missile).not.toBeNull();
     expect(missile).toHaveAttribute('data-projectiles', '1');
+    expect(missile).toHaveAttribute('data-projectile-size', '32');
     expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
     const projectile = missile!.querySelector('.weapon-projectile')!;
     expect(projectile.getAttribute('href')).toContain('missile');
     expect(Number(projectile.getAttribute('width'))).toBeGreaterThan(100);
-    expect(Number(projectile.getAttribute('height'))).toBeGreaterThan(100);
+    expect(Number(projectile.getAttribute('height'))).toBe(96);
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
   });
 
@@ -664,7 +665,8 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
-    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeGreaterThan(7);
+    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '2.2');
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(6.6);
     expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();

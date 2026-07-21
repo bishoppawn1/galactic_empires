@@ -21,6 +21,28 @@ interface CanvasShip {
   charging: boolean;
 }
 
+export function inspectableShipAtPoint(state: GameState, x: number, y: number) {
+  let nearest: { planetId: string; unitId: string; distance: number } | undefined;
+  for (const planet of state.planets) {
+    planet.orbitUnits.forEach((ship, index) => {
+      if (ship.faction === 'player' || ship.faction === 'neutral' || ship.pendingLanding || ship.pendingEmbark || !isSpaceUnit(ship.kind)) return;
+      const position = shipMapPosition(planet, ship, index);
+      const distance = Math.hypot(position.x - x, position.y - y);
+      const hitRadius = Math.max(20, shipDisplaySize(ship.kind) * .45);
+      if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: planet.id, unitId: ship.id, distance };
+    });
+  }
+  state.fleets.forEach((fleet, index) => {
+    if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return;
+    const position = fleetMapPosition(fleet, state.planets);
+    const shipX = position.x + (index % 4) * 18, shipY = position.y + Math.floor(index / 4) * 18;
+    const distance = Math.hypot(shipX - x, shipY - y);
+    const hitRadius = Math.max(20, shipDisplaySize(fleet.unit.kind) * .45);
+    if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: fleet.destinationId, unitId: fleet.unit.id, distance };
+  });
+  return nearest;
+}
+
 const imageCache = new Map<CanvasShip['kind'], HTMLImageElement>();
 
 const cachedShipImage = (kind: CanvasShip['kind']) => {
@@ -32,7 +54,7 @@ const cachedShipImage = (kind: CanvasShip['kind']) => {
   return image;
 };
 
-export function ShipCanvasLayer({ state, bounds, zoom }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number }) {
+export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number; selectedShipIds: string[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ships = useMemo(() => {
     const orbiting = state.planets.flatMap(planet => planet.orbitUnits.flatMap((ship, index) => {
@@ -48,7 +70,7 @@ export function ShipCanvasLayer({ state, bounds, zoom }: { state: GameState; bou
       if (fleet.faction === 'player' && (position.phase === 'exiting' || position.phase === 'charging')) return [];
       const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
       return pointInViewport(bounds, x, y, shipDisplaySize(fleet.unit.kind))
-        ? [{ id: fleet.id, kind: fleet.unit.kind, faction: fleet.faction, x, y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]
+        ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x, y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]
         : [];
     });
     return [...orbiting, ...traveling];
@@ -79,16 +101,17 @@ export function ShipCanvasLayer({ state, bounds, zoom }: { state: GameState; bou
         context.rotate(ship.heading * Math.PI / 180);
         context.globalAlpha = ship.charging ? .72 : .9;
         context.drawImage(image, -size / 2, -size / 2, size, size);
-        context.strokeStyle = ship.charging ? '#ffc857' : FACTION_COLORS[ship.faction];
-        context.lineWidth = ship.charging ? 3 : 2;
+        const selected = selectedShipIds.includes(ship.id);
+        context.strokeStyle = selected ? '#ffffff' : ship.charging ? '#ffc857' : FACTION_COLORS[ship.faction];
+        context.lineWidth = selected ? 4 : ship.charging ? 3 : 2;
         context.strokeRect(-size / 2 - 3, -size / 2 - 3, size + 6, size + 6);
         context.restore();
       }
     };
     draw();
     return () => { active = false; };
-  }, [bounds, ships, zoom]);
+  }, [bounds, selectedShipIds, ships, zoom]);
 
   const style = bounds ? { left: bounds.left, top: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top } : undefined;
-  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-transit-count={state.fleets.length} aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-selected-ship-count={ships.filter(ship => selectedShipIds.includes(ship.id)).length} data-transit-count={state.fleets.length} aria-hidden="true" />;
 }

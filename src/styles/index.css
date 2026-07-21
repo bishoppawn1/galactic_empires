@@ -70,9 +70,11 @@ button { color: inherit; }
 .fleet-command-hint { position: absolute; z-index: 9; left: 50%; bottom: 24px; transform: translateX(-50%); min-width: 480px; padding: 11px 15px; border: 1px solid #55d6be77; background: #081318ee; color: var(--cyan); text-align: center; font: 600 8px Inter; letter-spacing: .13em; box-shadow: 0 8px 30px #000b; }.fleet-command-hint span { margin-left: 14px; color: #a9b8bd; font-weight: 400; letter-spacing: normal; }
 .yard-command-hint { border-color: #ffc85777; color: var(--gold); }
 .fleet-selection-hud { position: absolute; z-index: 10; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(680px, calc(100% - 390px)); min-width: 300px; padding: 10px 12px 9px; border: 1px solid #55d6be77; background: #071116f2; color: var(--cyan); box-shadow: 0 8px 30px #000c, inset 0 0 20px #55d6be0a; }
+.fleet-selection-hud.hostile-inspection { border-color: #e86a9299; color: #ff8eb2; box-shadow: 0 8px 30px #000c, inset 0 0 20px #e86a9214; }
 .fleet-selection-hud header { margin-bottom: 7px; text-align: center; font: 700 8px Inter; letter-spacing: .15em; }
 .fleet-selection-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 116px; overflow-y: auto; }
 .selected-ship-card { width: 42px; padding: 5px; border: 1px solid #314a52; background: #0b171ddd; box-shadow: inset 0 0 9px #55d6be0b; }
+.selected-ship-card.enemy { border-color: #7c3550; background: #1c0c13dd; box-shadow: inset 0 0 9px #e86a9218; }.selected-ship-card.enemy .ship-image { filter: hue-rotate(155deg) saturate(1.45) drop-shadow(0 0 5px #e86a92aa); }
 .selected-ship-icon { height: 30px; display: grid; place-items: center; color: #dffcf7; font: 700 20px/1 Inter; text-shadow: 0 0 8px #55d6be99; }.selected-ship-icon .ship-image { width: 32px; height: 32px; }
 .selected-ship-bars { display: grid; gap: 3px; }
 .selected-ship-health, .selected-ship-shields { display: block; height: 4px; overflow: hidden; border: 1px solid #25343a; background: #020609; }

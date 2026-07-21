@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
+import { fleetMapPosition } from './components/galaxy/geometry';
 import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
@@ -463,6 +464,41 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbit-ship.enemy')).toHaveLength(0);
   });
 
+  it('inspects a canvas-rendered enemy ship with hull and shield bars', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [{ ...makeUnit('enemy-inspection', 'escortFrigate', 'enemy'), hp: 130, shields: 52, orbitX: 350, orbitY: 0 }];
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(document.querySelector('.galaxy-canvas')!, { clientX: 12800 * terra.x / 100 + 350, clientY: 8800 * terra.y / 100 });
+
+    expect(screen.getByText('HOSTILE SHIP INSPECTED')).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'Escort Frigate hull' })).toHaveAttribute('aria-valuenow', '130');
+    expect(screen.getByRole('meter', { name: 'Escort Frigate shields' })).toHaveAttribute('aria-valuenow', '52');
+    expect(document.querySelector('.fleet-selection-hud')).toHaveClass('hostile-inspection');
+    expect(document.querySelector('.galaxy')).not.toHaveClass('issuing-order');
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-selected-ship-count', '1');
+  });
+
+  it('inspects an enemy ship while it is in phase transit', () => {
+    const state = createInitialState(); const origin = state.planets[0], destination = state.planets[1];
+    state.fleets = [{
+      id: 'enemy-transit-fleet', faction: 'enemy', originId: origin.id, destinationId: destination.id,
+      unit: { ...makeUnit('enemy-transit-ship', 'missileFrigate', 'enemy'), hp: 175, shields: 61 },
+      progress: 5, travelTime: 10, phase: 'tunnel',
+    }];
+    const position = fleetMapPosition(state.fleets[0], state.planets);
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(document.querySelector('.galaxy-canvas')!, { clientX: position.x, clientY: position.y });
+
+    expect(screen.getByText('HOSTILE SHIP INSPECTED')).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'Missile Frigate hull' })).toHaveAttribute('aria-valuenow', '175');
+    expect(screen.getByRole('meter', { name: 'Missile Frigate shields' })).toHaveAttribute('aria-valuenow', '61');
+    expect(document.querySelector('.galaxy')).not.toHaveClass('issuing-order');
+  });
+
   it('caps rendered orbital salvos without reducing combatants', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = Array.from({ length: 80 }, (_, index) => ({
@@ -517,7 +553,11 @@ describe('Galactic Empires interface', () => {
     const landingMarker = screen.getByRole('button', { name: 'Transport landing approach Terra Nova' });
     expect(landingMarker).not.toHaveClass('phase-arrival');
     expect(landingMarker).toHaveClass('landing-approach');
-    expect(landingMarker).toBeDisabled();
+    expect(landingMarker).toBeEnabled();
+    fireEvent.click(landingMarker);
+    expect(screen.getByText('HOSTILE SHIP INSPECTED')).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'Transport hull' })).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'Transport shields' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
     expect(screen.getByText('HOSTILE TRANSPORT LANDING APPROACH')).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`${Math.ceil(342 / LANDING_APPROACH_SPEED)}s TO PLANET`))).toBeInTheDocument();

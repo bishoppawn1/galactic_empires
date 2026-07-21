@@ -7,7 +7,7 @@ import { factionName, fleetPhaseLabel } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
 import { WeaponFire } from '../shared/WeaponFire';
 import { FleetSelectionHud } from './FleetSelectionHud';
-import { ShipCanvasLayer } from './ShipCanvasLayer';
+import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
 import {
   GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, defenseMapPosition, fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, yardMapPosition,
 } from './geometry';
@@ -114,7 +114,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => planet.id === selectedOriginId) : undefined;
   const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
   const selectedShips = selectedShipIds.flatMap(id => {
-    const ship = orbitShips.find(unit => unit.id === id && unit.faction === 'player') ?? interruptibleFleets.find(fleet => fleet.unit.id === id)?.unit;
+    const ship = orbitShips.find(unit => unit.id === id) ?? state.fleets.find(fleet => fleet.unit.id === id)?.unit;
     return ship ? [ship] : [];
   });
   const gatePosition = (origin: Planet, destination: Planet) => {
@@ -124,9 +124,17 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: originX + dx / distance * offset, y: originY + dy / distance * offset };
   };
   const marquee = dragStart && dragEnd ? { left: Math.min(dragStart.x, dragEnd.x), top: Math.min(dragStart.y, dragEnd.y), width: Math.abs(dragEnd.x - dragStart.x), height: Math.abs(dragEnd.y - dragStart.y) } : undefined;
-  return <main className={`galaxy ${selectedShipIds.length ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
+  return <main className={`galaxy ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
     <div className="galaxy-scroll" ref={scrollRef}>
-      <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onContextMenu={event => {
+      <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onClickCapture={event => {
+        const target = event.target as Element;
+        if (target.closest('.orbit-ship,.transit-ship,.orbit-yard,.orbital-defense,.phase-gate')) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const hit = inspectableShipAtPoint(state, (event.clientX - rect.left) / zoom, (event.clientY - rect.top) / zoom);
+        if (!hit) return;
+        event.preventDefault(); event.stopPropagation();
+        onSelectShip(hit.planetId, hit.unitId, false);
+      }} onContextMenu={event => {
         event.preventDefault();
         if (!selectedOrigin) return;
         const rect = event.currentTarget.getBoundingClientRect();
@@ -159,7 +167,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             return <line key={`${from.id}-${to.id}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`local-route ${active ? 'active' : ''}`} />;
           })}
         </svg>
-        <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} />
+        <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
@@ -240,7 +248,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const cargoCount = ship.cargo?.length ?? 0;
           const weapon = UNITS[ship.kind].weapon;
           const displaySize = shipDisplaySize(ship.kind);
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); if (selectable) onSelectShip(p.id, ship.id, event.shiftKey); }} disabled={!selectable}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selectedShipIds.includes(ship.id) ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.flatMap((fleet, index) => {
           const position = fleetMapPosition(fleet, state.planets);

@@ -252,7 +252,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
-    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
+    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
   };
 }
 
@@ -743,8 +743,12 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
   });
 }
 
-export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number): Unit {
-  return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * 5), hp: friendlyOrbit ? Math.min(u.maxHp, u.hp + seconds * 2) : u.hp };
+export const AEGIS_SHIELD_REGEN_BONUS = 3;
+export const AEGIS_GROUND_SHIELD_REGEN = 1.5;
+
+export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human'): Unit {
+  const shieldRecovery = 5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0);
+  return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: friendlyOrbit ? Math.min(u.maxHp, u.hp + seconds * 2) : u.hp };
 }
 
 export function recoverOrbitalDefense(input: Building, seconds: number): Building {
@@ -899,6 +903,11 @@ const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !un
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
   ensureBattlePositions(battle);
+  const restoreAegisShields = (unit: Unit) => unit.faction !== 'neutral' && empireCivilization(state, unit.faction) === 'aegis'
+    ? { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * AEGIS_GROUND_SHIELD_REGEN) }
+    : unit;
+  battle.attackers = battle.attackers.map(restoreAegisShields);
+  battle.defenders = battle.defenders.map(restoreAegisShields);
   const combatantsBefore = [...battle.attackers, ...battle.defenders];
   const participants = battlefieldFactions(combatantsBefore);
   const hits = new Map<string, GroundHit>();
@@ -1292,7 +1301,7 @@ function launchEnemyCombatFleets(state: GameState) {
 
 export function tick(input: GameState, seconds: number): GameState {
   const state = migrateGameState(input); state.elapsed += seconds;
-  state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverSpaceUnit(fleet.unit, false, seconds) }));
+  state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction)) }));
   for (const p of state.planets) {
     ensureOrbitPositions(p);
     if (p.owner) {
@@ -1312,7 +1321,7 @@ export function tick(input: GameState, seconds: number): GameState {
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, 1, p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
     }
     tickOrbitMovement(p, seconds);
-    p.orbitUnits = p.orbitUnits.map(u => recoverSpaceUnit(u, p.owner === u.faction, seconds));
+    p.orbitUnits = p.orbitUnits.map(u => recoverSpaceUnit(u, p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction)));
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     tickOrbitCombat(state, p, seconds);
   }

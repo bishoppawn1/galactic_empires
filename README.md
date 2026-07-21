@@ -9,6 +9,8 @@ Play the current build at [bishoppawn1.github.io/galactic_empires](https://bisho
 - `src/app/` — application state, persistence, and top-level orchestration
 - `src/components/` — UI grouped by campaign, galaxy, planet, research, battle, layout, and shared presentation concerns
 - `src/game/` — simulation types, definitions, navigation, and the deterministic engine
+- `src/game/units/` — faction-specific unit rosters and combat definitions
+- `src/assets/aegis/` — faction-specific Aegis ground and ship sprites
 - `src/styles/` — application styles
 - `src/test/` — shared test setup
 - `src/App.tsx` and `src/game.ts` — compatibility entry points for stable imports

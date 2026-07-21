@@ -161,6 +161,23 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('RNG 14');
   });
 
+  it('shows the dedicated Aegis roster and faction-specific research unlocks', () => {
+    const state = createInitialState({ mapSize: 'medium', difficulty: 'commander', playerFaction: 'aegis' });
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Ward Cruiser', 'Citadel Carrier', 'Sovereign Dreadnought']) {
+      expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    expect(screen.getByText('Sovereign Dreadnought')).toBeInTheDocument();
+    expect(screen.queryByText('Titan Dreadnought')).not.toBeInTheDocument();
+  });
+
   it('renders known hostile shipyards on the galaxy map', () => {
     render(<App />);
     expect(screen.getByRole('img', { name: 'Enemy Space Yard 1 orbiting Cygnus Reach' })).toBeInTheDocument();

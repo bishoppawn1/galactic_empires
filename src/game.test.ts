@@ -4,6 +4,7 @@ import {
   applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
+  AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
   BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
@@ -245,6 +246,42 @@ describe('starter faction foundations', () => {
     expect(home.orbitUnits[0].cargo?.[0].kind).toBe('acidSpitter');
     expect(home.groundQueue[0].kind).toBe('sporeLobber');
     expect(home.buildings.find(building => building.kind === 'spaceFactory')?.spaceQueue?.[0].kind).toBe('clawFrigate');
+  });
+
+  it('gives the Aegis Directorate a separate durable production roster', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    expect(AEGIS_GROUND_KINDS).toHaveLength(5);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(6);
+    expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
+    expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
+    expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
+    const queued = queueUnit(state, 'terra', 'aegisWarden'); expectOk(queued);
+    expect(tick(queued.state, UNITS.aegisWarden.time!).planets[0].groundUnits.some(unit => unit.kind === 'aegisWarden')).toBe(true);
+  });
+
+  it('regenerates Aegis shields faster in orbit and during ground combat', () => {
+    const ship = { ...makeUnit('monitor', 'aegisShieldMonitor', 'player'), shields: 10 };
+    expect(recoverSpaceUnit(ship, false, 2, 'aegis').shields).toBe(10 + 2 * (5 + AEGIS_SHIELD_REGEN_BONUS));
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const warden = { ...makeUnit('warden', 'aegisWarden', 'player'), shields: 20, battleX: 8, battleY: 50, battleTargetX: 8, battleTargetY: 50 };
+    const enemy = { ...makeUnit('distant-enemy', 'infantry', 'enemy'), battleX: 92, battleY: 50, battleTargetX: 92, battleTargetY: 50 };
+    state.battles = [{ planetId: 'draven', attackerFaction: 'player', attackers: [warden], defenders: [enemy] }];
+    expect(tick(state, 2).battles[0].attackers[0].shields).toBe(20 + 2 * AEGIS_GROUND_SHIELD_REGEN);
+  });
+
+  it('makes an AI Aegis empire build only Aegis units', () => {
+    const state = createCompetitiveState({ mapSize: 'small', difficulty: 'commander' }, [
+      { faction: 'player', controller: 'human', civilization: 'human' },
+      { faction: 'enemy', controller: 'ai', civilization: 'aegis' },
+    ]);
+    state.enemyActionClock = 0; state.enemyAttackClock = 9999;
+    const advanced = tick(state, .1); const enemyHome = advanced.planets.find(planet => planet.owner === 'enemy')!;
+    const queuedKinds = [...enemyHome.groundQueue, ...spaceYards(enemyHome).flatMap(yard => yard.spaceQueue ?? [])].map(item => item.kind);
+    const aegisKinds = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
+    expect(queuedKinds.length).toBeGreaterThan(0);
+    expect(queuedKinds.every(kind => aegisKinds.has(kind))).toBe(true);
   });
 });
 

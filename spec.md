@@ -33,7 +33,8 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 - The Human Coalition is the balanced combined-arms baseline with broad technology and no severe weakness.
 - The Brood is the growth and swarm faction. It uses a complete, exclusive living roster alongside its Biomass economy: Brood players and AI cannot produce Coalition units, and other civilizations cannot produce Brood organisms.
-- The Aegis Directorate is the planned armored-advance faction, centered on heavy shields, defensive coordination, and siege formations. Its identity and campaign selection are persisted now; its Shield Monitor, Bastion Tank, Citadel Carrier, and supporting roster are the next production pass.
+- The Aegis Directorate is the armored-advance faction. Its smaller, expensive roster uses stronger hulls and shields, slow movement and construction, and bonus shield regeneration in ground and space combat.
+- Aegis ground production consists of Warden Cohorts, Bastion Tanks, Rampart Artillery, Paladin Guards, and Fortress Walkers. Its fleet consists of Bastion Landers, Shield Monitors, Lance Frigates, Ward Cruisers, Citadel Carriers, and Sovereign Dreadnoughts, all with dedicated white, gold, and cyan artwork.
 - The Iron Covenant is the planned mechanical-attrition faction, centered on repair systems, salvage, and modular machines. Its identity and campaign selection are persisted now; its Repair Drone, Salvage Frigate, Assembly Ark, and supporting roster are the next production pass.
 - Faction identity is stored separately from map ownership, allowing any multiplayer command seat to carry its own civilization, economy, and future roster through perspective translation.
 
@@ -66,6 +67,8 @@ The Ground Factory produces Infantry, Anti-Vehicle Infantry, Light Recon Vehicle
 The Brood replaces that production roster rather than reskinning its names. Basic ground organisms are Broodling Packs, Acid Spitters, Skitterers, Carapace Beasts, and Spore Lobbers. Ground Warfare unlocks Synapse Guards; Heavy Armor unlocks Crusher Beasts, Acid Behemoths, and Siege Crawlers. Its living fleet begins with five-organism Spore Arks, Claw Frigates, and long-range Needle Frigates. Orbital Engineering unlocks Hive Cruisers and advanced Void Stalkers; Carrier Operations unlocks ten-organism Brood Carriers; Capital Ship Doctrine unlocks Leviathans; and Titan Engineering unlocks the World Eater. These organisms have faction-specific health, shields, speed, range, weapons, cargo capacity, costs, and construction times. Brood unit art receives a distinct organic green treatment throughout production, force lists, orbit, phase transit, and ground combat.
 Older Brood campaign saves automatically convert already deployed, embarked, queued, in-transit, and battling Coalition units into their equivalent living organisms while preserving hull and shield damage percentages.
 
+The Aegis Ground Factory produces Warden Cohorts, Bastion Tanks, and Rampart Artillery. Advanced factories add Paladin Guards after Ground Warfare and Fortress Walkers after Heavy Armor. Aegis Space Yards produce five-squad Bastion Landers, Shield Monitors, Lance Frigates, and researched Ward Cruisers; advanced yards add ten-squad Citadel Carriers and Sovereign Dreadnoughts. Production commands and AI planning use the active civilization roster, and older Aegis saves convert temporary Coalition units into the matching Directorate classes.
+
 Advanced units require both their listed research project and the matching advanced factory. Standard and advanced factories still contribute together to local production speed; advanced hull orders must specifically target Advanced Space Yards.
 
 Production uses real-time queues. Every standard or advanced Ground Factory on a planet adds another 1× of ground-production speed, immediately accelerating the active queue. Ground-unit production estimates and queue countdowns show tenths of a second whenever the effective time is fractional instead of rounding to a whole second. Completed ground units deploy to the planet; completed ships deploy into distinct orbital slots instead of stacking at the planet center.
@@ -90,6 +93,7 @@ Every standard or advanced Space Yard appears as its own selectable station in t
 - Large fleets remain fully simulated while their presentation uses a bounded rendering budget. Non-interactive hostile orbit and transit hulls are drawn together on a viewport-sized canvas instead of creating one filtered DOM layer per ship. Player-controlled ships remain individually mounted during every orbit, departure, gate-charge, and committed tunnel phase, so selection state and canvas bookkeeping never control their visibility. The hostile-ship canvas follows every camera recenter, pan, resize, and zoom even when React development checks cancel an earlier scheduled measurement. A rotating sample of at most 32 orbital salvos per system is visualized without dropping any combat damage. Peaceful single-faction systems bypass hostile-target searches, and local campaign autosaves are serialized at most once per second rather than on every simulation frame.
 - After a ground battle, surviving ground units restore all HP and shields.
 - Every ship continuously restores 5 shield points per second in friendly, hostile, or neutral orbit and throughout phase transit. Ships restore hull HP only while orbiting a friendly planet.
+- Aegis ships restore an additional 3 shield points per second in orbit and phase transit. Aegis ground units restore 1.5 shield points per second during active battles.
 - Orbital Defense platforms continuously regenerate 16 shield points and 2 hull points per second, capped at their normal maximums. Platform shields therefore recover eight times faster than platform hull.
 - Ship salvo damage, Orbital Defenses, and Anti-Space Batteries receive the 4× orbital-combat multiplier. A properly positioned Escort Frigate can destroy a full-health Transport during its complete landing approach despite normal shield regeneration.
 
@@ -102,7 +106,7 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 - Interactive map and planet selection.
 - Symmetric one-world, zero-unit starts for player and AI.
 - Pre-campaign starter-faction, map-size, and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
-- Per-empire Human, Brood, Aegis, and Iron Covenant identities, with a functional Brood Biomass economy and an exclusive full Brood ground, space, transport, capital, and defensive roster for human or AI empires.
+- Per-empire Human, Brood, Aegis, and Iron Covenant identities, with complete exclusive Brood and Aegis rosters for human or AI empires, including distinct economies or doctrine mechanics, research unlocks, combat stats, and presentation.
 - Code-based two-to-four-player competitive lobby with separate empires, optional AI slots, a host-controlled launch, and synchronized authoritative simulation.
 - Unlimited planet economy with local mine-count limits and output modifiers.
 - Quantity-based construction with per-planet maxima, costs, and research gates.

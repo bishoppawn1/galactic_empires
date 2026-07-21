@@ -8,6 +8,11 @@ import railgunTank from '../../assets/ground/railgun-tank.png';
 import recon from '../../assets/ground/recon.png';
 import shockTrooper from '../../assets/ground/shock-trooper.png';
 import siegeWalker from '../../assets/ground/siege-walker.png';
+import aegisBastionTank from '../../assets/aegis/ground/bastion-tank.png';
+import aegisFortressWalker from '../../assets/aegis/ground/fortress-walker.png';
+import aegisPaladinGuard from '../../assets/aegis/ground/paladin-guard.png';
+import aegisRampartArtillery from '../../assets/aegis/ground/rampart-artillery.png';
+import aegisWarden from '../../assets/aegis/ground/warden.png';
 import { BROOD_GROUND_KINDS, type GroundUnitKind, type UnitKind } from '../../game';
 
 const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
@@ -31,6 +36,11 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   acidBehemoth: plasmaTank,
   siegeCrawler: siegeWalker,
   spineTower: defenseTurret,
+  aegisWarden,
+  aegisBastionTank,
+  aegisRampartArtillery,
+  aegisPaladinGuard,
+  aegisFortressWalker,
 };
 
 const BROOD_GROUND_IMAGES = new Set<GroundUnitKind>([...BROOD_GROUND_KINDS, 'spineTower']);

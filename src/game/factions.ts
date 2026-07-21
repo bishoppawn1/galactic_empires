@@ -29,8 +29,8 @@ export const PLAYABLE_FACTION_DEFINITIONS: Record<PlayableFaction, PlayableFacti
   },
   aegis: {
     label: 'Aegis Directorate', shortLabel: 'Aegis', doctrine: 'Armored advance',
-    description: 'Slow, disciplined formations built around heavy shields, fortresses, and siege fire.',
-    strengths: 'Durable units · defensive coordination', weakness: 'Slow and expensive deployment',
+    description: 'Slow, disciplined formations built around regenerating shields, fortress hulls, and long-range siege fire.',
+    strengths: 'Massive shields · battle regeneration', weakness: 'Slow and expensive deployment',
     signatureUnits: ['Shield Monitor', 'Bastion Tank', 'Citadel Carrier'], color: '#ffc857',
   },
   covenant: {

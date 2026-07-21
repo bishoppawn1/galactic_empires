@@ -6,6 +6,12 @@ import escortFrigate from '../../assets/ships/escort-frigate.png';
 import lightCruiser from '../../assets/ships/light-cruiser.png';
 import missileFrigate from '../../assets/ships/missile-frigate.png';
 import transport from '../../assets/ships/transport.png';
+import aegisBastionLander from '../../assets/aegis/ships/bastion-lander.png';
+import aegisCitadelCarrier from '../../assets/aegis/ships/citadel-carrier.png';
+import aegisLanceFrigate from '../../assets/aegis/ships/lance-frigate.png';
+import aegisShieldMonitor from '../../assets/aegis/ships/shield-monitor.png';
+import aegisSovereignDreadnought from '../../assets/aegis/ships/sovereign-dreadnought.png';
+import aegisWardCruiser from '../../assets/aegis/ships/ward-cruiser.png';
 import { BROOD_SPACE_KINDS, SPACE_KINDS, type SpaceUnitKind, type UnitKind } from '../../game';
 
 const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
@@ -25,6 +31,12 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   broodCarrier: assaultCarrier,
   leviathan: battlecruiser,
   worldEater: dreadnought,
+  aegisBastionLander,
+  aegisShieldMonitor,
+  aegisLanceFrigate,
+  aegisWardCruiser,
+  aegisCitadelCarrier,
+  aegisSovereignDreadnought,
 };
 
 const BROOD_SHIP_IMAGES = new Set<SpaceUnitKind>(BROOD_SPACE_KINDS);
@@ -48,6 +60,12 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   broodCarrier: 120,
   leviathan: 132,
   worldEater: 148,
+  aegisBastionLander: 78,
+  aegisShieldMonitor: 84,
+  aegisLanceFrigate: 88,
+  aegisWardCruiser: 104,
+  aegisCitadelCarrier: 128,
+  aegisSovereignDreadnought: 148,
 };
 
 export const isSpaceUnit = (kind: UnitKind): kind is SpaceUnitKind => SPACE_KINDS.includes(kind as SpaceUnitKind);

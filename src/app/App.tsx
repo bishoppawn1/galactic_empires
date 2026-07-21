@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyGameCommand, createCompetitiveState, createInitialState, spaceYards, viewStateForFaction, tick,
-  type EmpireFaction, type GameCommand, type GameConfig, type GameState,
+  type EmpireFaction, type GameCommand, type GameConfig, type GameState, type PlayableFaction,
 } from '../game';
 import { GroundBattleView } from '../components/battle/GroundBattleView';
 import { CampaignSetup } from '../components/campaign/CampaignSetup';
@@ -11,7 +11,7 @@ import { ResourceBar } from '../components/layout/ResourceBar';
 import { PlanetPanel } from '../components/planet/PlanetPanel';
 import { ResearchView } from '../components/research/ResearchView';
 import {
-  hostMultiplayer, joinMultiplayer,
+  hostMultiplayer, joinMultiplayer, matchSlotsForLobby,
   type LobbySnapshot, type MultiplayerController,
 } from './multiplayer';
 import { LEGACY_SAVE_KEY, SAVE_KEY, loadGame } from './storage';
@@ -130,10 +130,10 @@ export default function App() {
       setConnectionError(error instanceof Error ? error.message : 'Could not open the multiplayer lobby.');
     } finally { setConnecting(false); }
   };
-  const beginJoin = async (code: string) => {
+  const beginJoin = async (code: string, civilization: PlayableFaction) => {
     setConnecting(true); setConnectionError(undefined);
     try {
-      const controller = await joinMultiplayer(code, {
+      const controller = await joinMultiplayer(code, civilization, {
         onLobby: nextLobby => setLobby(nextLobby),
         onStart: next => {
           multiplayerPlayingRef.current = true;
@@ -156,7 +156,7 @@ export default function App() {
   const startMultiplayer = () => {
     const controller = controllerRef.current;
     if (!controller?.isHost || !lobby || lobby.players.length < 2) return;
-    const next = createCompetitiveState(lobby.config, lobby.players.map(player => ({ faction: player.faction, controller: player.ai ? 'ai' : 'human' })));
+    const next = createCompetitiveState(lobby.config, matchSlotsForLobby(lobby));
     multiplayerPlayingRef.current = true;
     controller.start(next);
     installState(next);

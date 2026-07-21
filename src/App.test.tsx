@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { GalaxyMap } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
@@ -99,13 +100,28 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: 'CONNECT' })).toBeEnabled();
   });
 
+  it('joins a multiplayer lobby with the guest commander faction', () => {
+    const onJoin = vi.fn();
+    render(<CampaignSetup onStart={() => {}} onHost={() => {}} onJoin={onJoin} />);
+    fireEvent.click(screen.getByRole('button', { name: /The Brood/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Join game/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Lobby code' }), { target: { value: 'ABC234' } });
+    expect(screen.getByText('LOBBY CODE · JOIN AS BROOD')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'CONNECT' }));
+    expect(onJoin).toHaveBeenCalledWith('ABC234', 'brood');
+  });
+
   it('presents four independent empire slots with optional AI opponents', () => {
-    render(<MultiplayerLobby lobby={{ code: 'ABC234', config: { mapSize: 'small', difficulty: 'commander' }, players: [{ id: 'host', label: 'HOST COMMANDER', host: true, faction: 'player' }] }} isHost onStart={() => {}} onLeave={() => {}} onAddAi={() => {}} onRemoveAi={() => {}} />);
+    render(<MultiplayerLobby lobby={{ code: 'ABC234', config: { mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' }, players: [
+      { id: 'host', label: 'HOST COMMANDER', host: true, faction: 'player', civilization: 'aegis' },
+      { id: 'guest', label: 'COMMANDER 2', host: false, faction: 'enemy', civilization: 'brood' },
+    ] }} isHost onStart={() => {}} onLeave={() => {}} onAddAi={() => {}} onRemoveAi={() => {}} />);
     expect(screen.getByText('EMPIRE ROSTER')).toBeInTheDocument();
-    expect(screen.getByText('1 / 4 SLOTS')).toBeInTheDocument();
-    expect(screen.getByText('EMPIRE 1 · HOST')).toBeInTheDocument();
+    expect(screen.getByText('2 / 4 SLOTS')).toBeInTheDocument();
+    expect(screen.getByText('EMPIRE 1 · HOST · AEGIS')).toBeInTheDocument();
+    expect(screen.getByText('EMPIRE 2 · HUMAN · BROOD')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ADD AI EMPIRE' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /ADD A RIVAL OR AI/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /START GAME/i })).toBeEnabled();
   });
 
   it('shows the three resources and homeworld', () => {

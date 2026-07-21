@@ -4,6 +4,7 @@ import {
   MAX_PLAYERS,
   MAX_BUFFERED_STATE_MESSAGES,
   MULTIPLAYER_SERIALIZATION,
+  matchSlotsForLobby,
   PEER_OPEN_TIMEOUT_MS,
   prepareIncomingState,
   prepareOutgoingCommand,
@@ -47,5 +48,26 @@ describe('multiplayer state transport', () => {
     expect(prepared).toEqual({ type: 'queueUnit', planetId: 'cygnus', kind: 'transport' });
     expect(Object.hasOwn(prepared, 'yardIds')).toBe(false);
     expect(isGameCommand(prepared)).toBe(true);
+  });
+
+  it('carries every lobby commander civilization into the match slots', () => {
+    const slots = matchSlotsForLobby({
+      code: 'ABC234',
+      config: { mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' },
+      players: [
+        { id: 'host', label: 'HOST COMMANDER', host: true, faction: 'player', civilization: 'aegis' },
+        { id: 'guest', label: 'COMMANDER 2', host: false, faction: 'enemy', civilization: 'brood' },
+        { id: 'guest-2', label: 'COMMANDER 3', host: false, faction: 'rival2', civilization: 'covenant' },
+      ],
+    });
+
+    expect(slots).toEqual([
+      { faction: 'player', controller: 'human', civilization: 'aegis' },
+      { faction: 'enemy', controller: 'human', civilization: 'brood' },
+      { faction: 'rival2', controller: 'human', civilization: 'covenant' },
+    ]);
+    const state = createCompetitiveState({ mapSize: 'small', difficulty: 'commander' }, slots);
+    expect(state.empireCivilizations).toMatchObject({ player: 'aegis', enemy: 'brood', rival2: 'covenant' });
+    expect(state.enemyResources.biomass).toBeGreaterThan(0);
   });
 });

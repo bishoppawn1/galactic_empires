@@ -17,7 +17,7 @@ const DIFFICULTY_DETAILS: Record<EnemyDifficulty, { label: string; description: 
 export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionError }: {
   onStart: (config: GameConfig) => void;
   onHost: (config: GameConfig) => void;
-  onJoin: (code: string) => void;
+  onJoin: (code: string, faction: PlayableFaction) => void;
   connecting?: boolean;
   connectionError?: string;
 }) {
@@ -47,7 +47,7 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
           <button className="launch-campaign" disabled={connecting} onClick={() => onStart({ mapSize, difficulty, playerFaction })}>START SINGLE PLAYER <span>→</span></button>
           <button className="multiplayer-start" disabled={connecting} onClick={() => onHost({ mapSize, difficulty, playerFaction })}>{connecting ? 'OPENING COMMAND LINK…' : 'START MULTIPLAYER'} <span>◎</span></button>
           <button className="join-game" disabled={connecting} onClick={() => setJoining(current => !current)}>JOIN GAME <span>＋</span></button>
-          {joining && <form className="join-form" onSubmit={event => { event.preventDefault(); onJoin(code); }}><label htmlFor="lobby-code">LOBBY CODE</label><div><input id="lobby-code" autoFocus maxLength={6} value={code} onChange={event => setCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ''))} placeholder="ABC234" aria-label="Lobby code" /><button disabled={connecting || code.length !== 6}>CONNECT</button></div></form>}
+          {joining && <form className="join-form" onSubmit={event => { event.preventDefault(); onJoin(code, playerFaction); }}><label htmlFor="lobby-code">LOBBY CODE · JOIN AS {PLAYABLE_FACTION_DEFINITIONS[playerFaction].shortLabel.toUpperCase()}</label><div><input id="lobby-code" autoFocus maxLength={6} value={code} onChange={event => setCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ''))} placeholder="ABC234" aria-label="Lobby code" /><button disabled={connecting || code.length !== 6}>CONNECT</button></div></form>}
           {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}
         </div>
       </div>

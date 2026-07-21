@@ -4,6 +4,7 @@ import {
   type Fleet, type GameState, type Planet, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel, unitGlyph } from '../shared/presentation';
+import { FleetSelectionHud } from './FleetSelectionHud';
 
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'ENEMY' : 'NEUTRAL';
 
@@ -105,6 +106,11 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: CANVAS_WIDTH * p.x / 100 + Math.cos(angle) * radius, y: CANVAS_HEIGHT * p.y / 100 + Math.sin(angle) * radius };
   };
   const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => selectedShipIds.every(id => planet.orbitUnits.some(unit => unit.id === id && unit.faction === 'player'))) : undefined;
+  const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
+  const selectedShips = selectedShipIds.flatMap(id => {
+    const ship = orbitShips.find(unit => unit.id === id && unit.faction === 'player');
+    return ship ? [ship] : [];
+  });
   const gatePosition = (origin: Planet, destination: Planet) => {
     const originX = CANVAS_WIDTH * origin.x / 100, originY = CANVAS_HEIGHT * origin.y / 100;
     const dx = CANVAS_WIDTH * (destination.x - origin.x) / 100, dy = CANVAS_HEIGHT * (destination.y - origin.y) / 100;
@@ -237,7 +243,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       </div>
     </div>
     <div className="zoom-controls" aria-label="Map zoom controls"><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
-    {selectedShipIds.length > 0 && <div className="fleet-command-hint">{selectedShipIds.length} SHIP{selectedShipIds.length === 1 ? '' : 'S'} SELECTED <span>Drag to group-select · Shift-click to add · Click inside the well to maneuver · Click outside the well to clear · Use a JUMP gate or reachable planet</span></div>}
+    <FleetSelectionHud ships={selectedShips} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
     <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>ENEMY EMPIRE</b><strong>{ownershipCounts.enemy}</strong></span><span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
   </main>;

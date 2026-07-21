@@ -215,6 +215,28 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }), { shiftKey: true });
     fireEvent.click(screen.getByRole('button', { name: 'Missile Frigate orbiting Terra Nova' }), { shiftKey: true });
     expect(screen.getByText('3 SHIPS SELECTED')).toBeInTheDocument();
+    const status = screen.getByRole('region', { name: 'Selected ship status' });
+    expect(within(status).getAllByRole('group')).toHaveLength(3);
+    expect(within(status).getByRole('group', { name: 'Transport status' })).toBeInTheDocument();
+    expect(within(status).getByRole('group', { name: 'Escort Frigate status' })).toBeInTheDocument();
+    expect(within(status).getByRole('group', { name: 'Missile Frigate status' })).toBeInTheDocument();
+  });
+
+  it('shows visual hull and shield bars for a selected ship', () => {
+    const state = stateWithPlayerForces();
+    const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;
+    transport.hp = transport.maxHp / 2;
+    transport.shields = transport.maxShields / 4;
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
+    const card = screen.getByRole('group', { name: 'Transport status' });
+    const hull = within(card).getByRole('meter', { name: 'Transport hull' });
+    const shields = within(card).getByRole('meter', { name: 'Transport shields' });
+    expect(hull.querySelector('i')).toHaveStyle({ width: '50%' });
+    expect(shields.querySelector('i')).toHaveStyle({ width: '25%' });
+    expect(card).not.toHaveTextContent(/\d/);
   });
 
   it('shows a prominent capacity badge on transports and marks a full hold', () => {

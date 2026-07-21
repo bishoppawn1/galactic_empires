@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  beginResearch, constructBuilding, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, tick,
+  beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
+  applyGameCommand, findPlanetPath, groundProductionMultiplier, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick,
   localPlanetConnections,
   GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
@@ -71,7 +71,7 @@ describe('economy and construction', () => {
     expect(secondCentury.resources.metal - firstCentury.resources.metal).toBeCloseTo(280);
   });
 
-  it('applies serializable co-op commands through the deterministic rules engine', () => {
+  it('applies serializable multiplayer commands through the deterministic rules engine', () => {
     const state = createInitialState();
     const command = { type: 'construct', planetId: 'terra', kind: 'metalMine' } as const;
     expect(isGameCommand(command)).toBe(true);
@@ -129,6 +129,46 @@ describe('campaign configuration', () => {
     const firstCounts = migrated.planets.filter(planet => planet.owner === null).map(planet => planet.groundUnits.length);
     expect(firstCounts.every(count => count >= 1 && count <= 2)).toBe(true);
     expect(migrateGameState(migrated).planets.filter(planet => planet.owner === null).map(planet => planet.groundUnits.length)).toEqual(firstCounts);
+  });
+});
+
+describe('competitive multiplayer', () => {
+  it('gives the rival an independent player perspective and economy', () => {
+    const canonical = createCompetitiveState({ mapSize: 'small', difficulty: 'admiral' });
+    const rivalView = swapPlayerPerspective(canonical);
+    expect(rivalView.planets.find(planet => planet.id === 'cygnus')!.owner).toBe('player');
+    expect(rivalView.planets.find(planet => planet.id === 'terra')!.owner).toBe('enemy');
+
+    const built = applyGameCommand(rivalView, { type: 'construct', planetId: 'cygnus', kind: 'metalMine' }); expectOk(built);
+    const updatedCanonical = swapPlayerPerspective(built.state);
+    expect(updatedCanonical.enemyResources).toEqual({ metal: 520, crystal: 340, gold: 235 });
+    expect(updatedCanonical.resources).toEqual(canonical.resources);
+    expect(updatedCanonical.planets.find(planet => planet.id === 'cygnus')!.buildings.filter(building => building.kind === 'metalMine')).toHaveLength(2);
+    expect(updatedCanonical.planets.find(planet => planet.id === 'terra')!.buildings.filter(building => building.kind === 'metalMine')).toHaveLength(1);
+  });
+
+  it('keeps both empires symmetric and disables strategic AI actions', () => {
+    const state = createCompetitiveState({ mapSize: 'medium', difficulty: 'admiral' });
+    const firstBefore = { ...state.resources }, secondBefore = { ...state.enemyResources };
+    const advanced = tick(state, 100);
+    for (const resource of ['metal', 'crystal', 'gold'] as const) {
+      expect(advanced.resources[resource] - firstBefore[resource]).toBeCloseTo(advanced.enemyResources[resource] - secondBefore[resource]);
+    }
+    expect(advanced.planets.find(planet => planet.id === 'terra')!.buildings).toHaveLength(5);
+    expect(advanced.planets.find(planet => planet.id === 'cygnus')!.buildings).toHaveLength(5);
+    expect(advanced.enemyCompletedResearch).toHaveLength(0);
+  });
+
+  it('swaps separate research queues and targeting orders reversibly', () => {
+    const state = createCompetitiveState();
+    state.researchQueue.push({ id: 'advancedIndustry', remaining: 12, total: 45 });
+    state.enemyResearchQueue.push({ id: 'groundWarfare', remaining: 18, total: 55 });
+    state.planets[0].orbitFocusTargetId = 'host-target';
+    state.planets[0].enemyOrbitFocusTargetId = 'rival-target';
+    const rivalView = swapPlayerPerspective(state);
+    expect(rivalView.researchQueue[0].id).toBe('groundWarfare');
+    expect(rivalView.planets[0].orbitFocusTargetId).toBe('rival-target');
+    expect(swapPlayerPerspective(rivalView)).toEqual(state);
   });
 });
 

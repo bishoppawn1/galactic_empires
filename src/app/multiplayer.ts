@@ -1,9 +1,9 @@
 import type { DataConnection, Peer } from 'peerjs';
-import { isGameCommand, type GameCommand, type GameConfig, type GameState } from '../game';
+import { isGameCommand, swapPlayerPerspective, type GameCommand, type GameConfig, type GameState } from '../game';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PEER_PREFIX = 'galactic-empires-';
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 2;
 
 export interface LobbyPlayer {
   id: string;
@@ -85,7 +85,7 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
     config,
     players: [
       { id: peer.id, label: 'HOST COMMANDER', host: true },
-      ...Array.from(connections.keys()).map((id, index) => ({ id, label: `ALLIED COMMANDER ${index + 2}`, host: false })),
+      ...Array.from(connections.keys()).map(id => ({ id, label: 'RIVAL COMMANDER', host: false })),
     ],
   });
   const send = (connection: DataConnection, message: HostMessage) => {
@@ -152,8 +152,8 @@ export async function joinMultiplayer(rawCode: string, callbacks: MultiplayerCal
   connection.on('data', payload => {
     const message = payload as HostMessage;
     if (message?.type === 'lobby') callbacks.onLobby(message.lobby);
-    else if (message?.type === 'start') callbacks.onStart(message.state);
-    else if (message?.type === 'state') callbacks.onState(message.state);
+    else if (message?.type === 'start') callbacks.onStart(swapPlayerPerspective(message.state));
+    else if (message?.type === 'state') callbacks.onState(swapPlayerPerspective(message.state));
     else if (message?.type === 'error') callbacks.onError(message.message);
   });
   await new Promise<void>((resolve, reject) => {

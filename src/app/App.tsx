@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  applyGameCommand, createInitialState, spaceYards, tick,
+  applyGameCommand, createCompetitiveState, createInitialState, spaceYards, swapPlayerPerspective, tick,
   type GameCommand, type GameConfig, type GameState,
 } from '../game';
 import { GroundBattleView } from '../components/battle/GroundBattleView';
@@ -44,8 +44,9 @@ export default function App() {
   remoteCommandRef.current = command => {
     const current = stateRef.current;
     if (!current || !controllerRef.current?.isHost || !multiplayerPlayingRef.current) return;
-    const result = applyGameCommand(current, command);
-    if (result.ok) installState(result.state, true);
+    const rivalView = swapPlayerPerspective(current);
+    const result = applyGameCommand(rivalView, command);
+    if (result.ok) installState(swapPlayerPerspective(result.state), true);
   };
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function App() {
   const startMultiplayer = () => {
     const controller = controllerRef.current;
     if (!controller?.isHost || !lobby || lobby.players.length < 2) return;
-    const next = createInitialState(lobby.config);
+    const next = createCompetitiveState(lobby.config);
     multiplayerPlayingRef.current = true;
     controller.start(next);
     installState(next);
@@ -184,7 +185,7 @@ export default function App() {
   return <div className="app-shell">
     <ResourceBar state={state} view={view} onViewChange={changeView} />
     {view === 'galaxy' ? <div className="workspace"><GalaxyMap state={state} selectedId={planet.id} selectedShipIds={selectedShipIds} selectedYardIds={selectedYardIds} onSelect={selectPlanet} onSelectShip={(planetId, unitId, additive) => { setSelectedId(planetId); setSelectedYardIds([]); setSelectedShipIds(current => additive ? (current.includes(unitId) ? current.filter(id => id !== unitId) : [...current, unitId]) : (current.length === 1 && current[0] === unitId ? [] : [unitId])); }} onSelectSpaceYard={(planetId, yardId, additive) => { setSelectedId(planetId); setSelectedShipIds([]); setSelectedYardIds(current => { const samePlanet = current.every(id => spaceYards(state.planets.find(candidate => candidate.id === planetId)!).some(yard => yard.id === id)); return additive && samePlanet ? (current.includes(yardId) ? current.filter(id => id !== yardId) : [...current, yardId]) : (current.length === 1 && current[0] === yardId ? [] : [yardId]); }); setProductionFocus('space'); setTab('forces'); }} onGroupSelect={ids => { setSelectedYardIds([]); setSelectedShipIds(ids); }} onManeuver={(planetId, x, y) => issue({ type: 'maneuver', planetId, unitIds: selectedShipIds, orbitX: x, orbitY: y })} onTargetDefense={(planetId, defenseId) => issue({ type: 'orbitFocus', planetId, targetId: defenseId })} /><PlanetPanel state={state} planet={planet} tab={tab} setTab={changeTab} productionFocus={productionFocus} selectedYardIds={selectedYardIds} act={issue} onBattle={() => setBattleId(planet.id)} /></div> : <ResearchView state={state} act={issue} />}
-    <footer className="command-log"><b>COMMAND LOG</b><div>{state.messages[0]}</div>{controllerRef.current && <span className="multiplayer-status">CO-OP · {controllerRef.current.isHost ? 'HOST' : 'ALLY'} · {controllerRef.current.code}</span>}{alerts > 0 && <span className="alert-count">{alerts} ACTIVE CONFLICT{alerts > 1 ? 'S' : ''}</span>}<button onClick={reset}>{controllerRef.current ? 'LEAVE GAME' : 'RESET CAMPAIGN'}</button></footer>
+    <footer className="command-log"><b>COMMAND LOG</b><div>{state.messages[0]}</div>{controllerRef.current && <span className="multiplayer-status">VERSUS · {controllerRef.current.isHost ? 'HOST EMPIRE' : 'RIVAL EMPIRE'} · {controllerRef.current.code}</span>}{alerts > 0 && <span className="alert-count">{alerts} ACTIVE CONFLICT{alerts > 1 ? 'S' : ''}</span>}<button onClick={reset}>{controllerRef.current ? 'LEAVE GAME' : 'RESET CAMPAIGN'}</button></footer>
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }

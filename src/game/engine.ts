@@ -146,7 +146,7 @@ const seedNeutralGarrisons = (planets: Planet[]) => {
 export const mapPlanetCount = (size: MapSize) => MAP_PLANETS[size];
 export const enemyDifficultyMultiplier = (difficulty: EnemyDifficulty) => difficulty === 'cadet' ? .78 : difficulty === 'admiral' ? 1.38 : 1;
 
-export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CONFIG): GameState {
+export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CONFIG, mode: GameState['mode'] = 'solo'): GameState {
   const config = { ...requestedConfig };
   const terra = planet('terra', 'Terra Nova', 22, 56, '#55d6be', 'player', pool(1, .9, .65), pool(5, 4, 3), 4);
   terra.buildings = [
@@ -191,11 +191,12 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(config.mapSize === 'large' ? largePlanets : [])];
   seedNeutralGarrisons(planets);
   return {
+    mode,
     config,
     resources: pool(520, 420, 280),
     enemyResources: pool(520, 420, 280),
     planets,
-    fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [],
+    fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [], enemyResearchQueue: [],
     enemyActionClock: 8, enemyAttackClock: config.difficulty === 'cadet' ? 180 : config.difficulty === 'admiral' ? 100 : 130, enemyMissionCount: 0,
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
     messages: ['COMMAND ONLINE — Terra Nova awaits your orders.'],
@@ -206,9 +207,11 @@ const clone = (state: GameState): GameState => structuredClone(state);
 
 export function migrateGameState(input: GameState): GameState {
   const state = clone(input);
+  state.mode ??= 'solo';
   state.config ??= { mapSize: state.planets.length <= 7 ? 'small' : state.planets.length <= 11 ? 'medium' : 'large', difficulty: 'commander' };
   state.enemyResources ??= pool(520, 420, 280);
   state.enemyCompletedResearch ??= [];
+  state.enemyResearchQueue ??= [];
   state.enemyActionClock ??= 8;
   state.enemyAttackClock ??= state.config.difficulty === 'cadet' ? 180 : state.config.difficulty === 'admiral' ? 100 : 130;
   state.enemyMissionCount ??= 0;
@@ -227,6 +230,7 @@ export function migrateGameState(input: GameState): GameState {
     }
     p.buildings.forEach(ensureOrbitalDefenseHealth);
     if (p.orbitFocusTargetId && !p.buildings.some(building => building.id === p.orbitFocusTargetId && building.kind === 'spaceDefense')) delete p.orbitFocusTargetId;
+    if (p.enemyOrbitFocusTargetId && !p.buildings.some(building => building.id === p.enemyOrbitFocusTargetId && building.kind === 'spaceDefense')) delete p.enemyOrbitFocusTargetId;
     for (const ship of p.orbitUnits) {
       if (ship.pendingLanding) { ship.phaseArrival = true; ship.orbitTargetX ??= 0; ship.orbitTargetY ??= 0; }
     }
@@ -430,7 +434,7 @@ export const dispatchSpaceUnit = (input: GameState, originId: string, unitId: st
 export const dispatchTransport = dispatchSpaceUnit;
 
 function groundDefenseUnit(state: GameState, building: Building, faction: Exclude<Faction, null>): Unit {
-  const power = faction === 'enemy' ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
+  const power = faction === 'enemy' && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const turret = unit(`ground-defense-${building.id}`, 'defenseTurret', faction);
   turret.maxHp = Math.round(turret.maxHp * power);
   turret.hp = turret.maxHp;
@@ -503,6 +507,16 @@ export function setOrbitFocusTarget(input: GameState, planetId: string, targetId
   return state;
 }
 
+export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG) {
+  const state = createInitialState(config, 'competitive');
+  const firstEmpire = state.planets.find(planet => planet.owner === 'player')!;
+  const secondEmpire = state.planets.find(planet => planet.owner === 'enemy')!;
+  secondEmpire.resourceYield = { ...firstEmpire.resourceYield };
+  secondEmpire.buildingLimits = { ...firstEmpire.buildingLimits };
+  state.messages = ['VERSUS LINK ONLINE — Both empires await their commanders.'];
+  return state;
+}
+
 export function recoverGroundUnits(units: Unit[]): Unit[] {
   return units.map(unit => {
     const restored = { ...unit, hp: unit.maxHp, shields: unit.maxShields };
@@ -569,8 +583,9 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
   ensureBattlePositions(battle);
   const damage = new Map<string, number>();
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.defenders, seconds, damage, unit.faction === 'player' ? battle.focusTargetId : undefined, unit.faction === 'enemy' ? enemyDifficultyMultiplier(state.config.difficulty) : 1));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.attackers, seconds, damage, unit.faction === 'player' ? battle.focusTargetId : undefined, unit.faction === 'enemy' ? enemyDifficultyMultiplier(state.config.difficulty) : 1));
+  const enemyPower = state.mode === 'competitive' ? 1 : enemyDifficultyMultiplier(state.config.difficulty);
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.defenders, seconds, damage, unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : undefined, unit.faction === 'enemy' ? enemyPower : 1));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.attackers, seconds, damage, unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : undefined, unit.faction === 'enemy' ? enemyPower : 1));
   battle.attackers = battle.attackers.map(unit => damage.has(unit.id) ? damageUnit(unit, damage.get(unit.id)!) : unit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(unit => damage.has(unit.id) ? damageUnit(unit, damage.get(unit.id)!) : unit).filter(unit => unit.hp > 0);
   const p = getPlanet(state, battle.planetId)!;
@@ -603,7 +618,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const enemyDefenses = p.owner === 'enemy' ? defenses : [];
   const batteryCount = p.buildings.filter(b => b.kind === 'antiSpaceDefense').length;
   const scale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
-  const enemyPower = enemyDifficultyMultiplier(state.config.difficulty);
+  const enemyPower = state.mode === 'competitive' ? 1 : enemyDifficultyMultiplier(state.config.difficulty);
   const playerShipDamage = players.reduce((sum, u) => sum + UNITS[u.kind].damage, 0) * scale;
   const enemyShipDamage = enemies.reduce((sum, u) => sum + UNITS[u.kind].damage, 0) * scale * enemyPower;
   const playerInstallationDamage = (playerDefenses.length * ORBITAL_DEFENSE_STATS.damage + (p.owner === 'player' ? batteryCount * 12 : 0)) * scale;
@@ -616,7 +631,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     else if (enemyTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === enemyTarget.id ? damageUnit(unit, playerShipDamage) : unit);
   }
   if (enemies.length && (playerDefenses.length || players.length)) {
-    const defenseTarget = playerDefenses[0];
+    const defenseTarget = playerDefenses.find(defense => defense.id === p.enemyOrbitFocusTargetId) ?? playerDefenses[0];
     if (defenseTarget) p.buildings = p.buildings.map(building => building.id === defenseTarget.id ? damageBuilding(building, enemyShipDamage) : building);
     else if (playerTarget) p.orbitUnits = p.orbitUnits.map(unit => unit.id === playerTarget.id ? damageUnit(unit, enemyShipDamage) : unit);
   }
@@ -672,7 +687,7 @@ function tickQueue(state: GameState, p: Planet, queue: QueueItem[], seconds: num
   queue[0].remaining -= seconds * productionMultiplier;
   if (queue[0].remaining <= 0) {
     const done = queue.shift()!; const created = unit(`u${state.nextId++}`, done.kind, faction);
-    if (faction === 'enemy') {
+    if (faction === 'enemy' && state.mode !== 'competitive') {
       const power = enemyDifficultyMultiplier(state.config.difficulty);
       created.maxHp = Math.round(created.maxHp * power); created.hp = created.maxHp;
       created.maxShields = Math.round(created.maxShields * power); created.shields = created.maxShields;
@@ -810,7 +825,7 @@ export function tick(input: GameState, seconds: number): GameState {
       tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p), 'player');
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, 1, 'player', `Space Yard ${index + 1}`));
     } else if (p.owner === 'enemy') {
-      const incomeScale = enemyDifficultyMultiplier(state.config.difficulty) * .62 * researchIncomeMultiplier(state.enemyCompletedResearch);
+      const incomeScale = (state.mode === 'competitive' ? .7 : enemyDifficultyMultiplier(state.config.difficulty) * .62) * researchIncomeMultiplier(state.enemyCompletedResearch);
       for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
         const kind = `${resource}Mine` as BuildingKind;
         const mineCount = p.buildings.filter(b => b.kind === kind).length;
@@ -832,17 +847,27 @@ export function tick(input: GameState, seconds: number): GameState {
     }
   }
 
-  const actionInterval = state.config.difficulty === 'cadet' ? 12 : state.config.difficulty === 'admiral' ? 6 : 8;
-  const attackInterval = state.config.difficulty === 'cadet' ? 170 : state.config.difficulty === 'admiral' ? 85 : 120;
-  state.enemyActionClock -= seconds;
-  for (let actions = 0; state.enemyActionClock <= 0 && actions < 32; actions += 1) {
-    runEnemyStrategicAction(state);
-    state.enemyActionClock += actionInterval;
+  if (state.enemyResearchQueue.length) {
+    state.enemyResearchQueue[0].remaining -= seconds;
+    if (state.enemyResearchQueue[0].remaining <= 0) {
+      const done = state.enemyResearchQueue.shift()!; state.enemyCompletedResearch.push(done.id);
+      addMessage(state, `${RESEARCH[done.id].label} research completed by the rival empire.`);
+    }
   }
-  state.enemyAttackClock -= seconds;
-  if (state.enemyAttackClock <= 0) {
-    launchEnemyMission(state);
-    state.enemyAttackClock += attackInterval;
+
+  if (state.mode !== 'competitive') {
+    const actionInterval = state.config.difficulty === 'cadet' ? 12 : state.config.difficulty === 'admiral' ? 6 : 8;
+    const attackInterval = state.config.difficulty === 'cadet' ? 170 : state.config.difficulty === 'admiral' ? 85 : 120;
+    state.enemyActionClock -= seconds;
+    for (let actions = 0; state.enemyActionClock <= 0 && actions < 32; actions += 1) {
+      runEnemyStrategicAction(state);
+      state.enemyActionClock += actionInterval;
+    }
+    state.enemyAttackClock -= seconds;
+    if (state.enemyAttackClock <= 0) {
+      launchEnemyMission(state);
+      state.enemyAttackClock += attackInterval;
+    }
   }
 
   for (const battle of [...state.battles]) tickBattle(state, battle, seconds);

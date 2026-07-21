@@ -6,7 +6,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 ## Core loop
 
-1. A new campaign opens on a setup screen. The player chooses a Compact (7 worlds), Standard (11 worlds), or Expansive (15 worlds) galaxy and selects Cadet, Commander, or Admiral enemy difficulty. Difficulty changes hostile construction cadence, attack frequency, combat strength, and escort size. The campaign can launch in single-player mode, or the player can open a co-op lobby and share its six-character code.
+1. A new campaign opens on a setup screen. The player chooses a Compact (7 worlds), Standard (11 worlds), or Expansive (15 worlds) galaxy and selects Cadet, Commander, or Admiral enemy difficulty. Difficulty changes hostile construction cadence, attack frequency, combat strength, and escort size in single-player. The campaign can instead launch as a two-player competitive match from a lobby with a six-character code.
 2. The player and hostile AI each begin on exactly one colonized planet with equal stockpiles, one Metal Mine, one Crystal Extractor, one Gold Mine, a Ground Factory, and a Space Yard. Neither faction starts with ground units or ships; both must produce their first forces. Every unclaimed planet begins with a deterministic garrison of one or two neutral ground units.
 3. Mines add Metal, Crystal, and Gold to a shared imperial stockpile indefinitely. Base collection runs at four times the prototype's original rate so the opening economy reaches useful decisions quickly. Planets differ by their mine limits and output modifiers, but resources never deplete.
 4. The player spends resources on additional buildings, units, ships, and research. The hostile empire runs its own independent economy and uses the same production limits to reinforce its worlds. While neutral worlds remain, its transport missions follow a two-expansions-to-one-invasion cadence, choose the nearest reachable target of the preferred type, and fall back to the other mission type when necessary.
@@ -28,10 +28,11 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 ## Multiplayer
 
-- Multiplayer is cooperative: every connected commander controls the same player empire against the hostile AI.
+- Multiplayer is competitive: the host controls the first empire and the joining commander controls the opposing empire.
 - Starting multiplayer opens a lobby with a case-insensitive six-character code. Join Game appears immediately below Start Multiplayer and accepts that code.
-- The lobby shows up to four connected commanders. Only the host can start, and launch remains disabled until at least one ally has joined.
-- The host owns the deterministic simulation clock and validates all commands. Guests send build, research, fleet, maneuver, and targeting orders to the host, then receive the authoritative state.
+- The lobby holds exactly two commanders. Only the host can start, and launch remains disabled until the rival has joined.
+- Both empires begin with equal resources, structures, production capabilities, unit statistics, and collection rates. Multiplayer ignores AI difficulty bonuses and disables the strategic AI.
+- The host owns the deterministic simulation clock and validates both sides' commands. The rival sends build, research, fleet, maneuver, and targeting orders to the host, then receives the authoritative state from their own empire's perspective.
 - Browser peers connect through WebRTC. The lobby exists only while the host remains online; no account or cloud save is required.
 
 ## Buildings
@@ -83,7 +84,7 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 - Interactive map and planet selection.
 - Symmetric one-world, zero-unit starts for player and AI.
 - Pre-campaign map-size and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
-- Code-based 2–4 player co-op lobby with a host-controlled launch and synchronized authoritative simulation.
+- Code-based two-player competitive lobby with separate empires, a host-controlled launch, and synchronized authoritative simulation.
 - Unlimited planet economy with local mine-count limits and output modifiers.
 - Quantity-based construction with per-planet maxima, costs, and research gates.
 - Ground and space production queues.
@@ -103,4 +104,4 @@ Research is an empire-level top navigation tab rather than a planet-panel sectio
 
 ## Out of scope for this prototype
 
-Accounts, matchmaking, dedicated relay hosting, reconnecting to an abandoned lobby, competitive factions, a full long-horizon AI strategic planner, campaign narrative, final art/audio, and extensive balance tuning are deferred.
+Accounts, matchmaking, dedicated relay hosting, reconnecting to an abandoned lobby, team multiplayer, a full long-horizon AI strategic planner, campaign narrative, final art/audio, and extensive balance tuning are deferred.

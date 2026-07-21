@@ -71,6 +71,7 @@ export interface Planet {
   groundQueue: QueueItem[];
   spaceQueue: QueueItem[];
   orbitFocusTargetId?: string;
+  enemyOrbitFocusTargetId?: string;
 }
 export interface PlanetConnection { from: Planet; to: Planet; distance: number }
 export interface Fleet {
@@ -94,10 +95,12 @@ export interface GroundBattle {
   attackerFaction?: Exclude<Faction, null>;
   groundDefenseBuildingIds?: string[];
   focusTargetId?: string;
+  enemyFocusTargetId?: string;
 }
 export type ResearchId = 'advancedIndustry' | 'groundWarfare' | 'fleetLogistics' | 'orbitalEngineering' | 'quantumExtraction' | 'heavyArmor' | 'carrierOperations' | 'capitalShips' | 'titanEngineering';
 export interface ResearchProject { id: ResearchId; remaining: number; total: number }
 export interface GameState {
+  mode?: 'solo' | 'competitive';
   config: GameConfig;
   resources: ResourcePool;
   enemyResources: ResourcePool;
@@ -107,6 +110,7 @@ export interface GameState {
   completedResearch: ResearchId[];
   enemyCompletedResearch: ResearchId[];
   researchQueue: ResearchProject[];
+  enemyResearchQueue: ResearchProject[];
   enemyActionClock: number;
   enemyAttackClock: number;
   enemyMissionCount: number;

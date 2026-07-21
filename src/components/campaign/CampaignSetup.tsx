@@ -27,7 +27,7 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
   return <main className="campaign-setup" aria-label="New campaign setup">
     <div className="setup-stars" aria-hidden="true" />
     <section className="setup-card">
-      <header><span className="setup-emblem">GE</span><small>STRATEGIC COMMAND // NEW CAMPAIGN</small><h1>Choose your frontier</h1><p>Configure the scale of the galaxy and the strength of the hostile empire before deployment.</p></header>
+      <header><span className="setup-emblem">GE</span><small>STRATEGIC COMMAND // NEW CAMPAIGN</small><h1>Choose your frontier</h1><p>Deploy solo against the hostile AI, or open a multiplayer lobby to face another commander.</p></header>
       <fieldset><legend>Galaxy size</legend><div className="setup-options">
         {(Object.keys(MAP_SIZE_DETAILS) as MapSize[]).map(size => <button type="button" key={size} className={mapSize === size ? 'selected' : ''} aria-pressed={mapSize === size} onClick={() => setMapSize(size)}><b>{MAP_SIZE_DETAILS[size].label}</b><span>{MAP_SIZE_DETAILS[size].description}</span></button>)}
       </div></fieldset>

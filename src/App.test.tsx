@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { createInitialState, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
@@ -51,6 +52,15 @@ describe('Galactic Empires interface', () => {
     fireEvent.change(code, { target: { value: 'ab-c23z' } });
     expect(code).toHaveValue('ABC23Z');
     expect(screen.getByRole('button', { name: 'CONNECT' })).toBeEnabled();
+  });
+
+  it('describes multiplayer as a two-empire versus match', () => {
+    render(<MultiplayerLobby lobby={{ code: 'ABC234', config: { mapSize: 'small', difficulty: 'commander' }, players: [{ id: 'host', label: 'HOST COMMANDER', host: true }] }} isHost onStart={() => {}} onLeave={() => {}} />);
+    expect(screen.getByText('OPPOSING COMMANDERS')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2 ONLINE')).toBeInTheDocument();
+    expect(screen.getByText('HUMAN RIVAL')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /WAITING FOR RIVAL/i })).toBeDisabled();
+    expect(screen.queryByText(/CO-OP/)).not.toBeInTheDocument();
   });
 
   it('shows the three resources and homeworld', () => {

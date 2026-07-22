@@ -1444,8 +1444,10 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
   const actionInterval = view.config.difficulty === 'cadet' ? 12 : view.config.difficulty === 'admiral' ? 6 : 8;
   const attackInterval = view.config.difficulty === 'cadet' ? 170 : view.config.difficulty === 'admiral' ? 85 : 120;
   view.enemyActionClock -= seconds;
+  let strategicActionRan = false;
   for (let actions = 0; view.enemyActionClock <= 0 && actions < 32; actions += 1) {
     runEnemyStrategicAction(view);
+    strategicActionRan = true;
     view.enemyActionClock += actionInterval;
   }
   view.enemyAttackClock -= seconds;
@@ -1453,7 +1455,7 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
     launchEnemyMission(view);
     launchEnemyCombatFleets(view);
     view.enemyAttackClock += attackInterval;
-  }
+  } else if (strategicActionRan) launchEnemyCombatFleets(view);
   if (faction !== 'enemy') {
     const restored = viewStateForFaction(viewStateForFaction(view, 'enemy'), faction);
     const aiEconomy = empireEconomy(restored, faction);
@@ -1549,15 +1551,17 @@ function runEnemyStrategicAction(state: GameState) {
       if (!enemyQueueUnit(state, p, advancedKind)) enemyQueueUnit(state, p, basicKind);
     }
 
-    const factionShips = [...p.orbitUnits, ...state.fleets.filter(fleet => fleet.faction === 'enemy').map(fleet => fleet.unit)];
+    const transportTarget = state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3;
     for (const yard of spaceYards(p)) {
       if (yard.spaceQueue?.length) continue;
       const queuedKinds = spaceYards(p).flatMap(other => other.spaceQueue ?? []).map(item => item.kind);
-      const hasCarrier = [...factionShips.map(ship => ship.kind), ...queuedKinds].some(kind => (UNITS[kind].capacity ?? 0) > 0);
-      let desired: SpaceUnitKind = !hasCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
-      if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && !hasCarrier) desired = spaceKind('assaultCarrier');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && hasCarrier) desired = spaceKind('dreadnought');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && hasCarrier) desired = spaceKind('battlecruiser');
+      const localShips = [...p.orbitUnits, ...state.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.originId === p.id).map(fleet => fleet.unit)];
+      const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
+      const needsCarrier = carrierCount < transportTarget;
+      let desired: SpaceUnitKind = needsCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
+      if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && !needsCarrier) desired = spaceKind('dreadnought');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && !needsCarrier) desired = spaceKind('battlecruiser');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = spaceKind('destroyer');
       enemyQueueUnit(state, p, desired, yard);
     }
@@ -1574,11 +1578,16 @@ function launchEnemyMission(state: GameState) {
   const fallbackTargets = preferExpansion ? hostilePlanets : neutralPlanets;
   const candidatesFor = (targets: Planet[]) => state.planets.flatMap(origin => {
     if (origin.owner !== 'enemy' || origin.groundUnits.length < 2 || state.battles.some(battle => battle.planetId === origin.id)) return [];
-    const carrier = origin.orbitUnits.find(ship => ship.faction === 'enemy' && (UNITS[ship.kind].capacity ?? 0) > 0);
-    if (!carrier) return [];
+    const availableCarriers = origin.orbitUnits.filter(ship => ship.faction === 'enemy' && (UNITS[ship.kind].capacity ?? 0) > 0)
+      .sort((a, b) => (b.cargo?.length ?? 0) - (a.cargo?.length ?? 0) || (UNITS[b.kind].capacity ?? 0) - (UNITS[a.kind].capacity ?? 0) || a.id.localeCompare(b.id));
+    if (!availableCarriers.length) return [];
     return targets.flatMap(target => {
       const path = findPlanetPath(state.planets, origin.id, target.id);
-      return path ? [{ origin, target, carrier, distance: path.slice(1).reduce((sum, id, index) => {
+      const transportLimit = target.owner === null ? 1 : state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3;
+      const loadedCarriers = availableCarriers.filter(carrier => (carrier.cargo?.length ?? 0) > 0).length;
+      const carrierCount = Math.min(transportLimit, availableCarriers.length, origin.groundUnits.length + loadedCarriers);
+      const carriers = availableCarriers.slice(0, Math.max(1, carrierCount));
+      return path ? [{ origin, target, carriers, distance: path.slice(1).reduce((sum, id, index) => {
         const from = getPlanet(state, path[index])!, to = getPlanet(state, id)!;
         return sum + Math.hypot(to.x - from.x, to.y - from.y);
       }, 0) }] : [];
@@ -1586,13 +1595,22 @@ function launchEnemyMission(state: GameState) {
   }).sort((a, b) => a.distance - b.distance);
   const mission = candidatesFor(preferredTargets)[0] ?? candidatesFor(fallbackTargets)[0];
   if (!mission) return;
-  const escortLimit = state.config.difficulty === 'cadet' ? 1 : state.config.difficulty === 'admiral' ? 4 : 3;
-  const escorts = mission.origin.orbitUnits.filter(ship => ship.faction === 'enemy' && ship.id !== mission.carrier.id && !UNITS[ship.kind].capacity).slice(0, escortLimit);
-  if (dispatchFactionUnits(state, mission.origin, [mission.carrier, ...escorts], mission.target, 'enemy')) {
+  const reserve = state.config.difficulty === 'cadet' ? 3 : state.config.difficulty === 'admiral' ? 1 : 2;
+  const warships = mission.origin.orbitUnits.filter(ship => ship.faction === 'enemy' && !UNITS[ship.kind].capacity);
+  const escorts = warships.slice(0, Math.max(0, warships.length - reserve));
+  for (const carrier of mission.carriers) {
+    if ((carrier.cargo?.length ?? 0) > 0) continue;
+    const squad = mission.origin.groundUnits.find(unit => unit.faction === 'enemy');
+    if (!squad) break;
+    mission.origin.groundUnits = mission.origin.groundUnits.filter(unit => unit.id !== squad.id);
+    carrier.cargo = [squad];
+    carrier.loadedUnitIds = [squad.id];
+  }
+  if (dispatchFactionUnits(state, mission.origin, [...mission.carriers, ...escorts], mission.target, 'enemy')) {
     state.enemyMissionCount += 1;
     addMessage(state, mission.target.owner === null
       ? `HOSTILE EXPANSION FLEET — ${mission.target.name} targeted for colonization.`
-      : `HOSTILE FLEET LAUNCHED — ${mission.target.name} is under attack.`);
+      : `HOSTILE FLEET LAUNCHED — ${mission.carriers.length} loaded transport${mission.carriers.length === 1 ? '' : 's'} and ${escorts.length} warship${escorts.length === 1 ? '' : 's'} attacking ${mission.target.name}.`);
   }
 }
 

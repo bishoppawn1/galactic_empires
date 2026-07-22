@@ -845,6 +845,34 @@ describe('enemy strategy', () => {
     expect(battle?.attackers.every(unit => unit.faction === 'enemy')).toBe(true);
   });
 
+  it('launches multiple loaded transports together for an invasion', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    state.planets[0].groundUnits.push(makeUnit('player-defender', 'infantry', 'player'));
+    cygnus.groundUnits = Array.from({ length: 6 }, (_, index) => makeUnit(`invasion-squad-${index}`, 'infantry', 'enemy'));
+    cygnus.orbitUnits = [makeUnit('transport-a', 'transport', 'enemy'), makeUnit('transport-b', 'transport', 'enemy'), makeUnit('transport-c', 'transport', 'enemy')];
+    state.enemyMissionCount = 2;
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    const transports = launched.fleets.filter(fleet => fleet.finalDestinationId === 'terra' && (UNITS[fleet.unit.kind].capacity ?? 0) > 0);
+    expect(transports).toHaveLength(3);
+    expect(transports.every(fleet => (fleet.unit.cargo?.length ?? 0) > 0)).toBe(true);
+    expect(transports.reduce((total, fleet) => total + fleet.unit.cargo!.length, 0)).toBe(6);
+  });
+
+  it('keeps producing transports until its local invasion group reaches its target size', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.orbitUnits = [makeUnit('first-transport', 'transport', 'enemy')];
+    state.enemyResources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.enemyActionClock = 0;
+    state.enemyAttackClock = 9999;
+
+    const planning = tick(state, 0);
+    const queuedKinds = spaceYards(planning.planets.find(planet => planet.id === 'cygnus')!).flatMap(yard => yard.spaceQueue ?? []).map(item => item.kind);
+    expect(queuedKinds.some(kind => (UNITS[kind].capacity ?? 0) > 0)).toBe(true);
+  });
+
   it('launches transport-independent strike fleets from every eligible rear colony', () => {
     const state = createInitialState();
     const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
@@ -865,6 +893,17 @@ describe('enemy strategy', () => {
     expect(launched.messages.filter(message => message.includes('HOSTILE STRIKE FLEET'))).toHaveLength(2);
   });
 
+  it('deploys every surplus warship above the local defensive reserve', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.orbitUnits = Array.from({ length: 14 }, (_, index) => makeUnit(`surplus-warship-${index}`, 'escortFrigate', 'enemy'));
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    expect(launched.fleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(12);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+  });
+
   it('sends surplus warships alongside a transport invasion instead of limiting the attack to escorts', () => {
     const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
     state.planets[0].groundUnits.push(makeUnit('player-defender', 'infantry', 'player'));
@@ -882,7 +921,7 @@ describe('enemy strategy', () => {
     expect(invasionFleets.filter(fleet => (UNITS[fleet.unit.kind].capacity ?? 0) > 0)).toHaveLength(1);
     expect(invasionFleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(7);
     expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
-    expect(launched.messages.some(message => message.includes('HOSTILE STRIKE FLEET'))).toBe(true);
+    expect(launched.messages.some(message => message.includes('HOSTILE FLEET LAUNCHED'))).toBe(true);
   });
 
   it('reinforces a friendly colony under orbital attack before launching another strike', () => {

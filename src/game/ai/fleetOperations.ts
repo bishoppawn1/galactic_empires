@@ -25,18 +25,18 @@ const hasHostileShips = (planet: Planet) => planet.orbitUnits.some(ship => ship.
 
 export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
   const profile = state.config.difficulty === 'cadet'
-    ? { reserve: 3, minimum: 3, maximum: 3 }
+    ? { reserve: 3 }
     : state.config.difficulty === 'admiral'
-      ? { reserve: 1, minimum: 3, maximum: 9 }
-      : { reserve: 2, minimum: 3, maximum: 6 };
+      ? { reserve: 1 }
+      : { reserve: 2 };
   const invasionTargets = new Set(state.fleets.filter(fleet => fleet.faction === 'enemy' && (UNITS[fleet.unit.kind].capacity ?? 0) > 0)
     .map(fleet => fleet.finalDestinationId ?? fleet.destinationId));
 
   return state.planets.flatMap(origin => {
     if (origin.owner !== 'enemy' || hasHostileShips(origin) || state.battles.some(battle => battle.planetId === origin.id)) return [];
     const warships = origin.orbitUnits.filter(ship => ship.faction === 'enemy' && !(UNITS[ship.kind].capacity ?? 0));
-    const deploymentSize = Math.min(profile.maximum, warships.length - profile.reserve);
-    if (deploymentSize < profile.minimum) return [];
+    const deploymentSize = warships.length - profile.reserve;
+    if (deploymentSize < 1) return [];
 
     const targets = state.planets.flatMap(target => {
       if (target.id === origin.id) return [];

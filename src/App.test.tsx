@@ -132,13 +132,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
   });
 
-  it('opens the resource exchange and trades 150 gold for 50 metal', () => {
+  it('sets a resource exchange amount and trades it at three to one', () => {
+    const state = createInitialState(); state.resources.gold = 2_000; saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'TRADE 3:1' }));
-    fireEvent.click(screen.getByRole('button', { name: '150 GOLD → 50 METAL' }));
-    expect(within(document.querySelector('.resource.metal') as HTMLElement).getByText('570')).toBeInTheDocument();
-    expect(within(document.querySelector('.resource.gold') as HTMLElement).getByText('130')).toBeInTheDocument();
-    expect(screen.getByText('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount to spend' }), { target: { value: '1500' } });
+    expect(screen.getByText('RECEIVE 500')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '1,500 GOLD → 500 METAL' }));
+    expect(within(document.querySelector('.resource.metal') as HTMLElement).getByText('1,020')).toBeInTheDocument();
+    expect(within(document.querySelector('.resource.gold') as HTMLElement).getByText('500')).toBeInTheDocument();
+    expect(screen.getByText('TRADE COMPLETE — 1,500 GOLD exchanged for 500 METAL.')).toBeInTheDocument();
   });
 
   it('renders an older campaign even when research-era fields are missing', () => {

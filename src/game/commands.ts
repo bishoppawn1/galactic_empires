@@ -11,14 +11,14 @@ import {
   tradeResources,
   type GameResult,
 } from './engine';
-import { BUILDINGS, RESEARCH, STANDARD_RESOURCES, UNITS } from './definitions';
+import { BUILDINGS, RESEARCH, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, UNITS } from './definitions';
 import type { BuildingKind, GameState, ResearchId, Resource, UnitKind } from './types';
 
 export type GameCommand =
   | { type: 'construct'; planetId: string; kind: BuildingKind }
   | { type: 'queueUnit'; planetId: string; kind: UnitKind; yardIds?: string[] }
   | { type: 'beginResearch'; id: ResearchId }
-  | { type: 'trade'; from: Resource; to: Resource }
+  | { type: 'trade'; from: Resource; to: Resource; amount: number }
   | { type: 'dock'; planetId: string; unitIds: string[] }
   | { type: 'maneuver'; planetId: string; unitIds: string[]; orbitX: number; orbitY: number }
   | { type: 'battleManeuver'; planetId: string; unitIds: string[]; battleX: number; battleY: number }
@@ -39,7 +39,8 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case 'construct': return isString(value.planetId) && isString(value.kind) && value.kind in BUILDINGS;
     case 'queueUnit': return isString(value.planetId) && isString(value.kind) && value.kind in UNITS && (value.yardIds === undefined || isStringArray(value.yardIds));
     case 'beginResearch': return isString(value.id) && value.id in RESEARCH;
-    case 'trade': return isResource(value.from) && isResource(value.to) && value.from !== value.to;
+    case 'trade': return isResource(value.from) && isResource(value.to) && value.from !== value.to
+      && Number.isSafeInteger(value.amount) && Number(value.amount) >= RESOURCE_TRADE_RATE && Number(value.amount) <= RESOURCE_TRADE_MAX_SPEND;
     case 'dock': return isString(value.planetId) && isStringArray(value.unitIds);
     case 'maneuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.orbitX) && Number.isFinite(value.orbitY);
     case 'battleManeuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.battleX) && Number.isFinite(value.battleY);
@@ -55,7 +56,7 @@ export function applyGameCommand(state: GameState, command: GameCommand): GameRe
     case 'construct': return constructBuilding(state, command.planetId, command.kind);
     case 'queueUnit': return queueUnit(state, command.planetId, command.kind, command.yardIds);
     case 'beginResearch': return beginResearch(state, command.id);
-    case 'trade': return tradeResources(state, command.from, command.to);
+    case 'trade': return tradeResources(state, command.from, command.to, command.amount);
     case 'dock': return dockSpaceUnits(state, command.planetId, command.unitIds);
     case 'maneuver': return maneuverSpaceUnits(state, command.planetId, command.unitIds, command.orbitX, command.orbitY);
     case 'battleManeuver': return maneuverGroundUnits(state, command.planetId, command.unitIds, command.battleX, command.battleY);

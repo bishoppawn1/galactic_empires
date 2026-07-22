@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, STANDARD_RESOURCES, empireCivilization, researchIncomeMultiplier, type BuildingKind, type GameCommand, type GameState, type Resource } from '../../game';
+import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_DEFAULT_SPEND, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, empireCivilization, researchIncomeMultiplier, type BuildingKind, type GameCommand, type GameState, type Resource } from '../../game';
 import type { EmpireView } from '../../app/types';
 
 export function ResourceBar({ state, view, onViewChange, act }: { state: GameState; view: EmpireView; onViewChange: (view: EmpireView) => void; act: (command: GameCommand) => boolean }) {
   const [trading, setTrading] = useState(false);
+  const [tradeAmount, setTradeAmount] = useState(String(RESOURCE_TRADE_DEFAULT_SPEND));
+  const amount = Number(tradeAmount);
+  const validAmount = Number.isSafeInteger(amount) && amount >= RESOURCE_TRADE_RATE && amount <= RESOURCE_TRADE_MAX_SPEND;
   const owned = state.planets.filter(p => p.owner === 'player');
   const civilization = empireCivilization(state);
   const profile = PLAYABLE_FACTION_DEFINITIONS[civilization];
@@ -22,9 +25,10 @@ export function ResourceBar({ state, view, onViewChange, act }: { state: GameSta
         <div className="trade-control">
           <button className="trade-toggle" aria-label="TRADE 3:1" aria-expanded={trading} aria-controls="resource-trades" onClick={() => setTrading(open => !open)}>TRADE<small>3:1</small></button>
           {trading && <div className="trade-menu" id="resource-trades" role="region" aria-label="Resource trading">
-            <header><b>RESOURCE EXCHANGE</b><span>Spend {RESOURCE_TRADE_SPEND} · Receive {RESOURCE_TRADE_RECEIVE}</span></header>
+            <header><b>RESOURCE EXCHANGE</b><span>{RESOURCE_TRADE_RATE}:1 RATE</span></header>
+            <label className="trade-amount"><span>AMOUNT TO SPEND</span><input aria-label="Amount to spend" type="number" min={RESOURCE_TRADE_RATE} max={RESOURCE_TRADE_MAX_SPEND} step="1" value={tradeAmount} onChange={event => setTradeAmount(event.target.value)} /><em>RECEIVE {validAmount ? formatTradeAmount(amount / RESOURCE_TRADE_RATE) : '—'}</em></label>
             <div className="trade-options">
-              {STANDARD_RESOURCES.flatMap(from => STANDARD_RESOURCES.filter(to => to !== from).map(to => <TradeOption key={`${from}-${to}`} from={from} to={to} balance={state.resources[from]} act={act} />))}
+              {STANDARD_RESOURCES.flatMap(from => STANDARD_RESOURCES.filter(to => to !== from).map(to => <TradeOption key={`${from}-${to}`} from={from} to={to} amount={amount} validAmount={validAmount} balance={state.resources[from]} act={act} />))}
             </div>
           </div>}
         </div>
@@ -34,10 +38,12 @@ export function ResourceBar({ state, view, onViewChange, act }: { state: GameSta
   </div>;
 }
 
-function TradeOption({ from, to, balance, act }: { from: Resource; to: Resource; balance: number; act: (command: GameCommand) => boolean }) {
-  const label = `${RESOURCE_TRADE_SPEND} ${from.toUpperCase()} → ${RESOURCE_TRADE_RECEIVE} ${to.toUpperCase()}`;
-  return <button disabled={balance < RESOURCE_TRADE_SPEND} onClick={() => act({ type: 'trade', from, to })}>{label}</button>;
+function TradeOption({ from, to, amount, validAmount, balance, act }: { from: Resource; to: Resource; amount: number; validAmount: boolean; balance: number; act: (command: GameCommand) => boolean }) {
+  const label = validAmount ? `${formatTradeAmount(amount)} ${from.toUpperCase()} → ${formatTradeAmount(amount / RESOURCE_TRADE_RATE)} ${to.toUpperCase()}` : `${from.toUpperCase()} → ${to.toUpperCase()}`;
+  return <button disabled={!validAmount || balance < amount} onClick={() => act({ type: 'trade', from, to, amount })}>{label}</button>;
 }
+
+const formatTradeAmount = (amount: number) => amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 function Resource({ icon, name, value, rate, className }: { icon: string; name: string; value: number; rate: number; className: string }) {
   return <div className={`resource ${className}`}><i>{icon}</i><span><small>{name}</small>{Math.floor(value).toLocaleString()}</span><em>+{rate.toFixed(1)}/s</em></div>;

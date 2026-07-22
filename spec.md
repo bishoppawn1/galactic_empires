@@ -28,7 +28,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 - Metal Mine costs Crystal + Gold.
 - Crystal Extractor costs Metal + Gold.
 - Gold Mine costs Metal + Crystal.
-- Mineral empires may exchange any standard resource for either of the others in fixed 3:1 lots: spending 150 Metal, Crystal, or Gold grants 50 of the selected resource. Trades require the full input amount and never involve Biomass.
+- Mineral empires may exchange any whole amount of at least 3 standard resources for either of the others at a fixed 3:1 rate. The player sets the amount to spend and receives one third of it, including fractional output when necessary. Trades require the full input amount and never involve Biomass.
 - Buildings have no tiers or upgrades. Capped structures show `built / maximum`; Ground Factories and Space Yards show `built / ∞` and can always receive another construction order when their resource and research requirements are met.
 
 ## Playable factions

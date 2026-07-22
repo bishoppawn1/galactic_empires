@@ -103,24 +103,33 @@ describe('economy and construction', () => {
     expect(isGameCommand({ type: 'maneuver', planetId: 'terra', unitIds: [], orbitX: Infinity, orbitY: 0 })).toBe(false);
   });
 
-  it('trades mineral resources in immutable three-to-one lots', () => {
-    const state = createInitialState();
-    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(result);
-    expect(result.state.resources).toEqual({ metal: 570, crystal: 420, gold: 130 });
-    expect(state.resources).toEqual({ metal: 520, crystal: 420, gold: 280 });
-    expect(result.state.messages[0]).toBe('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.');
+  it('trades a configurable resource amount immutably at three to one', () => {
+    const state = createInitialState(); state.resources.gold = 2_000;
+    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 1_500 }); expectOk(result);
+    expect(result.state.resources).toEqual({ metal: 1_020, crystal: 420, gold: 500 });
+    expect(state.resources).toEqual({ metal: 520, crystal: 420, gold: 2_000 });
+    expect(result.state.messages[0]).toBe('TRADE COMPLETE — 1,500 GOLD exchanged for 500 METAL.');
   });
 
   it('rejects unaffordable, same-resource, invalid, and biomass trades', () => {
     const state = createInitialState(); state.resources.gold = 149;
-    const poorTrade = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' });
+    const poorTrade = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 150 });
     expect(poorTrade.ok).toBe(false);
     expect(poorTrade.state).toBe(state);
-    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'gold' })).toBe(false);
-    expect(isGameCommand({ type: 'trade', from: 'biomass', to: 'metal' })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'gold', amount: 150 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'biomass', to: 'metal', amount: 150 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'metal', amount: 2.5 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'metal', amount: Infinity })).toBe(false);
     const brood = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
-    const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal' });
+    const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal', amount: 150 });
     expect(broodTrade.ok).toBe(false);
+  });
+
+  it('supports fractional payouts for whole amounts not divisible by three', () => {
+    const state = createInitialState();
+    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 100 }); expectOk(result);
+    expect(result.state.resources.gold).toBe(180);
+    expect(result.state.resources.metal).toBeCloseTo(553.333333);
   });
 
   it('accepts and applies formation orders for fleets larger than 70 ships', () => {
@@ -522,7 +531,7 @@ describe('competitive multiplayer', () => {
   it('applies a guest resource trade only to that empire', () => {
     const canonical = createCompetitiveState();
     const guestView = viewStateForFaction(canonical, 'enemy');
-    const traded = applyGameCommand(guestView, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(traded);
+    const traded = applyGameCommand(guestView, { type: 'trade', from: 'gold', to: 'metal', amount: 150 }); expectOk(traded);
     const updatedCanonical = viewStateForFaction(traded.state, 'enemy');
     expect(updatedCanonical.enemyResources).toEqual({ metal: 570, crystal: 420, gold: 130 });
     expect(updatedCanonical.resources).toEqual(canonical.resources);

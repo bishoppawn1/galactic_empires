@@ -1,4 +1,4 @@
-import { UNITS, type Unit } from '../../game';
+import { UNITS, carrierFighterCount, type Unit } from '../../game';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
 const statusPercent = (value: number, maximum: number) => maximum > 0
@@ -18,6 +18,7 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
         const title = definition.ability ? `${label} — ${definition.ability.label}: ${definition.ability.description}` : label;
         return <article className={`selected-ship-card ${ship.faction}`} role="group" aria-label={`${label} status`} title={title} key={ship.id}>
           <span className="selected-ship-icon" aria-hidden="true">{isSpaceUnit(ship.kind) && <ShipImage kind={ship.kind} />}</span>
+          {definition.fighterWing && <span className="selected-fighter-count" aria-label={`${definition.fighterWing.label} ${carrierFighterCount(ship)} of ${definition.fighterWing.capacity}`}>FTR {carrierFighterCount(ship)}/{definition.fighterWing.capacity}</span>}
           <div className="selected-ship-bars">
             <span className="selected-ship-health" role="meter" aria-label={`${label} hull`} aria-valuemin={0} aria-valuemax={ship.maxHp} aria-valuenow={Math.max(0, ship.hp)} title={`Hull ${Math.ceil(ship.hp)} / ${ship.maxHp}`}>
               <i style={{ width: `${statusPercent(ship.hp, ship.maxHp)}%` }} />

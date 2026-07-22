@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
+  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceYards,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
@@ -121,7 +121,7 @@ function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: U
   const definition = UNITS[kind];
   const spaceUnit = isSpaceUnit(kind);
   const details = spaceUnit
-    ? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
+    ? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
     : `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
   return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? details}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
 }
@@ -129,7 +129,7 @@ function UnitRow({ unit }: { unit: Unit }) {
   const definition = UNITS[unit.kind];
   const spaceUnit = isSpaceUnit(unit.kind);
   const details = spaceUnit
-    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}`
+    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${definition.range}${definition.fighterWing ? ` · FTR ${carrierFighterCount(unit)}/${definition.fighterWing.capacity}` : ''}${definition.ability ? ` · ${definition.ability.label}` : ''}`
     : `${unit.faction.toUpperCase()} · HP ${Math.ceil(unit.hp)}/${unit.maxHp} · SH ${Math.ceil(unit.shields)}/${unit.maxShields} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}${unit.corrodedFor ? ' · CORRODED' : ''}`;
   return <div className="unit-row"><span>{spaceUnit ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{details}</small></div></div>;
 }

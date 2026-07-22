@@ -586,6 +586,18 @@ describe('Galactic Empires interface', () => {
     height.mockRestore();
   });
 
+  it('shows carrier fighters circling their target and reports the surviving wing', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('carrier-ui', 'assaultCarrier', 'player'), orbitX: 0, orbitY: 0, fighterCount: 4 },
+      { ...makeUnit('carrier-target-ui', 'destroyer', 'enemy'), orbitX: 100, orbitY: 0 },
+    ];
+    render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={['carrier-ui']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    expect(document.querySelectorAll('.carrier-fighter')).toHaveLength(4);
+    expect(screen.getByLabelText('Falcon Fighters 4 of 4')).toHaveTextContent('FTR 4/4');
+  });
+
   it('batches dense hostile fleets into one canvas layer', () => {
     const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
     cygnus.orbitUnits = Array.from({ length: 500 }, (_, index) => ({ ...makeUnit(`dense-enemy-${index}`, 'escortFrigate', 'enemy'), orbitX: index % 25 * 8, orbitY: Math.floor(index / 25) * 8 }));

@@ -81,6 +81,9 @@ export interface Unit {
   weaponCooldown?: number;
   weaponFlash?: number;
   corrodedFor?: number;
+  fighterCount?: number;
+  fighterBuildProgress?: number;
+  fighterLossProgress?: number;
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {
@@ -184,6 +187,12 @@ export interface UnitDefinition extends Definition {
   };
   advancedFactory?: boolean;
   capacity?: number;
+  fighterWing?: {
+    label: string;
+    capacity: number;
+    rebuildTime: number;
+    attritionTime: number;
+  };
   ability?: {
     kind: UnitAbilityKind;
     label: string;

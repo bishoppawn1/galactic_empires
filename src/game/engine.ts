@@ -41,7 +41,7 @@ import {
 } from './factions';
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS,
-  ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
+  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, orbitalDefenseOffset, unitAvailableToCivilization,
 } from './definitions';
@@ -915,6 +915,20 @@ function addGroundDamage(hits: Map<string, GroundHit>, targetId: string, damage:
   else current.damage += damage;
 }
 
+function recordOrbitalBombardment(p: Planet, battle: GroundBattle, seconds: number, hits: Map<string, GroundHit>) {
+  if (seconds <= 0) return;
+  const combatants = [...battle.attackers, ...battle.defenders];
+  for (const faction of EMPIRE_FACTIONS) {
+    if (!combatants.some(unit => unit.faction === faction)) continue;
+    const supportingShips = p.orbitUnits.filter(unit => unit.faction === faction);
+    const orbitContested = p.orbitUnits.some(unit => unit.faction !== 'neutral' && unit.faction !== faction);
+    const targets = combatants.filter(unit => unit.faction !== faction);
+    if (!supportingShips.length || orbitContested || !targets.length) continue;
+    const damagePerTarget = supportingShips.length * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP * seconds / targets.length;
+    targets.forEach(target => addGroundDamage(hits, target.id, damagePerTarget));
+  }
+}
+
 function recordGroundHit(hits: Map<string, GroundHit>, attacker: Unit, target: Unit, damage: number) {
   const amplifiedDamage = damage * ((target.corrodedFor ?? 0) > 0 ? 1.35 : 1);
   const current = hits.get(target.id);
@@ -1079,6 +1093,8 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, focus(unit), power(unit)));
   protectGroundFormation(hits, battle.attackers);
   protectGroundFormation(hits, battle.defenders);
+  const p = getPlanet(state, battle.planetId)!;
+  recordOrbitalBombardment(p, battle, seconds, hits);
   separateGroundUnits([...battle.attackers, ...battle.defenders]);
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
@@ -1091,7 +1107,6 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   };
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
-  const p = getPlanet(state, battle.planetId)!;
   const survivors = new Set([...battle.attackers, ...battle.defenders].map(unit => unit.id));
   const destroyed = combatantsBefore.filter(unit => !survivors.has(unit.id));
   const survivingCombatants = [...battle.attackers, ...battle.defenders];

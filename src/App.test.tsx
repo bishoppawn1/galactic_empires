@@ -786,6 +786,17 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
   });
 
+  it('shows uncontested orbital support on the ground battlefield', () => {
+    const state = createInitialState();
+    state.planets[0].orbitUnits = [makeUnit('support-1', 'escortFrigate', 'player'), makeUnit('support-2', 'transport', 'player')];
+    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    expect(screen.getByText('2 SHIPS PROVIDING ORBITAL FIRE · 2 DAMAGE/S')).toBeInTheDocument();
+  });
+
   it('selects friendly troops and issues a formation move by right-clicking the battlefield', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];

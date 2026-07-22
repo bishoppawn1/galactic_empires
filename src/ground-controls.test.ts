@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, isGameCommand, maneuverGroundUnits, tick, UNITS, type GroundUnitKind, type Unit } from './game';
+import { createInitialState, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
 
 const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy', battleX: number): Unit => ({
   id,
@@ -67,5 +67,33 @@ describe('manual ground controls', () => {
     const inRange = tick(pursuing, 4);
     const retaliating = tick(inRange, 1);
     expect(retaliating.battles[0].defenders[0].shields).toBeLessThan(UNITS.artillery.shields);
+  });
+
+  it('bombards opposing ground forces for one damage per uncontested ship per second', () => {
+    const state = createInitialState();
+    const draven = state.planets.find(planet => planet.id === 'draven')!;
+    const target = { ...combatUnit('defender', 'infantry', 'enemy', 88), shields: 0 };
+    state.battles = [{ planetId: draven.id, attackers: [combatUnit('attacker', 'infantry', 'player', 12)], defenders: [target] }];
+    draven.orbitUnits = [
+      { id: 'support-1', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130 },
+      { id: 'support-2', kind: 'transport', faction: 'player', hp: 360, maxHp: 360, shields: 180, maxShields: 180 },
+    ];
+
+    const bombarded = tick(state, 2);
+    expect(bombarded.battles[0].defenders[0].hp).toBe(target.hp - 2 * 2 * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP);
+  });
+
+  it('suppresses orbital bombardment while an opposing ship remains in the system', () => {
+    const state = createInitialState();
+    const draven = state.planets.find(planet => planet.id === 'draven')!;
+    const target = { ...combatUnit('defender', 'infantry', 'enemy', 88), shields: 0 };
+    state.battles = [{ planetId: draven.id, attackers: [combatUnit('attacker', 'infantry', 'player', 12)], defenders: [target] }];
+    draven.orbitUnits = [
+      { id: 'support', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130, orbitX: -500, orbitY: 0 },
+      { id: 'blocker', kind: 'escortFrigate', faction: 'enemy', hp: 260, maxHp: 260, shields: 130, maxShields: 130, orbitX: 500, orbitY: 0 },
+    ];
+
+    const contested = tick(state, 2);
+    expect(contested.battles[0].defenders[0].hp).toBe(target.hp);
   });
 });

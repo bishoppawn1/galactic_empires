@@ -43,6 +43,9 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   const attackerFaction = battle.attackerFaction ?? battle.attackers[0]?.faction ?? 'player';
   const defenderFaction = battle.defenders[0]?.faction ?? (attackerFaction === 'player' ? 'enemy' : 'player');
   const activeDefenses = allUnits.filter(unit => unit.sourceBuildingId).length;
+  const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player');
+  const playerOrbitalSupport = allUnits.some(unit => unit.faction === 'player') && playerShips.length > 0
+    && !planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral');
   const shots = [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => target && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
   const selectFriendly = (unit: Unit, additive: boolean) => {
     if (unit.sourceBuildingId) return;
@@ -78,7 +81,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
-    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Select friendly troops by dragging over them, then right-click the ground to move. Shift adds units; troops automatically fire in range.</p>{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
+    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Select friendly troops by dragging over them, then right-click the ground to move. Shift adds units; troops automatically fire in range.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">
       <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} onPointerDown={event => {
         if (event.button !== 0) return;

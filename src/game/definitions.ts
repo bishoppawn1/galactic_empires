@@ -124,6 +124,7 @@ export const orbitalDefenseOffset = (index: number, count: number) => {
 export const ORBITAL_DEFENSE_HULL_REGEN = 2;
 export const ORBITAL_DEFENSE_SHIELD_REGEN = 16;
 export const SPACE_COMBAT_DAMAGE_MULTIPLIER = 4;
+export const ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP = 1;
 export const RESOURCE_COLLECTION_MULTIPLIER = 4;
 export const GRAVITY_WELL_RADIUS = 600;
 export const MAX_SHIP_ORBIT_RADIUS = GRAVITY_WELL_RADIUS - 72;

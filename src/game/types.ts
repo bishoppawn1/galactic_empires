@@ -129,7 +129,12 @@ export interface GroundBattle {
   enemyFocusTargetId?: string;
   focusTargetIds?: Partial<Record<EmpireFaction, string>>;
 }
-export type ResearchId = 'advancedIndustry' | 'groundWarfare' | 'fleetLogistics' | 'orbitalEngineering' | 'quantumExtraction' | 'heavyArmor' | 'carrierOperations' | 'capitalShips' | 'titanEngineering';
+export type ResearchId =
+  | 'advancedIndustry' | 'rapidFabrication'
+  | 'groundWarfare' | 'planetaryFortifications' | 'heavyArmor'
+  | 'fleetLogistics' | 'phaseMastery' | 'carrierOperations'
+  | 'orbitalEngineering' | 'shieldHarmonics' | 'capitalShips' | 'weaponsCalibration' | 'titanEngineering'
+  | 'quantumExtraction' | 'deepCoreExtraction';
 export interface ResearchProject { id: ResearchId; remaining: number; total: number }
 export interface EmpireEconomy {
   resources: ResourcePool;

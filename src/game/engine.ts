@@ -428,9 +428,15 @@ const harvestBattlefieldSalvage = (state: GameState, destroyed: Unit[], particip
     if (faction === 'player') addMessage(state, `COVENANT SALVAGE — ${metal} metal reclaimed ${location}.`);
   });
 };
-export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('quantumExtraction') ? 1.25 : 1;
-export const groundProductionMultiplier = (planet: Planet) => Math.max(1, planet.buildings.filter(building =>
-  building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length);
+export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('deepCoreExtraction') ? 1.5 : completed.includes('quantumExtraction') ? 1.25 : 1;
+export const researchProductionMultiplier = (completed: ResearchId[]) => completed.includes('rapidFabrication') ? 1.25 : 1;
+export const phaseTravelMultiplier = (completed: ResearchId[]) => completed.includes('phaseMastery') ? .75 : 1;
+export const shieldRecoveryMultiplier = (completed: ResearchId[]) => completed.includes('shieldHarmonics') ? 1.5 : 1;
+export const orbitalDamageMultiplier = (completed: ResearchId[]) => completed.includes('weaponsCalibration') ? 1.15 : 1;
+export const defenseDurabilityMultiplier = (completed: ResearchId[]) => completed.includes('planetaryFortifications') ? 1.25 : 1;
+export const groundProductionMultiplier = (planet: Planet, completed: ResearchId[] = []) => Math.max(1, planet.buildings.filter(building =>
+  building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length) * researchProductionMultiplier(completed);
+export const spaceProductionMultiplier = (completed: ResearchId[] = []) => researchProductionMultiplier(completed);
 export const isSpaceYard = (building: Building) => building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory';
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);
 const spend = (resources: ResourcePool, cost: ResourcePool) => {
@@ -682,7 +688,8 @@ export const dispatchSpaceUnit = (input: GameState, originId: string, unitId: st
 export const dispatchTransport = dispatchSpaceUnit;
 
 function groundDefenseUnit(state: GameState, building: Building, faction: Exclude<Faction, null>): Unit {
-  const power = state.aiFactions?.includes(faction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
+  const power = (state.aiFactions?.includes(faction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1)
+    * defenseDurabilityMultiplier(empireEconomy(state, faction).completedResearch);
   const turret = unit(`ground-defense-${building.id}`, groundDefenseKindForCivilization(empireCivilization(state, faction)), faction);
   turret.maxHp = Math.round(turret.maxHp * power);
   turret.hp = turret.maxHp;
@@ -824,8 +831,8 @@ export const COVENANT_FIELD_REPAIR_RANGE = 18;
 export const COVENANT_ASSEMBLY_REPAIR_RANGE = 220;
 export const COVENANT_FOUNDRY_REPAIR_RANGE = 280;
 
-export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human'): Unit {
-  const shieldRecovery = 5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0);
+export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human', recoveryMultiplier = 1): Unit {
+  const shieldRecovery = (5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0)) * recoveryMultiplier;
   const livingHold = UNITS[u.kind].ability?.kind === 'livingHold';
   const hullRecovery = livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0;
   return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: Math.min(u.maxHp, u.hp + seconds * hullRecovery) };
@@ -1299,7 +1306,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     if (!attackerShots.length || !salvoDamage) return;
     const hasSynapse = p.orbitUnits.some(ally => ally.faction === unit.faction && UNITS[ally.kind].ability?.kind === 'orbitalSynapse'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= 240);
-    const factionScale = (state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1);
+    const factionScale = (state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
+      * orbitalDamageMultiplier(empireEconomy(state, unit.faction as EmpireFaction).completedResearch);
     attackerShots.forEach(shot => {
       const damage = salvoDamage * fighterScale * SPACE_COMBAT_DAMAGE_MULTIPLIER * factionScale * (shot.damageMultiplier ?? 1);
       if (shot.targetType === 'ship') {
@@ -1314,7 +1322,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     });
   });
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
-    const damage = shot.damage * installationScale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1);
+    const damage = shot.damage * installationScale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1)
+      * orbitalDamageMultiplier(empireEconomy(state, shot.faction).completedResearch);
     const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
     current.damage += damage;
     shipDamage.set(shot.targetId, current);
@@ -1340,7 +1349,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     const healing = (devourHealing.get(unit.id) ?? 0) + (repaired ? seconds * 6 : 0) + (assemblyRepair ? seconds * 4 : 0) + (foundryRepair ? seconds * 7 : 0);
     return healing && damaged.hp > 0 ? { ...damaged, hp: Math.min(damaged.maxHp, damaged.hp + healing) } : damaged;
   });
-  p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)!) : building);
+  const defenseProtection = p.owner ? 1 / defenseDurabilityMultiplier(empireEconomy(state, p.owner).completedResearch) : 1;
+  p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)! * defenseProtection) : building);
 
   const destroyedDefenses = p.buildings.filter(building => building.kind === 'spaceDefense' && building.hp! <= 0);
   if (destroyedDefenses.length) {
@@ -1500,8 +1510,10 @@ function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Buil
 function advanceEnemyResearch(state: GameState) {
   if (!state.planets.some(p => p.owner === 'enemy' && p.buildings.some(building => building.kind === 'researchLab'))) return;
   const milestones: Array<[number, ResearchId]> = [
-    [80, 'advancedIndustry'], [130, 'groundWarfare'], [145, 'fleetLogistics'], [160, 'orbitalEngineering'],
-    [180, 'quantumExtraction'], [220, 'heavyArmor'], [245, 'carrierOperations'], [270, 'capitalShips'], [360, 'titanEngineering'],
+    [80, 'advancedIndustry'], [105, 'rapidFabrication'], [130, 'groundWarfare'], [145, 'fleetLogistics'], [160, 'orbitalEngineering'],
+    [180, 'quantumExtraction'], [190, 'planetaryFortifications'], [205, 'phaseMastery'], [215, 'shieldHarmonics'],
+    [220, 'heavyArmor'], [245, 'carrierOperations'], [250, 'deepCoreExtraction'], [270, 'capitalShips'],
+    [315, 'weaponsCalibration'], [360, 'titanEngineering'],
   ];
   const next = milestones.find(([time, id]) => state.elapsed >= time && !state.enemyCompletedResearch.includes(id));
   if (!next) return;
@@ -1595,7 +1607,7 @@ function launchEnemyCombatFleets(state: GameState) {
 
 export function tick(input: GameState, seconds: number): GameState {
   const state = migrateGameState(input); state.elapsed += seconds;
-  state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction)), seconds) }));
+  state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(empireEconomy(state, fleet.faction).completedResearch)), seconds) }));
   for (const p of state.planets) {
     ensureOrbitPositions(p);
     if (p.owner) {
@@ -1611,11 +1623,11 @@ export function tick(input: GameState, seconds: number): GameState {
           economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
         }
       }
-      tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p), p.owner);
-      spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, 1, p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
+      tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p, economy.completedResearch), p.owner);
+      spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, spaceProductionMultiplier(economy.completedResearch), p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
     }
     tickOrbitMovement(p, seconds);
-    p.orbitUnits = p.orbitUnits.map(u => recoverCarrierFighters(recoverSpaceUnit(u, p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction)), seconds));
+    p.orbitUnits = p.orbitUnits.map(u => recoverCarrierFighters(recoverSpaceUnit(u, p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), u.faction === 'neutral' ? 1 : shieldRecoveryMultiplier(empireEconomy(state, u.faction).completedResearch)), seconds));
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     tickOrbitCombat(state, p, seconds);
   }
@@ -1660,7 +1672,7 @@ export function tick(input: GameState, seconds: number): GameState {
         } else if (fleet.phase === 'charging') {
           fleet.phase = 'tunnel';
           fleet.progress = 0;
-          fleet.travelTime = phaseTravelTime(origin, waypoint);
+          fleet.travelTime = phaseTravelTime(origin, waypoint) * phaseTravelMultiplier(empireEconomy(state, fleet.faction).completedResearch);
         } else if (fleet.route?.length) {
           const nextId = fleet.route.shift()!;
           const next = getPlanet(state, nextId)!;

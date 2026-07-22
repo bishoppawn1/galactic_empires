@@ -29,7 +29,8 @@ export type GameCommand =
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length < 100;
 const isOptionalString = (value: unknown) => value === undefined || isString(value);
-const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 64 && value.every(isString);
+export const MAX_COMMAND_UNIT_IDS = 512;
+const isStringArray = (value: unknown): value is string[] => Array.isArray(value) && value.length <= MAX_COMMAND_UNIT_IDS && value.every(isString);
 const isResource = (value: unknown): value is Resource => typeof value === 'string' && STANDARD_RESOURCES.some(resource => resource === value);
 
 export function isGameCommand(value: unknown): value is GameCommand {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, setOrbitFocusTarget, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -121,6 +121,17 @@ describe('economy and construction', () => {
     const brood = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
     const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal' });
     expect(broodTrade.ok).toBe(false);
+  });
+
+  it('accepts and applies formation orders for fleets larger than 70 ships', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = Array.from({ length: 96 }, (_, index) => ({ ...makeUnit(`large-fleet-${index}`, 'escortFrigate', 'player'), orbitX: index % 12, orbitY: Math.floor(index / 12) }));
+    const unitIds = terra.orbitUnits.map(unit => unit.id);
+    const command = { type: 'maneuver', planetId: terra.id, unitIds, orbitX: 340, orbitY: -180 } as const;
+    expect(isGameCommand(command)).toBe(true);
+    const result = applyGameCommand(state, command); expectOk(result);
+    expect(result.state.planets[0].orbitUnits.filter(unit => unit.orbitTargetX !== undefined && unit.orbitTargetY !== undefined)).toHaveLength(96);
+    expect(isGameCommand({ ...command, unitIds: Array.from({ length: MAX_COMMAND_UNIT_IDS + 1 }, (_, index) => `u${index}`) })).toBe(false);
   });
 
   it('charges complementary resources for each mine type', () => {
@@ -580,12 +591,13 @@ describe('galaxy routes', () => {
 });
 
 describe('production and research', () => {
-  it('defines four tiers of research with nine visible unlock packages', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(9);
+  it('defines four tiers of research with fifteen visible unlock packages', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(15);
     expect(RESEARCH.heavyArmor.requires).toBe('groundWarfare');
     expect(RESEARCH.carrierOperations.requires).toBe('fleetLogistics');
     expect(RESEARCH.titanEngineering.requires).toBe('capitalShips');
     expect(RESEARCH_UNLOCKS.titanEngineering).toContain('Titan Dreadnought');
+    expect(RESEARCH_UNLOCKS.rapidFabrication).toContain('+25% unit production speed');
   });
 
   it('requires advanced factories for heavy ground units and capital hulls', () => {
@@ -644,6 +656,39 @@ describe('production and research', () => {
       const upgradedGain = upgradedAfter.resources[resource] - upgradedBefore[resource];
       expect(upgradedGain).toBeCloseTo(baseGain * 1.25, 5);
     }
+  });
+
+  it('defines six additional research branches with simulation bonuses', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(15);
+    expect(RESEARCH).toMatchObject({
+      rapidFabrication: { requires: 'advancedIndustry' },
+      planetaryFortifications: { requires: 'groundWarfare' },
+      phaseMastery: { requires: 'fleetLogistics' },
+      shieldHarmonics: { requires: 'orbitalEngineering' },
+      deepCoreExtraction: { requires: 'quantumExtraction' },
+      weaponsCalibration: { requires: 'capitalShips' },
+    });
+    expect(researchProductionMultiplier(['rapidFabrication'])).toBe(1.25);
+    expect(spaceProductionMultiplier(['rapidFabrication'])).toBe(1.25);
+    expect(phaseTravelMultiplier(['phaseMastery'])).toBe(.75);
+    expect(shieldRecoveryMultiplier(['shieldHarmonics'])).toBe(1.5);
+    expect(defenseDurabilityMultiplier(['planetaryFortifications'])).toBe(1.25);
+    expect(orbitalDamageMultiplier(['weaponsCalibration'])).toBe(1.15);
+    expect(researchIncomeMultiplier(['quantumExtraction', 'deepCoreExtraction'])).toBe(1.5);
+  });
+
+  it('applies Rapid Fabrication to both ground and space production queues', () => {
+    let state = createInitialState(); state.completedResearch.push('rapidFabrication');
+    const ground = queueUnit(state, 'terra', 'infantry'); expectOk(ground); state = ground.state;
+    const space = queueUnit(state, 'terra', 'transport'); expectOk(space); state = space.state;
+    const progressed = tick(state, 4);
+    expect(progressed.planets[0].groundQueue[0].remaining).toBe(5);
+    expect(spaceYards(progressed.planets[0])[0].spaceQueue![0].remaining).toBe(13);
+  });
+
+  it('applies Shield Harmonics to ship shield regeneration', () => {
+    const damaged = { ...makeUnit('harmonic-ship', 'escortFrigate', 'player'), shields: 0 };
+    expect(recoverSpaceUnit(damaged, false, 2, 'human', shieldRecoveryMultiplier(['shieldHarmonics'])).shields).toBe(15);
   });
 
   it('queues and completes ground units in real time', () => {

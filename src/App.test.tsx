@@ -457,10 +457,13 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByRole('main', { name: 'Research tech tree' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Technology tree' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(9);
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(15);
     expect(document.querySelectorAll('.tech-tier')).toHaveLength(4);
     expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'groundWarfare');
     expect(document.querySelector('[data-tech-id="carrierOperations"]')).toHaveAttribute('data-requires', 'fleetLogistics');
+    expect(document.querySelector('[data-tech-id="phaseMastery"]')).toHaveAttribute('data-requires', 'fleetLogistics');
+    expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'quantumExtraction');
+    expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'capitalShips');
     expect(document.querySelector('[data-tech-id="titanEngineering"]')).toHaveAttribute('data-requires', 'capitalShips');
     expect(document.querySelector('.expanded-tech-tree')).not.toBeNull();
     expect(screen.getByText('Titan Dreadnought')).toBeInTheDocument();
@@ -475,11 +478,11 @@ describe('Galactic Empires interface', () => {
     render(<App />);
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
-    for (const id of ['groundWarfare', 'fleetLogistics', 'orbitalEngineering', 'quantumExtraction']) {
+    for (const id of ['rapidFabrication', 'groundWarfare', 'fleetLogistics', 'orbitalEngineering', 'quantumExtraction']) {
       const node = document.querySelector(`[data-tech-id="${id}"]`) as HTMLElement;
       expect(within(node).getByRole('button', { name: 'RESEARCH' })).toBeEnabled();
     }
-    for (const id of ['heavyArmor', 'capitalShips', 'titanEngineering']) {
+    for (const id of ['planetaryFortifications', 'heavyArmor', 'phaseMastery', 'shieldHarmonics', 'deepCoreExtraction', 'capitalShips', 'weaponsCalibration', 'titanEngineering']) {
       const node = document.querySelector(`[data-tech-id="${id}"]`) as HTMLElement;
       expect(within(node).getByRole('button', { name: 'PREREQUISITE' })).toBeDisabled();
     }

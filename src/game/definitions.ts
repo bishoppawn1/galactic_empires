@@ -68,25 +68,37 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
 
 export const RESEARCH: Record<ResearchId, Definition> = {
   advancedIndustry: { label: 'Advanced Industry', description: 'Unlock advanced factories.', cost: pool(220, 180, 140), time: 45 },
+  rapidFabrication: { label: 'Rapid Fabrication', description: 'Optimize assembly lines to produce ground and space units 25 percent faster.', cost: pool(330, 280, 210), time: 68, requires: 'advancedIndustry' },
   groundWarfare: { label: 'Ground Warfare', description: 'Develop shielded assault formations and advanced battlefield doctrine.', cost: pool(280, 210, 150), time: 55, requires: 'advancedIndustry' },
+  planetaryFortifications: { label: 'Planetary Fortifications', description: 'Reinforce ground and orbital defenses with layered armor and redundant systems.', cost: pool(390, 310, 230), time: 74, requires: 'groundWarfare' },
   fleetLogistics: { label: 'Fleet Logistics', description: 'Prepares the empire for larger fleet operations.', cost: pool(320, 250, 210), time: 60, requires: 'advancedIndustry' },
+  phaseMastery: { label: 'Phase Mastery', description: 'Tune phase drives to cross every phase lane 25 percent faster.', cost: pool(410, 360, 280), time: 80, requires: 'fleetLogistics' },
   orbitalEngineering: { label: 'Orbital Engineering', description: 'Develop reinforced cruiser hulls and deep-space weapon systems.', cost: pool(300, 275, 190), time: 62, requires: 'advancedIndustry' },
+  shieldHarmonics: { label: 'Shield Harmonics', description: 'Increase shield regeneration on every warship by 50 percent.', cost: pool(430, 390, 300), time: 84, requires: 'orbitalEngineering' },
   quantumExtraction: { label: 'Quantum Extraction', description: 'Increase all imperial resource output by 25 percent.', cost: pool(260, 300, 220), time: 58, requires: 'advancedIndustry' },
+  deepCoreExtraction: { label: 'Deep-Core Extraction', description: 'Increase the total imperial resource output bonus to 50 percent.', cost: pool(480, 440, 350), time: 92, requires: 'quantumExtraction' },
   heavyArmor: { label: 'Heavy Armor', description: 'Unlock the heaviest ground assault and siege organisms or vehicles.', cost: pool(430, 330, 235), time: 78, requires: 'groundWarfare' },
   carrierOperations: { label: 'Carrier Operations', description: 'Unlock specialized carriers for large planetary assaults.', cost: pool(460, 370, 280), time: 82, requires: 'fleetLogistics' },
   capitalShips: { label: 'Capital Ship Doctrine', description: 'Unlock capital warships and their fleet-command systems.', cost: pool(520, 420, 320), time: 90, requires: 'orbitalEngineering' },
+  weaponsCalibration: { label: 'Weapons Calibration', description: 'Increase damage from all ships and orbital installations by 15 percent.', cost: pool(650, 520, 400), time: 105, requires: 'capitalShips' },
   titanEngineering: { label: 'Titan Engineering', description: 'Unlock each civilization’s colossal apex warship.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
 };
 
 export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'],
+  rapidFabrication: ['+25% unit production speed'],
   groundWarfare: ['Shock Troopers'],
+  planetaryFortifications: ['+25% defense durability'],
   fleetLogistics: ['Carrier doctrine'],
+  phaseMastery: ['25% faster phase travel'],
   orbitalEngineering: ['Light Cruiser', 'Phase Destroyer'],
+  shieldHarmonics: ['+50% ship shield regeneration'],
   quantumExtraction: ['+25% resource output'],
+  deepCoreExtraction: ['Resource output bonus increased to +50%'],
   heavyArmor: ['Railgun Tank', 'Plasma Tank', 'Siege Walker'],
   carrierOperations: ['Assault Carrier'],
   capitalShips: ['Battlecruiser'],
+  weaponsCalibration: ['+15% ship and orbital weapon damage'],
   titanEngineering: ['Titan Dreadnought'],
 };
 
@@ -114,8 +126,10 @@ const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Carrier'], capitalShips: ['Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
 };
 
-export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) =>
-  civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS[id] : civilization === 'aegis' ? AEGIS_RESEARCH_UNLOCKS[id] : civilization === 'covenant' ? COVENANT_RESEARCH_UNLOCKS[id] : RESEARCH_UNLOCKS[id];
+export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) => {
+  const factionUnlocks = civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS : civilization === 'aegis' ? AEGIS_RESEARCH_UNLOCKS : civilization === 'covenant' ? COVENANT_RESEARCH_UNLOCKS : RESEARCH_UNLOCKS;
+  return factionUnlocks[id] ?? RESEARCH_UNLOCKS[id];
+};
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ORBITAL_DEFENSE_RANGE = 400;

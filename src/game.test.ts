@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_TRAVEL_PER_REFIT, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_UPGRADES, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -571,12 +571,12 @@ describe('competitive multiplayer', () => {
     const state = createCompetitiveState();
     state.planets[0].orbitUnits = [{
       ...makeUnit('multiplayer-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0,
-      titanTravel: 375, titanUpgradePoints: 1, titanUpgrades: ['siegeCore'],
+      titanUpgrades: ['siegeCore'],
     }];
 
     const rivalView = swapPlayerPerspective(state);
     const inspected = rivalView.planets[0].orbitUnits[0];
-    expect(inspected).toMatchObject({ faction: 'enemy', titanTravel: 375, titanUpgradePoints: 1, titanUpgrades: ['siegeCore'] });
+    expect(inspected).toMatchObject({ faction: 'enemy', titanUpgrades: ['siegeCore'] });
     expect(swapPlayerPerspective(rivalView)).toEqual(state);
   });
 });
@@ -711,29 +711,45 @@ describe('production and research', () => {
     expect(queueUnit(commissioned.state, 'terra', 'dreadnought', ['titan-yard']).ok).toBe(true);
   });
 
-  it('earns Titan refits through travel and applies their permanent combat bonuses', () => {
+  it('purchases permanent Titan upgrades with empire resources and applies their combat bonuses', () => {
     const state = createInitialState(); const terra = state.planets[0];
-    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    const titan = { ...makeUnit('journey-titan', 'dreadnought', 'player'), orbitX: -MAX_SHIP_ORBIT_RADIUS, orbitY: 0 };
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    const titan = { ...makeUnit('refit-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0 };
     terra.orbitUnits = [titan];
 
-    const order = maneuverSpaceUnit(state, terra.id, titan.id, MAX_SHIP_ORBIT_RADIUS, 0); expectOk(order);
-    const traveled = tick(order.state, TITAN_TRAVEL_PER_REFIT / ORBIT_MANEUVER_SPEED);
-    const veteran = traveled.planets[0].orbitUnits[0];
-    expect(veteran.titanUpgradePoints).toBe(1);
-    expect(veteran.titanTravel).toBeCloseTo(0);
-
-    const siege = upgradeTitan(traveled, terra.id, titan.id, 'siegeCore'); expectOk(siege);
+    const siege = upgradeTitan(state, terra.id, titan.id, 'siegeCore'); expectOk(siege);
     const siegeTitan = siege.state.planets[0].orbitUnits[0];
-    expect(siegeTitan.titanUpgradePoints).toBe(0);
+    expect(siege.state.resources).toEqual({ metal: 4640, crystal: 4720, gold: 4820 });
     expect(unitWeaponDamage(siegeTitan)).toBeCloseTo(UNITS.dreadnought.weapon.damage * 1.35);
     expect(upgradeTitan(siege.state, terra.id, titan.id, 'siegeCore').ok).toBe(false);
 
-    siegeTitan.titanUpgradePoints = 2;
     const shield = upgradeTitan(siege.state, terra.id, titan.id, 'shieldMatrix'); expectOk(shield);
     expect(shield.state.planets[0].orbitUnits[0].maxShields).toBe(Math.round(UNITS.dreadnought.shields * 1.4));
     const farcast = upgradeTitan(shield.state, terra.id, titan.id, 'farcastArray'); expectOk(farcast);
     expect(unitRange(farcast.state.planets[0].orbitUnits[0])).toBeCloseTo(UNITS.dreadnought.range * 1.25);
+  });
+
+  it('rejects unaffordable Titan upgrades and charges the Brood biomass conversion', () => {
+    const poor = createInitialState();
+    poor.resources = { metal: 0, crystal: 0, gold: 0 };
+    poor.planets[0].orbitUnits = [{ ...makeUnit('poor-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0 }];
+    expect(upgradeTitan(poor, 'terra', 'poor-titan', 'siegeCore').ok).toBe(false);
+
+    const brood = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
+    brood.resources.biomass = 1000;
+    brood.planets[0].orbitUnits = [{ ...makeUnit('brood-refit', 'worldEater', 'player'), orbitX: 180, orbitY: 0 }];
+    const upgraded = upgradeTitan(brood, 'terra', 'brood-refit', 'siegeCore'); expectOk(upgraded);
+    expect(upgraded.state.resources.biomass).toBe(1000 - biomassCost(TITAN_UPGRADES.siegeCore.cost));
+  });
+
+  it('allows a selected Titan to purchase an upgrade while in phase transit', () => {
+    const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.planets[0].orbitUnits = [{ ...makeUnit('transit-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0 }];
+    const dispatched = dispatchSpaceUnit(state, 'terra', 'transit-titan', 'halcyon'); expectOk(dispatched);
+
+    const upgraded = upgradeTitan(dispatched.state, 'terra', 'transit-titan', 'farcastArray'); expectOk(upgraded);
+    expect(upgraded.state.fleets[0].unit.titanUpgrades).toEqual(['farcastArray']);
   });
 
   it('increases permanent mine income by 25 percent with Quantum Extraction', () => {

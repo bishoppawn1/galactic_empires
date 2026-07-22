@@ -596,21 +596,21 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
   });
 
-  it('shows travel-earned Titan refits and installs them from the selected ship HUD', () => {
+  it('shows resource-priced Titan upgrades and purchases them from the selected ship HUD', () => {
     const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     state.planets[0].orbitUnits = [{
       ...makeUnit('refit-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0,
-      titanTravel: 240, titanUpgradePoints: 1, titanUpgrades: [],
+      titanUpgrades: [],
     }];
     saveState(state);
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Titan Dreadnought orbiting Terra Nova' }));
-    expect(screen.getByText('1 REFIT POINT')).toBeInTheDocument();
-    expect(screen.getByText('TRAVEL 240 / 600')).toBeInTheDocument();
+    expect(screen.getByText('TITAN UPGRADES')).toBeInTheDocument();
     expect(screen.getByText('Tri-Core Barrage')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Install Siege Core' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Purchase Siege Core for 360M · 280C · 180G' }));
     expect(screen.getByRole('button', { name: 'Installed Siege Core' })).toBeDisabled();
     expect(screen.getByText(/Siege Core installed aboard Titan Dreadnought/i)).toBeInTheDocument();
   });

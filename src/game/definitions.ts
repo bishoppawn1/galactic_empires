@@ -159,11 +159,10 @@ export const BROOD_SPACE_KINDS: SpaceUnitKind[] = ['sporeArk', 'clawFrigate', 'n
 export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS, ...COVENANT_GROUND_KINDS, 'covenantBulwark'];
 export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS];
 export const TITAN_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['dreadnought', 'worldEater', 'aegisSovereignDreadnought', 'covenantDreadforge']);
-export const TITAN_TRAVEL_PER_REFIT = 600;
-export const TITAN_UPGRADES: Record<TitanUpgradeId, { label: string; description: string }> = {
-  siegeCore: { label: 'Siege Core', description: '+35% weapon damage' },
-  shieldMatrix: { label: 'Shield Matrix', description: '+40% maximum shields' },
-  farcastArray: { label: 'Farcast Array', description: '+25% weapon range' },
+export const TITAN_UPGRADES: Record<TitanUpgradeId, { label: string; description: string; cost: ResourcePool }> = {
+  siegeCore: { label: 'Siege Core', description: '+35% weapon damage', cost: pool(360, 280, 180) },
+  shieldMatrix: { label: 'Shield Matrix', description: '+40% maximum shields', cost: pool(300, 340, 200) },
+  farcastArray: { label: 'Farcast Array', description: '+25% weapon range', cost: pool(260, 300, 240) },
 };
 export const isTitanKind = (kind: UnitKind): kind is SpaceUnitKind => TITAN_KINDS.has(kind as SpaceUnitKind);
 export const unitRange = (unit: Unit) => UNITS[unit.kind].range * (unit.titanUpgrades?.includes('farcastArray') ? 1.25 : 1);

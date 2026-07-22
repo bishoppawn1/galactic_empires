@@ -44,7 +44,7 @@ import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED,
-  TITAN_TRAVEL_PER_REFIT, TITAN_UPGRADES, UNITS, pool,
+  TITAN_UPGRADES, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isTitanKind, orbitalDefenseOffset, unitAvailableToCivilization, unitRange, unitWeaponDamage,
 } from './definitions';
 
@@ -64,19 +64,8 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
   ...(UNITS[kind].capacity || kind === 'transport' ? { loadedUnitIds: [] } : {}),
   ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0 } : {}),
-  ...(isTitanKind(kind) ? { titanTravel: 0, titanUpgradePoints: 0, titanUpgrades: [] } : {}),
+  ...(isTitanKind(kind) ? { titanUpgrades: [] } : {}),
 });
-
-function awardTitanTravel(ship: Unit, distance: number) {
-  if (!isTitanKind(ship.kind) || distance <= 0) return;
-  const currentPoints = ship.titanUpgradePoints ?? 0;
-  const availablePointSlots = Object.keys(TITAN_UPGRADES).length - (ship.titanUpgrades?.length ?? 0) - currentPoints;
-  if (availablePointSlots <= 0) return;
-  const total = (ship.titanTravel ?? 0) + distance;
-  const earnedPoints = Math.min(availablePointSlots, Math.floor(total / TITAN_TRAVEL_PER_REFIT));
-  ship.titanTravel = earnedPoints === availablePointSlots ? 0 : total % TITAN_TRAVEL_PER_REFIT;
-  ship.titanUpgradePoints = currentPoints + earnedPoints;
-}
 
 const orbitSlot = (index: number) => {
   const innerRadius = 190, ringSpacing = 84, slotSeparation = MIN_SHIP_ORBIT_SEPARATION + 2;
@@ -360,9 +349,9 @@ export function migrateGameState(input: GameState): GameState {
     if (isTitanKind(savedUnit.kind)) {
       const savedTitanUpgrades = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
       savedUnit.titanUpgrades = [...new Set(savedTitanUpgrades.filter(id => id in TITAN_UPGRADES))];
-      const remainingRefits = Object.keys(TITAN_UPGRADES).length - savedUnit.titanUpgrades.length;
-      savedUnit.titanUpgradePoints = Math.min(remainingRefits, Math.max(0, Math.floor(savedUnit.titanUpgradePoints ?? 0)));
-      savedUnit.titanTravel = savedUnit.titanUpgradePoints >= remainingRefits ? 0 : Math.max(0, (savedUnit.titanTravel ?? 0) % TITAN_TRAVEL_PER_REFIT);
+      const legacyTitan = savedUnit as Unit & { titanTravel?: number; titanUpgradePoints?: number };
+      delete legacyTitan.titanTravel;
+      delete legacyTitan.titanUpgradePoints;
     }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
@@ -661,19 +650,21 @@ export const maneuverSpaceUnit = (input: GameState, planetId: string, unitId: st
 
 export function upgradeTitan(input: GameState, planetId: string, unitId: string, upgradeId: TitanUpgradeId): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId);
-  const titan = p?.orbitUnits.find(ship => ship.id === unitId && ship.faction === 'player' && isTitanKind(ship.kind));
-  if (!p || !titan) return fail(input, 'That Titan is not available in this gravity well.');
+  const titan = p?.orbitUnits.find(ship => ship.id === unitId && ship.faction === 'player' && isTitanKind(ship.kind))
+    ?? state.fleets.find(fleet => fleet.unit.id === unitId && fleet.faction === 'player' && isTitanKind(fleet.unit.kind))?.unit;
+  if (!titan) return fail(input, 'That Titan is not available for an upgrade.');
   if (!(upgradeId in TITAN_UPGRADES)) return fail(input, 'Unknown Titan refit.');
   if (titan.titanUpgrades?.includes(upgradeId)) return fail(input, 'That Titan refit is already installed.');
-  if ((titan.titanUpgradePoints ?? 0) < 1) return fail(input, 'Move this Titan farther to earn a refit point.');
-  titan.titanUpgradePoints = (titan.titanUpgradePoints ?? 0) - 1;
+  const upgrade = TITAN_UPGRADES[upgradeId];
+  if (!canPlayerAfford(state, upgrade.cost)) return fail(input, insufficientPlayerResources(state));
+  spendPlayerResources(state, upgrade.cost);
   titan.titanUpgrades = [...(titan.titanUpgrades ?? []), upgradeId];
   if (upgradeId === 'shieldMatrix') {
     const oldMaximum = titan.maxShields;
     titan.maxShields = Math.round(oldMaximum * 1.4);
     titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximum);
   }
-  addMessage(state, `${TITAN_UPGRADES[upgradeId].label} installed aboard ${UNITS[titan.kind].label}.`);
+  addMessage(state, `${upgrade.label} installed aboard ${UNITS[titan.kind].label}.`);
   return pass(state);
 }
 
@@ -1428,7 +1419,6 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
   ship.heading = headingForVector(dx, dy, ship.heading);
   const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
-  awardTitanTravel(ship, Math.min(distance, step));
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
@@ -1711,8 +1701,6 @@ export function tick(input: GameState, seconds: number): GameState {
     let timeLeft = seconds, arrived = false;
     while (timeLeft > 0 && !arrived) {
       const remainingPhaseTime = Math.max(0, fleet.travelTime - fleet.progress);
-      const phaseTravel = fleet.phase === 'exiting' ? SYSTEM_EXIT_SPEED : fleet.phase === 'tunnel' ? 25 : 0;
-      awardTitanTravel(fleet.unit, Math.min(timeLeft, remainingPhaseTime) * phaseTravel);
       if (timeLeft < remainingPhaseTime) {
         fleet.progress += timeLeft;
         timeLeft = 0;

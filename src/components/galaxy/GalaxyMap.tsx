@@ -294,7 +294,12 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       </div>
     </div>
     <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
-    <FleetSelectionHud ships={selectedShips} onUpgradeTitan={(unitId, upgradeId) => { if (selectedOrigin) onUpgradeTitan?.(selectedOrigin.id, unitId, upgradeId); }} />
+    <FleetSelectionHud state={state} ships={selectedShips} onUpgradeTitan={(unitId, upgradeId) => {
+      const orbit = state.planets.find(planet => planet.orbitUnits.some(ship => ship.id === unitId));
+      const fleet = state.fleets.find(candidate => candidate.unit.id === unitId);
+      const planetId = orbit?.id ?? fleet?.originId;
+      if (planetId) onUpgradeTitan?.(planetId, unitId, upgradeId);
+    }} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
     <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
   </main>;

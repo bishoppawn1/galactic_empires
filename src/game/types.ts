@@ -86,8 +86,6 @@ export interface Unit {
   fighterCount?: number;
   fighterBuildProgress?: number;
   fighterLossProgress?: number;
-  titanTravel?: number;
-  titanUpgradePoints?: number;
   titanUpgrades?: TitanUpgradeId[];
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }

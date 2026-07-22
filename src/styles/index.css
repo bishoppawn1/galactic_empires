@@ -14,14 +14,25 @@ button { color: inherit; }
 .brand-mark::first-line { transform: rotate(-45deg); }
 .empire-tabs { align-self: stretch; flex: 0 0 180px; display: grid; grid-template-columns: 1fr 1fr; margin-right: 12px; border-inline: 1px solid #252d37; }.empire-tabs button { position: relative; border: 0; background: transparent; color: #687681; text-transform: uppercase; font: 600 8px Inter; letter-spacing: .13em; cursor: pointer; }.empire-tabs button:hover { color: white; background: #0d151d; }.empire-tabs button.active { color: var(--cyan); background: #0c171b; }.empire-tabs button.active::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; background: var(--cyan); box-shadow: 0 0 10px #55d6be; }
 .resources { display: flex; flex: 1; justify-content: center; height: 100%; }
-.resource { position: relative; min-width: 142px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border-left: 1px solid #252d37; }
-.resource:last-child { border-right: 1px solid #252d37; }
+.resource { position: relative; min-width: 126px; display: flex; align-items: center; gap: 9px; padding: 0 11px; border-left: 1px solid #252d37; }
 .resource i { font-style: normal; font-size: 18px; }
 .resource span { display: flex; flex-direction: column; font: 600 20px/1 'Barlow Condensed'; letter-spacing: .05em; }
 .resource small { margin-bottom: 5px; font: 500 9px/1 Inter; letter-spacing: .16em; color: #76818c; text-transform: uppercase; }
 .resource em { align-self: flex-end; padding-bottom: 23px; font: 500 9px/1 Inter; color: #55d6be; }
 .resource.metal i { color: #acbcc7; }.resource.crystal i { color: #63d0ff; }.resource.gold i { color: var(--gold); }
 .resource.biomass i { color: #9bd85b; text-shadow: 0 0 10px #9bd85b88; }.resource.biomass em { color: #b8ef7c; }.resource-bar.faction-brood { border-bottom-color: #638d3e; box-shadow: 0 12px 35px #0008, inset 0 -1px #9bd85b22; }
+.trade-control { position: relative; display: flex; align-items: center; padding: 0 8px; border-inline: 1px solid #252d37; }
+.trade-toggle { width: 66px; height: 42px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid #47766f; background: #0a1a1a; color: #baf9ed; font: 700 10px/1 Inter; letter-spacing: .12em; cursor: pointer; }
+.trade-toggle small { color: var(--gold); font: 700 10px/1 'Barlow Condensed'; letter-spacing: .08em; }
+.trade-toggle:hover,.trade-toggle[aria-expanded="true"] { border-color: var(--cyan); background: #102827; box-shadow: 0 0 16px #55d6be33; }
+.trade-menu { position: absolute; z-index: 40; top: 72px; right: -1px; width: 380px; padding: 14px; border: 1px solid #3a625d; background: #081117fa; box-shadow: 0 16px 40px #000c, 0 0 24px #55d6be18; }
+.trade-menu header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.trade-menu header b { color: #d8f7f1; font: 700 13px 'Barlow Condensed'; letter-spacing: .12em; }
+.trade-menu header span { color: #82928f; font: 600 9px Inter; letter-spacing: .04em; }
+.trade-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.trade-options button { min-height: 38px; padding: 7px; border: 1px solid #31514e; background: #0c1c20; color: #c6ddd9; font: 600 10px 'Barlow Condensed'; letter-spacing: .06em; cursor: pointer; }
+.trade-options button:hover:not(:disabled) { border-color: var(--cyan); background: #15302f; color: white; }
+.trade-options button:disabled { border-color: #263036; background: #0a1015; color: #4d5960; cursor: not-allowed; }
 .cycle { flex: 0 0 155px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; color: #6f7c88; font: 600 10px Inter; letter-spacing: .17em; }
 .cycle small { font: 600 19px 'Barlow Condensed'; color: #d9e1e5; letter-spacing: .08em; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(600px, 1fr) 430px; }

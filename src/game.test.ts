@@ -103,6 +103,26 @@ describe('economy and construction', () => {
     expect(isGameCommand({ type: 'maneuver', planetId: 'terra', unitIds: [], orbitX: Infinity, orbitY: 0 })).toBe(false);
   });
 
+  it('trades mineral resources in immutable three-to-one lots', () => {
+    const state = createInitialState();
+    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(result);
+    expect(result.state.resources).toEqual({ metal: 570, crystal: 420, gold: 130 });
+    expect(state.resources).toEqual({ metal: 520, crystal: 420, gold: 280 });
+    expect(result.state.messages[0]).toBe('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.');
+  });
+
+  it('rejects unaffordable, same-resource, invalid, and biomass trades', () => {
+    const state = createInitialState(); state.resources.gold = 149;
+    const poorTrade = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' });
+    expect(poorTrade.ok).toBe(false);
+    expect(poorTrade.state).toBe(state);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'gold' })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'biomass', to: 'metal' })).toBe(false);
+    const brood = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
+    const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal' });
+    expect(broodTrade.ok).toBe(false);
+  });
+
   it('charges complementary resources for each mine type', () => {
     const state = createInitialState(); const nyx = state.planets[1]; nyx.owner = 'player';
     const result = constructBuilding(state, nyx.id, 'metalMine'); expectOk(result);
@@ -486,6 +506,15 @@ describe('competitive multiplayer', () => {
     expect(updatedCanonical.resources).toEqual(canonical.resources);
     expect(updatedCanonical.planets.find(planet => planet.id === 'cygnus')!.buildings.filter(building => building.kind === 'metalMine')).toHaveLength(2);
     expect(updatedCanonical.planets.find(planet => planet.id === 'terra')!.buildings.filter(building => building.kind === 'metalMine')).toHaveLength(1);
+  });
+
+  it('applies a guest resource trade only to that empire', () => {
+    const canonical = createCompetitiveState();
+    const guestView = viewStateForFaction(canonical, 'enemy');
+    const traded = applyGameCommand(guestView, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(traded);
+    const updatedCanonical = viewStateForFaction(traded.state, 'enemy');
+    expect(updatedCanonical.enemyResources).toEqual({ metal: 570, crystal: 420, gold: 130 });
+    expect(updatedCanonical.resources).toEqual(canonical.resources);
   });
 
   it('applies a guest ship order to the host state', () => {

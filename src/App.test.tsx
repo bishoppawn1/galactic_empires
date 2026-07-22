@@ -132,6 +132,15 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
   });
 
+  it('opens the resource exchange and trades 150 gold for 50 metal', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'TRADE 3:1' }));
+    fireEvent.click(screen.getByRole('button', { name: '150 GOLD → 50 METAL' }));
+    expect(within(document.querySelector('.resource.metal') as HTMLElement).getByText('570')).toBeInTheDocument();
+    expect(within(document.querySelector('.resource.gold') as HTMLElement).getByText('130')).toBeInTheDocument();
+    expect(screen.getByText('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.')).toBeInTheDocument();
+  });
+
   it('renders an older campaign even when research-era fields are missing', () => {
     const legacy = createInitialState();
     const damaged = legacy as unknown as Record<string, unknown>;

@@ -1,7 +1,9 @@
-import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, empireCivilization, researchIncomeMultiplier, type BuildingKind, type GameState } from '../../game';
+import { useState } from 'react';
+import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, STANDARD_RESOURCES, empireCivilization, researchIncomeMultiplier, type BuildingKind, type GameCommand, type GameState, type Resource } from '../../game';
 import type { EmpireView } from '../../app/types';
 
-export function ResourceBar({ state, view, onViewChange }: { state: GameState; view: EmpireView; onViewChange: (view: EmpireView) => void }) {
+export function ResourceBar({ state, view, onViewChange, act }: { state: GameState; view: EmpireView; onViewChange: (view: EmpireView) => void; act: (command: GameCommand) => boolean }) {
+  const [trading, setTrading] = useState(false);
   const owned = state.planets.filter(p => p.owner === 'player');
   const civilization = empireCivilization(state);
   const profile = PLAYABLE_FACTION_DEFINITIONS[civilization];
@@ -17,10 +19,24 @@ export function ResourceBar({ state, view, onViewChange }: { state: GameState; v
         <Resource icon="◆" name="Metal" value={state.resources.metal} rate={rate('metal', 'metalMine')} className="metal" />
         <Resource icon="⬢" name="Crystal" value={state.resources.crystal} rate={rate('crystal', 'crystalMine')} className="crystal" />
         <Resource icon="●" name="Gold" value={state.resources.gold} rate={rate('gold', 'goldMine')} className="gold" />
+        <div className="trade-control">
+          <button className="trade-toggle" aria-label="TRADE 3:1" aria-expanded={trading} aria-controls="resource-trades" onClick={() => setTrading(open => !open)}>TRADE<small>3:1</small></button>
+          {trading && <div className="trade-menu" id="resource-trades" role="region" aria-label="Resource trading">
+            <header><b>RESOURCE EXCHANGE</b><span>Spend {RESOURCE_TRADE_SPEND} · Receive {RESOURCE_TRADE_RECEIVE}</span></header>
+            <div className="trade-options">
+              {STANDARD_RESOURCES.flatMap(from => STANDARD_RESOURCES.filter(to => to !== from).map(to => <TradeOption key={`${from}-${to}`} from={from} to={to} balance={state.resources[from]} act={act} />))}
+            </div>
+          </div>}
+        </div>
       </>}
     </div>
     <div className="cycle">CYCLE {Math.floor(state.elapsed / 60) + 1}<small>{Math.floor(state.elapsed % 60).toString().padStart(2, '0')}:{Math.floor((state.elapsed * 10) % 10)}0</small></div>
   </div>;
+}
+
+function TradeOption({ from, to, balance, act }: { from: Resource; to: Resource; balance: number; act: (command: GameCommand) => boolean }) {
+  const label = `${RESOURCE_TRADE_SPEND} ${from.toUpperCase()} → ${RESOURCE_TRADE_RECEIVE} ${to.toUpperCase()}`;
+  return <button disabled={balance < RESOURCE_TRADE_SPEND} onClick={() => act({ type: 'trade', from, to })}>{label}</button>;
 }
 
 function Resource({ icon, name, value, rate, className }: { icon: string; name: string; value: number; rate: number; className: string }) {

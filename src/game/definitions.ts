@@ -7,6 +7,10 @@ export { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS } from './units/covenant';
 
 export const pool = (metal = 0, crystal = 0, gold = 0): ResourcePool => ({ metal, crystal, gold });
 
+export const STANDARD_RESOURCES = ['metal', 'crystal', 'gold'] as const;
+export const RESOURCE_TRADE_SPEND = 150;
+export const RESOURCE_TRADE_RECEIVE = 50;
+
 export const BUILDINGS: Record<BuildingKind, Definition> = {
   metalMine: { label: 'Metal Mine', description: 'Produces a permanent stream of metal.', cost: pool(0, 80, 45) },
   crystalMine: { label: 'Crystal Extractor', description: 'Produces a permanent stream of crystal.', cost: pool(75, 0, 50) },

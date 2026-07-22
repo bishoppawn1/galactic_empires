@@ -42,7 +42,7 @@ import {
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
-  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, orbitalDefenseOffset, unitAvailableToCivilization,
 } from './definitions';
 
@@ -449,6 +449,17 @@ const hasResearch = (state: GameState, id?: ResearchId) => !id || state.complete
 export type GameResult = { ok: true; state: GameState } | { ok: false; state: GameState; error: string };
 const fail = (state: GameState, error: string): GameResult => ({ ok: false, state, error });
 const pass = (state: GameState): GameResult => ({ ok: true, state });
+
+export function tradeResources(input: GameState, from: Resource, to: Resource): GameResult {
+  if (usesBiomass(input)) return fail(input, 'The Brood cannot trade mineral resources.');
+  if (from === to) return fail(input, 'Choose two different resources.');
+  if (input.resources[from] < RESOURCE_TRADE_SPEND) return fail(input, `Requires ${RESOURCE_TRADE_SPEND} ${from}.`);
+  const state = clone(input);
+  state.resources[from] -= RESOURCE_TRADE_SPEND;
+  state.resources[to] += RESOURCE_TRADE_RECEIVE;
+  addMessage(state, `TRADE COMPLETE — ${RESOURCE_TRADE_SPEND} ${from.toUpperCase()} exchanged for ${RESOURCE_TRADE_RECEIVE} ${to.toUpperCase()}.`);
+  return pass(state);
+}
 
 export function constructBuilding(input: GameState, planetId: string, kind: BuildingKind): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = BUILDINGS[kind];

@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceProductionMultiplier, spaceYards,
+  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceProductionMultiplier, spaceYards, unitRange,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
@@ -130,7 +130,7 @@ function UnitRow({ unit }: { unit: Unit }) {
   const definition = UNITS[unit.kind];
   const spaceUnit = isSpaceUnit(unit.kind);
   const details = spaceUnit
-    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${definition.range}${definition.fighterWing ? ` · FTR ${carrierFighterCount(unit)}/${definition.fighterWing.capacity}` : ''}${definition.ability ? ` · ${definition.ability.label}` : ''}`
+    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${unitRange(unit)}${definition.fighterWing ? ` · FTR ${carrierFighterCount(unit)}/${definition.fighterWing.capacity}` : ''}${definition.ability ? ` · ${definition.ability.label}` : ''}`
     : `${unit.faction.toUpperCase()} · HP ${Math.ceil(unit.hp)}/${unit.maxHp} · SH ${Math.ceil(unit.shields)}/${unit.maxShields} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}${unit.corrodedFor ? ' · CORRODED' : ''}`;
   return <div className="unit-row"><span>{spaceUnit ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{details}</small></div></div>;
 }

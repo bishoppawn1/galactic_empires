@@ -22,6 +22,7 @@ import {
   type Resource,
   type ResourcePool,
   type SpaceUnitKind,
+  type TitanUpgradeId,
   type Unit,
   type UnitDefinition,
   type UnitFaction,
@@ -42,8 +43,9 @@ import {
 import {
   ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
-  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, orbitalDefenseOffset, unitAvailableToCivilization,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_RECEIVE, RESOURCE_TRADE_SPEND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED,
+  TITAN_TRAVEL_PER_REFIT, TITAN_UPGRADES, UNITS, pool,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isTitanKind, orbitalDefenseOffset, unitAvailableToCivilization, unitRange, unitWeaponDamage,
 } from './definitions';
 
 export * from './types';
@@ -62,7 +64,19 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
   ...(UNITS[kind].capacity || kind === 'transport' ? { loadedUnitIds: [] } : {}),
   ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0 } : {}),
+  ...(isTitanKind(kind) ? { titanTravel: 0, titanUpgradePoints: 0, titanUpgrades: [] } : {}),
 });
+
+function awardTitanTravel(ship: Unit, distance: number) {
+  if (!isTitanKind(ship.kind) || distance <= 0) return;
+  const currentPoints = ship.titanUpgradePoints ?? 0;
+  const availablePointSlots = Object.keys(TITAN_UPGRADES).length - (ship.titanUpgrades?.length ?? 0) - currentPoints;
+  if (availablePointSlots <= 0) return;
+  const total = (ship.titanTravel ?? 0) + distance;
+  const earnedPoints = Math.min(availablePointSlots, Math.floor(total / TITAN_TRAVEL_PER_REFIT));
+  ship.titanTravel = earnedPoints === availablePointSlots ? 0 : total % TITAN_TRAVEL_PER_REFIT;
+  ship.titanUpgradePoints = currentPoints + earnedPoints;
+}
 
 const orbitSlot = (index: number) => {
   const innerRadius = 190, ringSpacing = 84, slotSeparation = MIN_SHIP_ORBIT_SEPARATION + 2;
@@ -343,6 +357,13 @@ export function migrateGameState(input: GameState): GameState {
       savedUnit.fighterBuildProgress = Math.max(0, Math.min(fighterWing.rebuildTime, savedUnit.fighterBuildProgress ?? 0));
       savedUnit.fighterLossProgress = Math.max(0, Math.min(fighterWing.attritionTime, savedUnit.fighterLossProgress ?? 0));
     }
+    if (isTitanKind(savedUnit.kind)) {
+      const savedTitanUpgrades = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
+      savedUnit.titanUpgrades = [...new Set(savedTitanUpgrades.filter(id => id in TITAN_UPGRADES))];
+      const remainingRefits = Object.keys(TITAN_UPGRADES).length - savedUnit.titanUpgrades.length;
+      savedUnit.titanUpgradePoints = Math.min(remainingRefits, Math.max(0, Math.floor(savedUnit.titanUpgradePoints ?? 0)));
+      savedUnit.titanTravel = savedUnit.titanUpgradePoints >= remainingRefits ? 0 : Math.max(0, (savedUnit.titanTravel ?? 0) % TITAN_TRAVEL_PER_REFIT);
+    }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
   for (const p of state.planets) {
@@ -439,6 +460,10 @@ export const groundProductionMultiplier = (planet: Planet, completed: ResearchId
 export const spaceProductionMultiplier = (completed: ResearchId[] = []) => researchProductionMultiplier(completed);
 export const isSpaceYard = (building: Building) => building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory';
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);
+const factionHasTitan = (state: GameState, faction: EmpireFaction) =>
+  state.planets.some(planet => planet.orbitUnits.some(ship => ship.faction === faction && isTitanKind(ship.kind)))
+  || state.fleets.some(fleet => fleet.faction === faction && isTitanKind(fleet.unit.kind))
+  || state.planets.some(planet => planet.owner === faction && spaceYards(planet).some(yard => yard.spaceQueue?.some(item => isTitanKind(item.kind))));
 const spend = (resources: ResourcePool, cost: ResourcePool) => {
   resources.metal -= cost.metal; resources.crystal -= cost.crystal; resources.gold -= cost.gold;
 };
@@ -489,6 +514,7 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   const state = clone(input); const p = getPlanet(state, planetId); const def = UNITS[kind];
   if (kind === 'defenseTurret' || kind === 'spineTower' || kind === 'covenantBulwark') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
   if (!p || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
+  if (isTitanKind(kind) && factionHasTitan(state, 'player')) return fail(input, 'Your empire can field only one Titan at a time.');
   const civilization = empireCivilization(state);
   if (!unitAvailableToCivilization(kind, civilization)) return fail(input, civilization === 'brood'
     ? 'That organism is not part of the Brood genome.'
@@ -513,6 +539,7 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   const targets = requestedIds.map(id => yards.find(yard => yard.id === id));
   if (targets.some(yard => !yard)) return fail(input, 'Select a friendly Space Yard at this colony.');
   if (def.advancedFactory && targets.some(yard => yard?.kind !== 'advancedSpaceFactory')) return fail(input, 'Advanced hulls require an Advanced Space Yard.');
+  if (isTitanKind(kind) && targets.length > 1) return fail(input, 'A Titan must be commissioned at one Advanced Space Yard.');
   const totalCost = pool(def.cost.metal * targets.length, def.cost.crystal * targets.length, def.cost.gold * targets.length);
   if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
   spendPlayerResources(state, totalCost);
@@ -631,6 +658,24 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
 }
 
 export const maneuverSpaceUnit = (input: GameState, planetId: string, unitId: string, orbitX: number, orbitY: number) => maneuverSpaceUnits(input, planetId, [unitId], orbitX, orbitY);
+
+export function upgradeTitan(input: GameState, planetId: string, unitId: string, upgradeId: TitanUpgradeId): GameResult {
+  const state = clone(input); const p = getPlanet(state, planetId);
+  const titan = p?.orbitUnits.find(ship => ship.id === unitId && ship.faction === 'player' && isTitanKind(ship.kind));
+  if (!p || !titan) return fail(input, 'That Titan is not available in this gravity well.');
+  if (!(upgradeId in TITAN_UPGRADES)) return fail(input, 'Unknown Titan refit.');
+  if (titan.titanUpgrades?.includes(upgradeId)) return fail(input, 'That Titan refit is already installed.');
+  if ((titan.titanUpgradePoints ?? 0) < 1) return fail(input, 'Move this Titan farther to earn a refit point.');
+  titan.titanUpgradePoints = (titan.titanUpgradePoints ?? 0) - 1;
+  titan.titanUpgrades = [...(titan.titanUpgrades ?? []), upgradeId];
+  if (upgradeId === 'shieldMatrix') {
+    const oldMaximum = titan.maxShields;
+    titan.maxShields = Math.round(oldMaximum * 1.4);
+    titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximum);
+  }
+  addMessage(state, `${TITAN_UPGRADES[upgradeId].label} installed aboard ${UNITS[titan.kind].label}.`);
+  return pass(state);
+}
 
 const phaseTravelTime = (from: Planet, to: Planet) => Math.max(12, Math.hypot(to.x - from.x, to.y - from.y) * .85);
 
@@ -1205,7 +1250,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shipPosition = (ship: Unit) => ({ x: ship.orbitX ?? 0, y: ship.orbitY ?? 0 });
   const shipInRange = (attacker: Unit, target: Unit) => {
     const from = shipPosition(attacker), to = shipPosition(target);
-    return orbitDistance(from.x, from.y, to.x, to.y) <= UNITS[attacker.kind].range;
+    return orbitDistance(from.x, from.y, to.x, to.y) <= unitRange(attacker);
   };
 
   for (const attacker of combatants) {
@@ -1218,7 +1263,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const attackerPosition = shipPosition(attacker);
     const defenseInRange = (defense: Building) => {
       const target = defensePosition(defense);
-      return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= UNITS[attacker.kind].range;
+      return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= unitRange(attacker);
     };
     const defenseTarget = preferredDefense && defenseInRange(preferredDefense)
       ? preferredDefense
@@ -1235,17 +1280,21 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const fighterWing = UNITS[attacker.kind].fighterWing;
     const fighterScale = fighterWing ? carrierFighterCount(attacker) / fighterWing.capacity : 1;
     if (fighterWing && fighterScale <= 0) continue;
-    const salvoDamage = weapon.damage * weapon.projectiles * fighterScale;
+    const salvoDamage = unitWeaponDamage(attacker) * weapon.projectiles * fighterScale;
     if (shipTarget) {
       const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
       const targetPosition = shipPosition(shipTarget);
       const distance = orbitDistance(attackerPosition.x, attackerPosition.y, targetPosition.x, targetPosition.y);
-      const rangeMultiplier = ability === 'rangeCalibration' ? 1 + .7 * Math.min(1, distance / UNITS[attacker.kind].range) : 1;
+      const rangeMultiplier = ability === 'rangeCalibration' ? 1 + .7 * Math.min(1, distance / unitRange(attacker)) : 1;
       const focusMultiplier = ability === 'focusFire' && shipTarget.hp < shipTarget.maxHp ? 1.5 : 1;
       shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier * rangeMultiplier * focusMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
       if (ability === 'spawnCloud' || ability === 'fabricatorSwarm') {
         const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(attacker, target));
         if (secondary) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: secondary.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 });
+      }
+      if (ability === 'triCoreBarrage') {
+        hostileShips.filter(target => target.id !== shipTarget.id && shipInRange(attacker, target)).slice(0, 2)
+          .forEach(target => shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: target.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 }));
       }
       if (ability === 'sovereignBarrage') {
         hostileShips.filter(target => target.id !== shipTarget.id && target.faction === shipTarget.faction && shipInRange(attacker, target)
@@ -1318,7 +1367,9 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
       } else {
         defenseDamage.set(shot.targetId, (defenseDamage.get(shot.targetId) ?? 0) + damage);
       }
-      if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
+      const ability = UNITS[unit.kind].ability?.kind;
+      const healingScale = ability === 'devour' ? .2 : ability === 'planetCracker' && shot.targetType === 'defense' ? .1 : 0;
+      if (healingScale) devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * healingScale);
     });
   });
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
@@ -1377,6 +1428,7 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
   ship.heading = headingForVector(dx, dy, ship.heading);
   const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
+  awardTitanTravel(ship, Math.min(distance, step));
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
@@ -1492,6 +1544,7 @@ function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount
 
 function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Building) {
   const def = UNITS[kind];
+  if (isTitanKind(kind) && factionHasTitan(state, 'enemy')) return false;
   if (!unitAvailableToCivilization(kind, empireCivilization(state, 'enemy')) || !enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
   if (def.factory === 'ground') {
     if (!p.buildings.some(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory')) return false;
@@ -1658,6 +1711,8 @@ export function tick(input: GameState, seconds: number): GameState {
     let timeLeft = seconds, arrived = false;
     while (timeLeft > 0 && !arrived) {
       const remainingPhaseTime = Math.max(0, fleet.travelTime - fleet.progress);
+      const phaseTravel = fleet.phase === 'exiting' ? SYSTEM_EXIT_SPEED : fleet.phase === 'tunnel' ? 25 : 0;
+      awardTitanTravel(fleet.unit, Math.min(timeLeft, remainingPhaseTime) * phaseTravel);
       if (timeLeft < remainingPhaseTime) {
         fleet.progress += timeLeft;
         timeLeft = 0;

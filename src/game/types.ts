@@ -5,6 +5,7 @@ export type UnitFaction = Exclude<Faction, null> | 'neutral';
 export type MapSize = 'small' | 'medium' | 'large' | 'huge';
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
+export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
 
 export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction }
 export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };
@@ -41,7 +42,8 @@ export type UnitAbilityKind =
   | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
   | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
   | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
-  | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam';
+  | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam'
+  | 'triCoreBarrage';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {
@@ -84,6 +86,9 @@ export interface Unit {
   fighterCount?: number;
   fighterBuildProgress?: number;
   fighterLossProgress?: number;
+  titanTravel?: number;
+  titanUpgradePoints?: number;
+  titanUpgrades?: TitanUpgradeId[];
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {

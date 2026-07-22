@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_TRAVEL_PER_REFIT, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -566,6 +566,19 @@ describe('competitive multiplayer', () => {
     expect(rivalView.planets[0].orbitFocusTargetId).toBe('rival-target');
     expect(swapPlayerPerspective(rivalView)).toEqual(state);
   });
+
+  it('preserves Titan travel and refits through multiplayer perspective translation', () => {
+    const state = createCompetitiveState();
+    state.planets[0].orbitUnits = [{
+      ...makeUnit('multiplayer-titan', 'dreadnought', 'player'), orbitX: 180, orbitY: 0,
+      titanTravel: 375, titanUpgradePoints: 1, titanUpgrades: ['siegeCore'],
+    }];
+
+    const rivalView = swapPlayerPerspective(state);
+    const inspected = rivalView.planets[0].orbitUnits[0];
+    expect(inspected).toMatchObject({ faction: 'enemy', titanTravel: 375, titanUpgradePoints: 1, titanUpgrades: ['siegeCore'] });
+    expect(swapPlayerPerspective(rivalView)).toEqual(state);
+  });
 });
 
 describe('galaxy routes', () => {
@@ -641,6 +654,86 @@ describe('production and research', () => {
     expect(queueUnit(state, 'terra', 'shockTrooper').ok).toBe(true);
     expect(queueUnit(state, 'terra', 'destroyer', ['new-space-yard']).ok).toBe(true);
     expect(queueUnit(state, 'terra', 'dreadnought', ['new-space-yard']).ok).toBe(true);
+  });
+
+  it('gives every civilization one distinct native Titan hull', () => {
+    const factions: PlayableFaction[] = ['human', 'brood', 'aegis', 'covenant'];
+    const titanKinds = factions.map(faction => civilizationUnitKind(faction, 'dreadnought'));
+
+    expect(new Set(titanKinds).size).toBe(factions.length);
+    expect(titanKinds.every(isTitanKind)).toBe(true);
+    expect(new Set(titanKinds.map(kind => UNITS[kind].label)).size).toBe(factions.length);
+    expect(new Set(titanKinds.map(kind => UNITS[kind].weapon.label)).size).toBe(factions.length);
+    expect(new Set(titanKinds.map(kind => UNITS[kind].ability?.label)).size).toBe(factions.length);
+  });
+
+  it('lets the Coalition Titan split its independent siege cores across three targets', () => {
+    const planet = createInitialState().planets[0];
+    planet.orbitUnits = [
+      { ...makeUnit('tri-core', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 },
+      { ...makeUnit('target-a', 'escortFrigate', 'enemy'), orbitX: 100, orbitY: 0 },
+      { ...makeUnit('target-b', 'escortFrigate', 'enemy'), orbitX: 120, orbitY: 0 },
+      { ...makeUnit('target-c', 'escortFrigate', 'enemy'), orbitX: 140, orbitY: 0 },
+    ];
+
+    const titanShots = orbitalCombatShots(planet).filter(shot => shot.attackerId === 'tri-core');
+    expect(titanShots).toHaveLength(3);
+    expect(titanShots.map(shot => shot.targetId)).toEqual(['target-a', 'target-b', 'target-c']);
+    expect(titanShots.map(shot => shot.damageMultiplier ?? 1)).toEqual([1, .5, .5]);
+  });
+
+  it('lets the Brood World Eater feed on damage dealt to orbital defenses', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.owner = 'enemy';
+    terra.buildings.push({ id: 'world-eater-food', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });
+    terra.orbitUnits = [{ ...makeUnit('feeding-titan', 'worldEater', 'player'), hp: UNITS.worldEater.hp - 100, orbitX: 0, orbitY: 0 }];
+
+    const result = tick(state, 1);
+    expect(result.planets[0].orbitUnits[0].hp).toBeGreaterThan(UNITS.worldEater.hp - 100);
+  });
+
+  it('allows only one active or queued Titan per empire and permits rebuilding after its loss', () => {
+    const state = createInitialState();
+    state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    state.completedResearch.push('titanEngineering');
+    state.planets[0].buildings.push({ id: 'titan-yard', kind: 'advancedSpaceFactory', spaceQueue: [] });
+
+    const commissioned = queueUnit(state, 'terra', 'dreadnought', ['titan-yard']); expectOk(commissioned);
+    const duplicate = queueUnit(commissioned.state, 'terra', 'dreadnought', ['titan-yard']);
+    expect(duplicate.ok).toBe(false);
+    if (!duplicate.ok) expect(duplicate.error).toContain('only one Titan');
+
+    commissioned.state.planets[0].buildings.find(building => building.id === 'titan-yard')!.spaceQueue = [];
+    commissioned.state.planets[0].orbitUnits.push({ ...makeUnit('fallen-titan', 'dreadnought', 'player'), orbitX: 200, orbitY: 0 });
+    expect(queueUnit(commissioned.state, 'terra', 'dreadnought', ['titan-yard']).ok).toBe(false);
+    commissioned.state.planets[0].orbitUnits = [];
+    expect(queueUnit(commissioned.state, 'terra', 'dreadnought', ['titan-yard']).ok).toBe(true);
+  });
+
+  it('earns Titan refits through travel and applies their permanent combat bonuses', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const titan = { ...makeUnit('journey-titan', 'dreadnought', 'player'), orbitX: -MAX_SHIP_ORBIT_RADIUS, orbitY: 0 };
+    terra.orbitUnits = [titan];
+
+    const order = maneuverSpaceUnit(state, terra.id, titan.id, MAX_SHIP_ORBIT_RADIUS, 0); expectOk(order);
+    const traveled = tick(order.state, TITAN_TRAVEL_PER_REFIT / ORBIT_MANEUVER_SPEED);
+    const veteran = traveled.planets[0].orbitUnits[0];
+    expect(veteran.titanUpgradePoints).toBe(1);
+    expect(veteran.titanTravel).toBeCloseTo(0);
+
+    const siege = upgradeTitan(traveled, terra.id, titan.id, 'siegeCore'); expectOk(siege);
+    const siegeTitan = siege.state.planets[0].orbitUnits[0];
+    expect(siegeTitan.titanUpgradePoints).toBe(0);
+    expect(unitWeaponDamage(siegeTitan)).toBeCloseTo(UNITS.dreadnought.weapon.damage * 1.35);
+    expect(upgradeTitan(siege.state, terra.id, titan.id, 'siegeCore').ok).toBe(false);
+
+    siegeTitan.titanUpgradePoints = 2;
+    const shield = upgradeTitan(siege.state, terra.id, titan.id, 'shieldMatrix'); expectOk(shield);
+    expect(shield.state.planets[0].orbitUnits[0].maxShields).toBe(Math.round(UNITS.dreadnought.shields * 1.4));
+    const farcast = upgradeTitan(shield.state, terra.id, titan.id, 'farcastArray'); expectOk(farcast);
+    expect(unitRange(farcast.state.planets[0].orbitUnits[0])).toBeCloseTo(UNITS.dreadnought.range * 1.25);
   });
 
   it('increases permanent mine income by 25 percent with Quantum Extraction', () => {

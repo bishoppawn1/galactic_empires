@@ -9,10 +9,11 @@ import {
   setBattleFocus,
   setOrbitFocusTarget,
   tradeResources,
+  upgradeTitan,
   type GameResult,
 } from './engine';
-import { BUILDINGS, RESEARCH, STANDARD_RESOURCES, UNITS } from './definitions';
-import type { BuildingKind, GameState, ResearchId, Resource, UnitKind } from './types';
+import { BUILDINGS, RESEARCH, STANDARD_RESOURCES, TITAN_UPGRADES, UNITS } from './definitions';
+import type { BuildingKind, GameState, ResearchId, Resource, TitanUpgradeId, UnitKind } from './types';
 
 export type GameCommand =
   | { type: 'construct'; planetId: string; kind: BuildingKind }
@@ -24,7 +25,8 @@ export type GameCommand =
   | { type: 'battleManeuver'; planetId: string; unitIds: string[]; battleX: number; battleY: number }
   | { type: 'dispatch'; originId: string; unitIds: string[]; destinationId: string }
   | { type: 'battleFocus'; planetId: string; targetId?: string }
-  | { type: 'orbitFocus'; planetId: string; targetId?: string };
+  | { type: 'orbitFocus'; planetId: string; targetId?: string }
+  | { type: 'upgradeTitan'; planetId: string; unitId: string; upgradeId: TitanUpgradeId };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const isString = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length < 100;
@@ -46,6 +48,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case 'dispatch': return isString(value.originId) && isStringArray(value.unitIds) && isString(value.destinationId);
     case 'battleFocus':
     case 'orbitFocus': return isString(value.planetId) && isOptionalString(value.targetId);
+    case 'upgradeTitan': return isString(value.planetId) && isString(value.unitId) && isString(value.upgradeId) && value.upgradeId in TITAN_UPGRADES;
     default: return false;
   }
 }
@@ -62,5 +65,6 @@ export function applyGameCommand(state: GameState, command: GameCommand): GameRe
     case 'dispatch': return dispatchSpaceUnits(state, command.originId, command.unitIds, command.destinationId);
     case 'battleFocus': return { ok: true, state: setBattleFocus(state, command.planetId, command.targetId) };
     case 'orbitFocus': return { ok: true, state: setOrbitFocusTarget(state, command.planetId, command.targetId) };
+    case 'upgradeTitan': return upgradeTitan(state, command.planetId, command.unitId, command.upgradeId);
   }
 }

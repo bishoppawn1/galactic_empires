@@ -9,6 +9,7 @@ import { ORBITAL_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 import { CarrierFighterWing } from './CarrierFighterWing';
 import { FleetSelectionHud } from './FleetSelectionHud';
 import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
+import { ShipExplosionLayer } from './ShipExplosionLayer';
 import {
   GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, defenseMapPosition, fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, yardMapPosition,
 } from './geometry';
@@ -167,6 +168,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           })}
         </svg>
         <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
+        <ShipExplosionLayer state={state} />
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');

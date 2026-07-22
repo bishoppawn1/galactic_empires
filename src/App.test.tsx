@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { GalaxyMap } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
+import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
 import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
@@ -598,6 +599,61 @@ describe('Galactic Empires interface', () => {
     view.unmount();
     width.mockRestore();
     height.mockRestore();
+  });
+
+  it('marks a destroyed player ship with a brief explosion at its last orbit position', () => {
+    vi.useFakeTimers();
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('lost-player-ship', 'escortFrigate', 'player'), orbitX: 120, orbitY: -45 },
+      { ...makeUnit('lost-enemy-ship', 'missileFrigate', 'enemy'), orbitX: 180, orbitY: 30 },
+    ];
+    const map = (current: GameState) => <GalaxyMap state={current} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />;
+    const view = render(map(state));
+
+    const afterCombat = structuredClone(state);
+    afterCombat.elapsed += .1;
+    afterCombat.planets[0].orbitUnits = [];
+    view.rerender(map(afterCombat));
+
+    const explosion = screen.getByRole('img', { name: 'Escort Frigate destroyed' });
+    expect(explosion).toHaveStyle({ left: `${12800 * terra.x / 100 + 120}px`, top: `${8800 * terra.y / 100 - 45}px` });
+    expect(explosion.querySelectorAll('.ship-explosion-debris')).toHaveLength(8);
+    expect(screen.queryByRole('img', { name: 'Missile Frigate destroyed' })).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(SHIP_EXPLOSION_DURATION_MS));
+    expect(screen.queryByRole('img', { name: 'Escort Frigate destroyed' })).not.toBeInTheDocument();
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('tracks a player ship into transit without mistaking dispatch for destruction', () => {
+    vi.useFakeTimers();
+    const state = createInitialState(); const origin = state.planets[0], destination = state.planets[1];
+    const ship = { ...makeUnit('transit-loss', 'transport', 'player'), orbitX: 30, orbitY: 20 };
+    origin.orbitUnits = [ship];
+    const map = (current: GameState) => <GalaxyMap state={current} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />;
+    const view = render(map(state));
+
+    const dispatched = structuredClone(state);
+    dispatched.elapsed += .1;
+    dispatched.planets[0].orbitUnits = [];
+    dispatched.fleets = [{
+      id: 'transit-loss-fleet', faction: 'player', originId: origin.id, destinationId: destination.id, unit: ship,
+      progress: 2, travelTime: 10, phase: 'exiting', departureX: 30, departureY: 20,
+    }];
+    view.rerender(map(dispatched));
+    expect(screen.queryByRole('img', { name: 'Transport destroyed' })).not.toBeInTheDocument();
+
+    const lastPosition = fleetMapPosition(dispatched.fleets[0], dispatched.planets);
+    const destroyed = structuredClone(dispatched);
+    destroyed.elapsed += .1;
+    destroyed.fleets = [];
+    view.rerender(map(destroyed));
+    expect(screen.getByRole('img', { name: 'Transport destroyed' })).toHaveStyle({ left: `${lastPosition.x}px`, top: `${lastPosition.y}px` });
+
+    view.unmount();
+    vi.useRealTimers();
   });
 
   it('shows carrier fighters circling their target and reports the surviving wing', () => {

@@ -5,7 +5,8 @@ import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { GalaxyMap } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
-import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { GroundUnitImage } from './components/shared/GroundUnitImage';
+import { BROOD_GROUND_KINDS, createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -67,6 +68,18 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
+    const broodGroundArt = [...document.querySelectorAll<HTMLImageElement>('.unit-button .ground-unit-image')];
+    expect(broodGroundArt).toHaveLength(9);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(9);
+    broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
+  });
+
+  it('uses dedicated artwork for every Brood ground organism', () => {
+    const { container } = render(<>{[...BROOD_GROUND_KINDS, 'spineTower' as const].map(kind => <GroundUnitImage key={kind} kind={kind} />)}</>);
+    const broodGroundArt = [...container.querySelectorAll<HTMLImageElement>('.ground-unit-image')];
+    expect(broodGroundArt).toHaveLength(10);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(10);
+    broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
   it('starts an Iron Covenant campaign with its exclusive mechanical roster and artwork', () => {

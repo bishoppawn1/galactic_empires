@@ -19,6 +19,16 @@ import covenantCohort from '../../assets/covenant/ground/iron-cohort.png';
 import covenantFurnaceArtillery from '../../assets/covenant/ground/furnace-artillery.png';
 import covenantJuggernaut from '../../assets/covenant/ground/juggernaut-engine.png';
 import covenantRepairDrone from '../../assets/covenant/ground/repair-drone.png';
+import acidBehemoth from '../../assets/brood/ground/acid-behemoth.png';
+import acidSpitter from '../../assets/brood/ground/acid-spitter.png';
+import broodling from '../../assets/brood/ground/broodling.png';
+import carapaceBeast from '../../assets/brood/ground/carapace-beast.png';
+import crusherBeast from '../../assets/brood/ground/crusher-beast.png';
+import siegeCrawler from '../../assets/brood/ground/siege-crawler.png';
+import skitterer from '../../assets/brood/ground/skitterer.png';
+import spineTower from '../../assets/brood/ground/spine-tower.png';
+import sporeLobber from '../../assets/brood/ground/spore-lobber.png';
+import synapseGuard from '../../assets/brood/ground/synapse-guard.png';
 import { BROOD_GROUND_KINDS, type GroundUnitKind, type UnitKind } from '../../game';
 
 const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
@@ -32,16 +42,16 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   plasmaTank,
   siegeWalker,
   defenseTurret,
-  broodling: infantry,
-  acidSpitter: antiVehicle,
-  skitterer: recon,
-  carapaceBeast: lightTank,
-  sporeLobber: artillery,
-  synapseGuard: shockTrooper,
-  crusherBeast: railgunTank,
-  acidBehemoth: plasmaTank,
-  siegeCrawler: siegeWalker,
-  spineTower: defenseTurret,
+  broodling,
+  acidSpitter,
+  skitterer,
+  carapaceBeast,
+  sporeLobber,
+  synapseGuard,
+  crusherBeast,
+  acidBehemoth,
+  siegeCrawler,
+  spineTower,
   aegisWarden,
   aegisBastionTank,
   aegisRampartArtillery,

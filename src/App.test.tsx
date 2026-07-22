@@ -529,13 +529,27 @@ describe('Galactic Empires interface', () => {
     const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
     expect(missile).not.toBeNull();
     expect(missile).toHaveAttribute('data-projectiles', '1');
-    expect(missile).toHaveAttribute('data-projectile-size', '26');
+    expect(missile).toHaveAttribute('data-projectile-size', '5');
     expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
     const projectile = missile!.querySelector('.weapon-projectile')!;
     expect(projectile.getAttribute('href')).toContain('missile');
-    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(83.2);
-    expect(Number(projectile.getAttribute('height'))).toBe(78);
+    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(16);
+    expect(Number(projectile.getAttribute('height'))).toBe(15);
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
+  });
+
+  it('renders every projectile in a ship weapon profile', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('plasma-visual', 'hiveCruiser', 'player'), orbitX: 0, orbitY: 0 },
+      { ...makeUnit('plasma-target', 'destroyer', 'enemy'), orbitX: 100, orbitY: 0 },
+    ];
+    saveState(state);
+    render(<App />);
+
+    const salvo = document.querySelector('.orbital-fire .weapon-fire.weapon-plasma.player');
+    expect(salvo).toHaveAttribute('data-projectiles', '5');
+    expect(salvo!.querySelectorAll('.weapon-projectile')).toHaveLength(5);
   });
 
   it('shows the selected ship weapon range on the orbital map', () => {
@@ -589,13 +603,14 @@ describe('Galactic Empires interface', () => {
   it('shows carrier fighters circling their target and reports the surviving wing', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = [
-      { ...makeUnit('carrier-ui', 'assaultCarrier', 'player'), orbitX: 0, orbitY: 0, fighterCount: 4 },
+      { ...makeUnit('carrier-ui', 'broodCarrier', 'player'), orbitX: 0, orbitY: 0, fighterCount: 6 },
       { ...makeUnit('carrier-target-ui', 'destroyer', 'enemy'), orbitX: 100, orbitY: 0 },
     ];
     render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={['carrier-ui']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
 
-    expect(document.querySelectorAll('.carrier-fighter')).toHaveLength(4);
-    expect(screen.getByLabelText('Falcon Fighters 4 of 4')).toHaveTextContent('FTR 4/4');
+    expect(document.querySelectorAll('.carrier-fighter')).toHaveLength(6);
+    expect(document.querySelector('.carrier-fighter')).toHaveAttribute('data-fighter-size', '5');
+    expect(screen.getByLabelText('Ripper Spawn 6 of 6')).toHaveTextContent('FTR 6/6');
   });
 
   it('batches dense hostile fleets into one canvas layer', () => {
@@ -660,7 +675,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '0');
   });
 
-  it('caps rendered orbital salvos without reducing combatants', () => {
+  it('renders every active orbital salvo in a large engagement', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = Array.from({ length: 80 }, (_, index) => ({
       ...makeUnit(`salvo-${index}`, 'escortFrigate', index % 2 ? 'enemy' : 'player'),
@@ -669,7 +684,7 @@ describe('Galactic Empires interface', () => {
     saveState(state);
     render(<App />);
 
-    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(32);
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(80);
     expect(document.querySelectorAll('.orbit-ship.player')).toHaveLength(40);
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '40');
   });
@@ -764,8 +779,8 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
-    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '1.8');
-    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(5.4);
+    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.6');
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(1.8);
     expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();

@@ -33,6 +33,12 @@ const flightDurations: Record<WeaponEffect, number> = {
   siege: .24,
 };
 
+// These values are in each map's SVG coordinate system. They keep a missile
+// much smaller than its firing unit while leaving the transparent source art
+// enough room to render cleanly.
+export const GROUND_PROJECTILE_SIZE = .6;
+export const ORBITAL_PROJECTILE_SIZE = 5;
+
 export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, className = '' }: {
   id: string;
   x1: number;
@@ -50,7 +56,7 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   if (!distance) return null;
   const angle = Math.atan2(dy, dx) * 180 / Math.PI;
   const beam = effect === 'laser' || effect === 'siege';
-  const count = effect === 'drone' ? 1 : Math.max(1, Math.min(4, projectiles));
+  const count = Math.max(1, projectiles);
   // The source art has generous transparent padding so it needs a larger SVG
   // envelope than its apparent bolt size to stay readable on the tactical maps.
   const imageWidth = beam ? distance : Math.min(distance, size * 3.2);

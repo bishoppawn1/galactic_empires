@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { UNITS, type GameState, type GroundBattle, type Unit } from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
-import { WeaponFire } from '../shared/WeaponFire';
+import { GROUND_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 
 type SelectionBox = { left: number; top: number; width: number; height: number };
 type DragSelection = {
@@ -117,7 +117,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
         <div className="terrain-grid" />
         {selectionBox && <div className="battle-selection-box" style={selectionBox} aria-hidden="true" />}
         <svg className="battle-orders" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{selectedUnits.filter(unit => typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number').map(unit => <g key={`order-${unit.id}`}><line x1={unit.battleX} y1={unit.battleY} x2={unit.battleTargetX} y2={unit.battleTargetY} /><circle cx={unit.battleTargetX} cy={unit.battleTargetY} r=".8" /></g>)}</svg>
-        <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <WeaponFire key={unit.id} id={unit.id} x1={unit.battleX!} y1={unit.battleY!} x2={target!.battleX!} y2={target!.battleY!} effect={UNITS[unit.kind].weapon.effect} projectiles={UNITS[unit.kind].weapon.projectiles} faction={faction} size={1.8} />)}</svg>
+        <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <WeaponFire key={unit.id} id={unit.id} x1={unit.battleX!} y1={unit.battleY!} x2={target!.battleX!} y2={target!.battleY!} effect={UNITS[unit.kind].weapon.effect} projectiles={UNITS[unit.kind].weapon.projectiles} faction={faction} size={GROUND_PROJECTILE_SIZE} />)}</svg>
         <div className={`army attackers ${attackerFaction}`}>{battle.attackers.map(combatant)}</div>
         <div className="front-line"><i /><span>CONTESTED ZONE</span><i /></div>
         <div className={`army defenders ${defenderFaction}`}>{battle.defenders.map(combatant)}</div>

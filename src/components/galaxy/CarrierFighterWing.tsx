@@ -11,9 +11,9 @@ export function CarrierFighterWing({ id, faction, count, elapsed, source, target
   target: { x: number; y: number };
 }) {
   if (count <= 0) return null;
-  const fighters = Array.from({ length: Math.min(4, count) }, (_, index) => {
-    const angle = elapsed * (1.65 + index * .08) + idPhase(id) + index * Math.PI * 2 / Math.min(4, count);
-    const radius = 30 + index % 2 * 9;
+  const fighters = Array.from({ length: count }, (_, index) => {
+    const angle = elapsed * (1.65 + index * .08) + idPhase(id) + index * Math.PI * 2 / count;
+    const radius = 20 + index % 2 * 5;
     return {
       x: target.x + Math.cos(angle) * radius,
       y: target.y + Math.sin(angle) * radius,
@@ -25,7 +25,7 @@ export function CarrierFighterWing({ id, faction, count, elapsed, source, target
     <line className="fighter-launch-trail" x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
     {fighters.map((fighter, index) => <g key={`${id}-fighter-${index}`}>
       <line className="fighter-attack" x1={fighter.x} y1={fighter.y} x2={target.x} y2={target.y} style={{ animationDelay: `${index * -.13}s` }} />
-      <path className="carrier-fighter" transform={`translate(${fighter.x} ${fighter.y}) rotate(${fighter.heading})`} d="M 8 0 L -5 -4 L -2 0 L -5 4 Z" />
+      <path className="carrier-fighter" data-fighter-size="5" transform={`translate(${fighter.x} ${fighter.y}) rotate(${fighter.heading})`} d="M 3 0 L -2 -1.4 L -.8 0 L -2 1.4 Z" />
     </g>)}
   </g>;
 }

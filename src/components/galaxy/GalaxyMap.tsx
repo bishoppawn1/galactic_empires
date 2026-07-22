@@ -5,7 +5,7 @@ import {
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
-import { WeaponFire } from '../shared/WeaponFire';
+import { ORBITAL_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 import { CarrierFighterWing } from './CarrierFighterWing';
 import { FleetSelectionHud } from './FleetSelectionHud';
 import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
@@ -18,9 +18,6 @@ const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU
 
 const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 160;
-
-export const MAX_VISIBLE_ORBITAL_SALVOS = 32;
-export const MAX_VISIBLE_FIGHTER_SORTIES = 12;
 
 export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
@@ -205,25 +202,19 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const allocated = Math.floor(wingCount / sortieCount) + (sortieIndex < wingCount % sortieCount ? 1 : 0);
               return allocated > 0 ? [{ shot, carrier, source, target, allocated }] : [];
             });
-            const visibleSortieCount = Math.min(MAX_VISIBLE_FIGHTER_SORTIES, allFighterSorties.length);
-            const sortieStart = allFighterSorties.length ? Math.floor(state.elapsed / 2) * visibleSortieCount % allFighterSorties.length : 0;
-            const fighterSorties = Array.from({ length: visibleSortieCount }, (_, index) => allFighterSorties[(sortieStart + index) % allFighterSorties.length]);
             const firingShots = combatShots.filter(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
               return !firingShip || (!UNITS[firingShip.kind].fighterWing && (typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0));
             });
-            const visibleShotCount = Math.min(MAX_VISIBLE_ORBITAL_SALVOS, firingShots.length);
-            const start = firingShots.length ? Math.floor(state.elapsed * 4) * visibleShotCount % firingShots.length : 0;
-            const visibleShots = Array.from({ length: visibleShotCount }, (_, index) => firingShots[(start + index) % firingShots.length]);
             return [
-              ...fighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} elapsed={state.elapsed} source={source} target={target} />),
-              ...visibleShots.flatMap((shot, index) => {
+              ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} elapsed={state.elapsed} source={source} target={target} />),
+              ...firingShots.flatMap((shot, index) => {
                 const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
                 const source = mapPosition(shot.attackerId, shot.attackerType);
                 const target = mapPosition(shot.targetId, shot.targetType);
                 if (!source || !target) return [];
                 const projectiles = firingShip ? UNITS[firingShip.kind].weapon.projectiles : 1;
-                return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={26} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
+                return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={ORBITAL_PROJECTILE_SIZE} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
               }),
             ];
           })}

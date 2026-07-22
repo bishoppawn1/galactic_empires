@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -926,6 +926,18 @@ describe('transport and colonization', () => {
     expect(returnOrder.state.fleets[0]).toMatchObject({ originId: 'halcyon', finalDestinationId: 'terra' });
   });
 
+  it('fans arriving fleets apart along the destination system edge', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = ['arrival-a', 'arrival-b', 'arrival-c'].map(id => makeUnit(id, 'escortFrigate', 'player'));
+    const order = dispatchSpaceUnits(state, 'terra', terra.orbitUnits.map(ship => ship.id), 'halcyon'); expectOk(order);
+    const arrived = advanceFleetToArrival(order.state, 'arrival-a');
+    const ships = arrived.planets.find(planet => planet.id === 'halcyon')!.orbitUnits;
+    expect(ships).toHaveLength(3);
+    ships.forEach((ship, index) => ships.slice(index + 1).forEach(other => {
+      expect(Math.hypot(ship.orbitX! - other.orbitX!, ship.orbitY! - other.orbitY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION - 1e-9);
+    }));
+  });
+
   it('lets a loaded arrival abort its landing approach and jump onward immediately', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
@@ -997,7 +1009,7 @@ describe('transport and colonization', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 1000, 1000); expectOk(moved);
     const target = moved.state.planets[0].orbitUnits[0];
-    expect(GRAVITY_WELL_RADIUS).toBe(600);
+    expect(GRAVITY_WELL_RADIUS).toBe(780);
     expect(Math.hypot(target.orbitTargetX!, target.orbitTargetY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
   });
 
@@ -1029,6 +1041,19 @@ describe('transport and colonization', () => {
     const positioned = tick(state, 0).planets[0].orbitUnits;
     expect(new Set(positioned.map(ship => `${ship.orbitX},${ship.orbitY}`)).size).toBe(positioned.length);
     expect(positioned.every(ship => Math.hypot(ship.orbitX!, ship.orbitY!) <= MAX_SHIP_ORBIT_RADIUS)).toBe(true);
+    positioned.forEach((ship, index) => positioned.slice(index + 1).forEach(other => {
+      expect(Math.hypot(ship.orbitX! - other.orbitX!, ship.orbitY! - other.orbitY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION - 1e-9);
+    }));
+  });
+
+  it('separates idle ships that occupy the same orbital area', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('overlap-a', 'escortFrigate', 'player'), orbitX: 100, orbitY: 100 },
+      { ...makeUnit('overlap-b', 'missileFrigate', 'player'), orbitX: 108, orbitY: 100 },
+    ];
+    const [first, second] = tick(state, 0).planets[0].orbitUnits;
+    expect(Math.hypot(first.orbitX! - second.orbitX!, first.orbitY! - second.orbitY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION);
   });
 
   it('clamps legacy positions and maneuver targets to the system boundary', () => {
@@ -1046,8 +1071,12 @@ describe('transport and colonization', () => {
   it('moves and phase-jumps a selected ship group in formation', () => {
     const state = createInitialState(); const terra = seedPlayerForces(state); const ids = terra.orbitUnits.map(u => u.id);
     const formation = maneuverSpaceUnits(state, 'terra', ids, 60, 30); expectOk(formation);
-    const positions = formation.state.planets[0].orbitUnits.map(u => `${u.orbitX},${u.orbitY}`);
+    const ships = formation.state.planets[0].orbitUnits;
+    const positions = ships.map(u => `${u.orbitTargetX},${u.orbitTargetY}`);
     expect(new Set(positions).size).toBe(ids.length);
+    ships.forEach((ship, index) => ships.slice(index + 1).forEach(other => {
+      expect(Math.hypot(ship.orbitTargetX! - other.orbitTargetX!, ship.orbitTargetY! - other.orbitTargetY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION - 1e-9);
+    }));
     const jump = dispatchSpaceUnits(formation.state, 'terra', ids, 'halcyon'); expectOk(jump);
     expect(jump.state.fleets).toHaveLength(ids.length);
   });
@@ -1070,8 +1099,8 @@ describe('transport and colonization', () => {
       });
     }
     expect(moving.planets[0].orbitUnits).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'crossing-a', orbitX: -12, orbitY: 100 }),
-      expect.objectContaining({ id: 'crossing-b', orbitX: 12, orbitY: 100 }),
+      expect.objectContaining({ id: 'crossing-a', orbitX: -MIN_SHIP_ORBIT_SEPARATION / 2, orbitY: 100 }),
+      expect.objectContaining({ id: 'crossing-b', orbitX: MIN_SHIP_ORBIT_SEPARATION / 2, orbitY: 100 }),
     ]));
   });
 

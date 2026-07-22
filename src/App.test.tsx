@@ -760,8 +760,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
 
     const canvas = document.querySelector('.galaxy-canvas')!;
-    fireEvent.mouseDown(canvas, { clientX: 2200, clientY: 4928 });
-    fireEvent.mouseUp(canvas, { clientX: 2200, clientY: 4928 });
+    fireEvent.mouseDown(canvas, { clientX: 1900, clientY: 4928 });
+    fireEvent.mouseUp(canvas, { clientX: 1900, clientY: 4928 });
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
   });
 

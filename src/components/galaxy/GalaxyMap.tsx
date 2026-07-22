@@ -17,7 +17,7 @@ import { useGalaxyViewport } from './useGalaxyViewport';
 const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU' : owner === 'enemy' ? 'RIVAL A' : owner === 'rival2' ? 'RIVAL B' : owner === 'rival3' ? 'RIVAL C' : 'NEUTRAL';
 
 const KEYBOARD_PAN_STEP = 22;
-const PLANET_HIT_SIZE = 160;
+const PLANET_HIT_SIZE = 190;
 
 export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;

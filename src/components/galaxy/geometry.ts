@@ -1,4 +1,4 @@
-import { MAX_SHIP_ORBIT_RADIUS, headingForVector, orbitalDefenseOffset, type Fleet, type Planet, type Unit } from '../../game';
+import { MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, headingForVector, orbitalDefenseOffset, type Fleet, type Planet, type Unit } from '../../game';
 
 export const GALAXY_CANVAS_WIDTH = 12800;
 export const GALAXY_CANVAS_HEIGHT = 8800;
@@ -36,6 +36,18 @@ export const fleetMapPosition = (fleet: Fleet, planets: Planet[]) => {
 };
 
 export const shipMapPosition = (planet: Planet, ship: Unit, index: number) => {
+  if (ship.docked) {
+    const docked = planet.orbitUnits.filter(candidate => candidate.docked);
+    const dockedIndex = docked.findIndex(candidate => candidate.id === ship.id);
+    const radius = docked.length > 1
+      ? Math.max(125, MIN_SHIP_ORBIT_SEPARATION / (2 * Math.sin(Math.PI / docked.length)))
+      : 125;
+    const angle = -Math.PI / 2 + Math.max(0, dockedIndex) * Math.PI * 2 / Math.max(1, docked.length);
+    return {
+      x: GALAXY_CANVAS_WIDTH * planet.x / 100 + Math.cos(angle) * radius,
+      y: GALAXY_CANVAS_HEIGHT * planet.y / 100 + Math.sin(angle) * radius,
+    };
+  }
   const angle = -Math.PI / 2 + index * (Math.PI * 2 / Math.max(3, planet.orbitUnits.length));
   const radius = 155 + (index % 2) * 35;
   return {

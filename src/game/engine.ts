@@ -65,7 +65,7 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
 });
 
 const orbitSlot = (index: number) => {
-  const innerRadius = 190, ringSpacing = 84, slotSeparation = MIN_SHIP_ORBIT_SEPARATION + 2;
+  const innerRadius = 190, ringSpacing = 48, slotSeparation = MIN_SHIP_ORBIT_SEPARATION + 2;
   const ringCount = Math.floor((MAX_SHIP_ORBIT_RADIUS - innerRadius) / ringSpacing) + 1;
   let remaining = Math.max(0, index);
   for (let ring = 0; ring < ringCount; ring += 1) {

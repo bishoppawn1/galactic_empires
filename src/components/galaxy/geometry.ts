@@ -39,13 +39,12 @@ export const shipMapPosition = (planet: Planet, ship: Unit, index: number) => {
   if (ship.docked) {
     const docked = planet.orbitUnits.filter(candidate => candidate.docked);
     const dockedIndex = docked.findIndex(candidate => candidate.id === ship.id);
-    const radius = docked.length > 1
-      ? Math.max(125, MIN_SHIP_ORBIT_SEPARATION / (2 * Math.sin(Math.PI / docked.length)))
-      : 125;
-    const angle = -Math.PI / 2 + Math.max(0, dockedIndex) * Math.PI * 2 / Math.max(1, docked.length);
+    const columns = Math.min(4, docked.length);
+    const column = Math.max(0, dockedIndex) % columns, row = Math.floor(Math.max(0, dockedIndex) / columns);
+    const rowCount = Math.min(columns, docked.length - row * columns);
     return {
-      x: GALAXY_CANVAS_WIDTH * planet.x / 100 + Math.cos(angle) * radius,
-      y: GALAXY_CANVAS_HEIGHT * planet.y / 100 + Math.sin(angle) * radius,
+      x: GALAXY_CANVAS_WIDTH * planet.x / 100 + (column - (rowCount - 1) / 2) * MIN_SHIP_ORBIT_SEPARATION,
+      y: GALAXY_CANVAS_HEIGHT * planet.y / 100 - 110 - row * MIN_SHIP_ORBIT_SEPARATION,
     };
   }
   const angle = -Math.PI / 2 + index * (Math.PI * 2 / Math.max(3, planet.orbitUnits.length));

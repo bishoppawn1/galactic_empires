@@ -206,6 +206,7 @@ export const researchUnlocksForCivilization = (id: ResearchId, civilization: Pla
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ANTI_SPACE_BATTERY_STATS = { hp: 300, shields: 120, damage: 12 } as const;
 export const DEFENSE_REBUILD_COOLDOWN_SECONDS = 10;
+export const DEFENSE_BUILDING_CAP = 10;
 export const ADVANCED_GROUND_FACTORY_CAPACITY = 2.5;
 export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
 export const isDefenseBuildingKind = (kind: BuildingKind): kind is DefenseBuildingKind => DEFENSE_BUILDING_KINDS.includes(kind as DefenseBuildingKind);

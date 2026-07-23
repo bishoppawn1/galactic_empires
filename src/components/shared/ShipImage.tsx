@@ -93,7 +93,12 @@ export const isSpaceUnit = (kind: UnitKind): kind is SpaceUnitKind => SPACE_KIND
 
 export const shipDisplaySize = (kind: UnitKind) => isSpaceUnit(kind) ? SHIP_DISPLAY_SIZES[kind] : SHIP_DISPLAY_SIZES.transport;
 
-export function ShipImage({ kind, className = '' }: { kind: UnitKind; className?: string }) {
+export function ShipImage({ kind, className = '', volumetric = false }: { kind: UnitKind; className?: string; volumetric?: boolean }) {
   if (!isSpaceUnit(kind)) return null;
-  return <img className={`ship-image ${BROOD_SHIP_IMAGES.has(kind) ? 'brood-organic' : ''} ${className}`} src={SHIP_IMAGES[kind]} alt="" aria-hidden="true" draggable={false} />;
+  const classes = `ship-image ${BROOD_SHIP_IMAGES.has(kind) ? 'brood-organic' : ''} ${className}`;
+  if (!volumetric) return <img className={classes} src={SHIP_IMAGES[kind]} alt="" aria-hidden="true" draggable={false} />;
+  return <span className="ship-model-3d" aria-hidden="true">
+    {[6, 5, 4, 3, 2, 1].map(layer => <img key={layer} className={`${classes} ship-volume-layer ship-volume-layer-${layer}`} src={SHIP_IMAGES[kind]} alt="" draggable={false} />)}
+    <img className={`${classes} ship-top-surface`} src={SHIP_IMAGES[kind]} alt="" draggable={false} />
+  </span>;
 }

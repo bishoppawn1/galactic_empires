@@ -242,24 +242,36 @@ describe('Galactic Empires interface', () => {
   });
 
   it('toggles an orbitable three-dimensional galaxy camera', () => {
+    const cameraState = stateWithPlayerForces();
+    cameraState.planets[4].orbitUnits = [makeUnit('enemy-3d-hull', 'escortFrigate', 'enemy')];
+    saveState(cameraState);
     render(<App />);
     const toggle = screen.getByRole('button', { name: 'Toggle 3D view' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-3d');
     expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('50');
-    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('scaleY(');
+    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(50deg)');
+    expect(document.querySelectorAll('.ship-model-3d')).toHaveLength(4);
+    expect(document.querySelectorAll('.ship-volume-layer')).toHaveLength(24);
+    expect(screen.getByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Rotate camera right' }));
-    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotate(10deg)');
+    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateZ(10deg)');
     fireEvent.change(screen.getByRole('slider', { name: 'Camera pitch' }), { target: { value: '60' } });
     expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('60');
+    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(60deg)');
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset camera to top view' }));
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-2d');
     expect(screen.queryByRole('slider', { name: 'Camera pitch' })).not.toBeInTheDocument();
+    expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();
   });
 
   it('round-trips galaxy pointer coordinates through the 3D camera projection', () => {

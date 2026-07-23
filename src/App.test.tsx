@@ -4,6 +4,7 @@ import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { GalaxyMap } from './components/galaxy/GalaxyMap';
+import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
@@ -238,6 +239,39 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
+  });
+
+  it('toggles an orbitable three-dimensional galaxy camera', () => {
+    render(<App />);
+    const toggle = screen.getByRole('button', { name: 'Toggle 3D view' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-3d');
+    expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('50');
+    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('scaleY(');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate camera right' }));
+    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotate(10deg)');
+    fireEvent.change(screen.getByRole('slider', { name: 'Camera pitch' }), { target: { value: '60' } });
+    expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('60');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset camera to top view' }));
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-2d');
+    expect(screen.queryByRole('slider', { name: 'Camera pitch' })).not.toBeInTheDocument();
+  });
+
+  it('round-trips galaxy pointer coordinates through the 3D camera projection', () => {
+    const point = { x: 3_666, y: 4_928 };
+    const camera = { pitch: 58, yaw: 23 };
+    const projected = projectGalaxyPoint(point, camera);
+    const restored = unprojectGalaxyPoint(projected, camera);
+    expect(restored.x).toBeCloseTo(point.x);
+    expect(restored.y).toBeCloseTo(point.y);
+    const bounds = galaxyCameraBounds(DEFAULT_GALAXY_CAMERA);
+    expect(bounds.width).toBeGreaterThan(0);
+    expect(bounds.height).toBeLessThan(8_800);
   });
 
   it('pans the galaxy camera with WASD controls', () => {

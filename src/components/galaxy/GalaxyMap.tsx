@@ -6,6 +6,10 @@ import {
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
 import { ORBITAL_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
+import {
+  DEFAULT_GALAXY_CAMERA, cameraDepth, clampCameraPitch, galaxyCameraBounds, unprojectGalaxyPoint,
+  type GalaxyCamera,
+} from './camera';
 import { CarrierFighterWing } from './CarrierFighterWing';
 import { FleetSelectionHud } from './FleetSelectionHud';
 import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
@@ -37,10 +41,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     neutral: state.planets.filter(planet => planet.owner === null).length,
   };
   const pressedPanKeysRef = useRef(new Set<string>());
+  const cameraDragRef = useRef<{ x: number; y: number; camera: GalaxyCamera } | undefined>(undefined);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>();
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number }>();
+  const [camera3D, setCamera3D] = useState(false);
+  const [camera, setCamera] = useState<GalaxyCamera>(DEFAULT_GALAXY_CAMERA);
   const [zoom, setZoom] = useState(1);
   const { scrollRef, viewportBounds, scheduleViewportMeasure } = useGalaxyViewport(zoom);
+  const renderBounds = camera3D ? undefined : viewportBounds;
   useEffect(() => {
     const viewport = scrollRef.current; if (!viewport) return;
     const initialPlanet = state.planets.find(planet => planet.id === selectedId) ?? state.planets[0];
@@ -124,24 +132,66 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: originX + dx / distance * offset, y: originY + dy / distance * offset };
   };
   const marquee = dragStart && dragEnd ? { left: Math.min(dragStart.x, dragEnd.x), top: Math.min(dragStart.y, dragEnd.y), width: Math.abs(dragEnd.x - dragStart.x), height: Math.abs(dragEnd.y - dragStart.y) } : undefined;
-  return <main className={`galaxy ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
+  const pointOnGalaxy = (canvas: HTMLElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    if (!camera3D) return { x: (clientX - rect.left) / zoom, y: (clientY - rect.top) / zoom };
+    const bounds = galaxyCameraBounds(camera);
+    return unprojectGalaxyPoint({
+      x: (clientX - rect.left) / zoom + bounds.minX,
+      y: (clientY - rect.top) / zoom + bounds.minY,
+    }, camera);
+  };
+  const resetCamera = () => {
+    setCamera3D(false);
+    setCamera(DEFAULT_GALAXY_CAMERA);
+    cameraDragRef.current = undefined;
+  };
+  return <main className={`galaxy ${camera3D ? 'view-3d' : 'view-2d'} ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
     <div className="galaxy-scroll" ref={scrollRef}>
-      <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onClickCapture={event => {
+      <div className="galaxy-canvas" style={{
+        zoom,
+        ...(camera3D ? {
+          transform: `rotate(${camera.yaw}deg) scaleY(${cameraDepth(camera.pitch)})`,
+          transformOrigin: '50% 50%',
+          '--camera-counter-scale': 1 / cameraDepth(camera.pitch),
+        } : {}),
+      } as React.CSSProperties} onClickCapture={event => {
         const target = event.target as Element;
         if (target.closest('.orbit-ship,.transit-ship,.orbit-yard,.orbital-defense,.phase-gate')) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        const hit = inspectableShipAtPoint(state, (event.clientX - rect.left) / zoom, (event.clientY - rect.top) / zoom);
+        const point = pointOnGalaxy(event.currentTarget, event.clientX, event.clientY);
+        const hit = inspectableShipAtPoint(state, point.x, point.y);
         if (!hit) return;
         event.preventDefault(); event.stopPropagation();
         onSelectShip(hit.planetId, hit.unitId, false);
       }} onContextMenu={event => {
         event.preventDefault();
         if (!selectedOrigin) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        const x = (event.clientX - rect.left) / zoom - GALAXY_CANVAS_WIDTH * selectedOrigin.x / 100;
-        const y = (event.clientY - rect.top) / zoom - GALAXY_CANVAS_HEIGHT * selectedOrigin.y / 100;
+        const point = pointOnGalaxy(event.currentTarget, event.clientX, event.clientY);
+        const x = point.x - GALAXY_CANVAS_WIDTH * selectedOrigin.x / 100;
+        const y = point.y - GALAXY_CANVAS_HEIGHT * selectedOrigin.y / 100;
         if (Math.hypot(x, y) <= GRAVITY_WELL_RADIUS) onManeuver(selectedOrigin.id, x, y);
-      }} onMouseDown={event => { if (event.button !== 0 || (event.target as Element).closest('button')) return; const rect = event.currentTarget.getBoundingClientRect(); const point = { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }; setDragStart(point); setDragEnd(point); }} onMouseMove={event => { if (!dragStart) return; const rect = event.currentTarget.getBoundingClientRect(); setDragEnd({ x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom }); }} onMouseUp={event => {
+      }} onAuxClick={event => { if (event.button === 1) event.preventDefault(); }} onMouseDown={event => {
+        if (event.button === 1 && camera3D) {
+          event.preventDefault();
+          cameraDragRef.current = { x: event.clientX, y: event.clientY, camera };
+          return;
+        }
+        if (event.button !== 0 || (event.target as Element).closest('button')) return;
+        const point = pointOnGalaxy(event.currentTarget, event.clientX, event.clientY);
+        setDragStart(point); setDragEnd(point);
+      }} onMouseMove={event => {
+        const cameraDrag = cameraDragRef.current;
+        if (cameraDrag) {
+          setCamera({
+            yaw: cameraDrag.camera.yaw + (event.clientX - cameraDrag.x) * .12,
+            pitch: clampCameraPitch(cameraDrag.camera.pitch - (event.clientY - cameraDrag.y) * .12),
+          });
+          return;
+        }
+        if (!dragStart) return;
+        setDragEnd(pointOnGalaxy(event.currentTarget, event.clientX, event.clientY));
+      }} onMouseUp={event => {
+        if (event.button === 1) { cameraDragRef.current = undefined; return; }
         if (event.button !== 0) return;
         if (!dragStart || !dragEnd) return;
         const distance = Math.hypot(dragEnd.x - dragStart.x, dragEnd.y - dragStart.y);
@@ -159,7 +209,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           }
         }
         setDragStart(undefined); setDragEnd(undefined);
-      }} onMouseLeave={() => { setDragStart(undefined); setDragEnd(undefined); }}>
+      }} onMouseLeave={() => { cameraDragRef.current = undefined; setDragStart(undefined); setDragEnd(undefined); }}>
         <div className="nebula nebula-a" /><div className="nebula nebula-b" />
         <svg className="routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {connections.map(({ from, to }) => {
@@ -167,7 +217,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             return <line key={`${from.id}-${to.id}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`local-route ${active ? 'active' : ''}`} />;
           })}
         </svg>
-        <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
+        <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
@@ -265,7 +315,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const selectable = ship.faction === 'player';
           if (!selectable && !ship.pendingLanding && !ship.pendingEmbark) return [];
           const position = shipMapPosition(p, ship, index);
-          if (!selectable && !selectedShipIds.includes(ship.id) && !pointInViewport(viewportBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
+          if (!selectable && !selectedShipIds.includes(ship.id) && !pointInViewport(renderBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const cargoCount = ship.cargo?.length ?? 0;
@@ -294,6 +344,16 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       </div>
     </div>
     <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
+    <div className={`camera-controls ${camera3D ? 'active' : ''}`} aria-label="Camera view controls">
+      <button className="camera-mode-toggle" aria-label="Toggle 3D view" aria-pressed={camera3D} onClick={() => setCamera3D(active => !active)}>{camera3D ? '3D' : '2D'}</button>
+      {camera3D && <div className="camera-orbit-controls">
+        <button aria-label="Rotate camera left" onClick={() => setCamera(current => ({ ...current, yaw: current.yaw - 10 }))}>↶</button>
+        <label>PITCH <input aria-label="Camera pitch" type="range" min="20" max="70" value={camera.pitch} onChange={event => setCamera(current => ({ ...current, pitch: Number(event.target.value) }))} /></label>
+        <button aria-label="Rotate camera right" onClick={() => setCamera(current => ({ ...current, yaw: current.yaw + 10 }))}>↷</button>
+        <button className="camera-top-button" aria-label="Reset camera to top view" onClick={resetCamera}>TOP</button>
+      </div>}
+      {camera3D && <small>MIDDLE-DRAG TO ORBIT</small>}
+    </div>
     <FleetSelectionHud state={state} ships={selectedShips} onUpgradeTitan={(unitId, upgradeId) => {
       const orbit = state.planets.find(planet => planet.orbitUnits.some(ship => ship.id === unitId));
       const fleet = state.fleets.find(candidate => candidate.unit.id === unitId);

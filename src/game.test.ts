@@ -791,15 +791,15 @@ describe('production and research', () => {
     expect(completed.planets[0].groundUnits.some(u => u.kind === 'lightTank')).toBe(true);
   });
 
-  it('accelerates the active ground queue for every standard or advanced ground factory', () => {
+  it('gives advanced ground factories 2.5 times the production capacity of standard factories', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.buildings.push({ id: 'b-extra-ground', kind: 'groundFactory' }, { id: 'b-advanced-ground', kind: 'advancedGroundFactory' });
-    expect(groundProductionMultiplier(terra)).toBe(3);
+    expect(groundProductionMultiplier(terra)).toBe(4.5);
 
     const queued = queueUnit(state, 'terra', 'infantry'); expectOk(queued);
-    const nearlyComplete = tick(queued.state, 3);
+    const nearlyComplete = tick(queued.state, 2);
     expect(nearlyComplete.planets[0].groundQueue[0].remaining).toBe(1);
-    const completed = tick(nearlyComplete, 1 / 3);
+    const completed = tick(nearlyComplete, 2 / 9);
     expect(completed.planets[0].groundQueue).toHaveLength(0);
     expect(completed.planets[0].groundUnits).toHaveLength(1);
   });

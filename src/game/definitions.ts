@@ -17,7 +17,7 @@ export const BUILDINGS: Record<BuildingKind, Definition> = {
   crystalMine: { label: 'Crystal Extractor', description: 'Produces a permanent stream of crystal.', cost: pool(75, 0, 50) },
   goldMine: { label: 'Gold Mine', description: 'Produces a permanent stream of gold.', cost: pool(85, 65, 0) },
   groundFactory: { label: 'Ground Factory', description: 'Produces basic planetary forces.', cost: pool(140, 80, 40) },
-  advancedGroundFactory: { label: 'Advanced Ground Factory', description: 'Foundation for heavy armies.', cost: pool(280, 180, 120), requires: 'advancedIndustry' },
+  advancedGroundFactory: { label: 'Advanced Ground Factory', description: 'Produces heavy armies with 2.5× factory capacity.', cost: pool(280, 180, 120), requires: 'advancedIndustry' },
   spaceFactory: { label: 'Space Yard', description: 'Builds transports and light warships.', cost: pool(160, 110, 65) },
   advancedSpaceFactory: { label: 'Advanced Space Yard', description: 'Builds late-game vessels.', cost: pool(340, 240, 170), requires: 'advancedIndustry' },
   groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25), time: 8 },
@@ -201,6 +201,7 @@ export const researchUnlocksForCivilization = (id: ResearchId, civilization: Pla
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ANTI_SPACE_BATTERY_STATS = { hp: 300, shields: 120, damage: 12 } as const;
 export const DEFENSE_REBUILD_COOLDOWN_SECONDS = 10;
+export const ADVANCED_GROUND_FACTORY_CAPACITY = 2.5;
 export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
 export const isDefenseBuildingKind = (kind: BuildingKind): kind is DefenseBuildingKind => DEFENSE_BUILDING_KINDS.includes(kind as DefenseBuildingKind);
 export const isBuildingOperational = (building: Building) => (building.constructionRemaining ?? 0) <= 0;

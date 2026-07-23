@@ -463,6 +463,23 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('3.3s');
   });
 
+  it('shows 2.5 times as much capacity for each advanced ground factory', () => {
+    const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.completedResearch.push('advancedIndustry');
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'construction' }));
+    const advancedFactoryCard = screen.getByText('Advanced Ground Factory', { selector: '.card-copy b' }).closest('article')!;
+    expect(advancedFactoryCard).toHaveTextContent('2.5× factory capacity');
+    fireEvent.click(within(advancedFactoryCard).getByRole('button', { name: 'BUILD +1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    expect(screen.getByText('Ground factories · 2 online · 3.5× speed')).toBeInTheDocument();
+    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('2.9s');
+  });
+
   it('supports additive fleet selection', () => {
     saveState(stateWithPlayerForces());
     render(<App />);

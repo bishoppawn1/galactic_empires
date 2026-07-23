@@ -42,7 +42,7 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isRepeatableResearch, orbitalDefenseOffset,
@@ -507,8 +507,9 @@ export const shieldRecoveryMultiplier = (completed: ResearchId[]) => completed.i
 export const orbitalDamageMultiplier = (completed: ResearchId[]) => (completed.includes('weaponsCalibration') ? 1.15 : 1)
   * (1 + researchLevel(completed, 'combatSimulation') * .03);
 export const defenseDurabilityMultiplier = (completed: ResearchId[]) => completed.includes('planetaryFortifications') ? 1.25 : 1;
-export const groundProductionMultiplier = (planet: Planet, completed: ResearchId[] = []) => Math.max(1, planet.buildings.filter(building =>
-  building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length) * researchProductionMultiplier(completed);
+export const groundProductionMultiplier = (planet: Planet, completed: ResearchId[] = []) => Math.max(1, planet.buildings.reduce((capacity, building) =>
+  capacity + (building.kind === 'groundFactory' ? 1 : building.kind === 'advancedGroundFactory' ? ADVANCED_GROUND_FACTORY_CAPACITY : 0), 0))
+  * researchProductionMultiplier(completed);
 export const spaceProductionMultiplier = (completed: ResearchId[] = []) => researchProductionMultiplier(completed);
 export const isSpaceYard = (building: Building) => building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory';
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);

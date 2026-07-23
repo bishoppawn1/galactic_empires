@@ -44,8 +44,8 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_BUILDING_CAP, DEFENSE_BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
-  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
+  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   requiredSpaceYardKind, SPACE_YARD_TIER,
@@ -275,7 +275,7 @@ const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, nu
   metalMine: mineMax.metal, crystalMine: mineMax.crystal, goldMine: mineMax.gold,
   groundFactory: industryMax, advancedGroundFactory: Math.max(1, industryMax - 1),
   spaceFactory: industryMax, advancedSpaceFactory: Math.max(1, industryMax - 1), experimentalSpaceFactory: 1,
-  groundDefense: DEFENSE_BUILDING_CAP, antiSpaceDefense: DEFENSE_BUILDING_CAP, spaceDefense: DEFENSE_BUILDING_CAP, researchLab: 2,
+  groundDefense: 4, antiSpaceDefense: 3, spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP, researchLab: 2,
 });
 
 const planet = (id: string, name: string, x: number, y: number, color: string, owner: Faction, resourceYield: ResourcePool, mineMax: ResourcePool, industryMax = 3): Planet => ({
@@ -450,7 +450,9 @@ export function migrateGameState(input: GameState): GameState {
   };
   for (const p of state.planets) {
     p.buildingLimits.experimentalSpaceFactory ??= 1;
-    DEFENSE_BUILDING_KINDS.forEach(kind => { p.buildingLimits[kind] = DEFENSE_BUILDING_CAP; });
+    p.buildingLimits.groundDefense = 4;
+    p.buildingLimits.antiSpaceDefense = 3;
+    p.buildingLimits.spaceDefense = ORBITAL_DEFENSE_BUILDING_CAP;
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
     p.defenseRebuildCooldowns ??= {};
     for (const kind of Object.keys(p.defenseRebuildCooldowns) as DefenseBuildingKind[]) {

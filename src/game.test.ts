@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_BUILDING_CAP, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -183,17 +183,21 @@ describe('economy and construction', () => {
     }
   });
 
-  it('allows up to ten of each defensive structure on every planet', () => {
+  it('raises only orbital defenses to ten per planet', () => {
     let state = createInitialState();
     state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
-    const kinds: DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
+    const limits: Record<DefenseBuildingKind, number> = {
+      groundDefense: 4,
+      antiSpaceDefense: 3,
+      spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP,
+    };
 
-    for (const kind of kinds) {
-      expect(state.planets[0].buildingLimits[kind]).toBe(DEFENSE_BUILDING_CAP);
-      while (state.planets[0].buildings.filter(building => building.kind === kind).length < DEFENSE_BUILDING_CAP) {
+    for (const [kind, limit] of Object.entries(limits) as Array<[DefenseBuildingKind, number]>) {
+      expect(state.planets[0].buildingLimits[kind]).toBe(limit);
+      while (state.planets[0].buildings.filter(building => building.kind === kind).length < limit) {
         const built = constructBuilding(state, 'terra', kind); expectOk(built); state = built.state;
       }
-      expect(state.planets[0].buildings.filter(building => building.kind === kind)).toHaveLength(10);
+      expect(state.planets[0].buildings.filter(building => building.kind === kind)).toHaveLength(limit);
       expect(constructBuilding(state, 'terra', kind)).toMatchObject({
         ok: false,
         error: expect.stringContaining('limit'),
@@ -201,20 +205,20 @@ describe('economy and construction', () => {
     }
   });
 
-  it('raises legacy save defense limits to ten', () => {
+  it('migrates saves to the four, three, and ten defense limits', () => {
     const state = createInitialState();
     state.planets.forEach(planet => {
-      planet.buildingLimits.groundDefense = 4;
-      planet.buildingLimits.antiSpaceDefense = 3;
+      planet.buildingLimits.groundDefense = 10;
+      planet.buildingLimits.antiSpaceDefense = 10;
       planet.buildingLimits.spaceDefense = 3;
     });
 
     const migrated = migrateGameState(state);
     migrated.planets.forEach(planet => {
       expect(planet.buildingLimits).toMatchObject({
-        groundDefense: DEFENSE_BUILDING_CAP,
-        antiSpaceDefense: DEFENSE_BUILDING_CAP,
-        spaceDefense: DEFENSE_BUILDING_CAP,
+        groundDefense: 4,
+        antiSpaceDefense: 3,
+        spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP,
       });
     });
   });

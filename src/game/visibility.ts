@@ -46,6 +46,22 @@ export function updatePlanetIntel(state: GameState): void {
   }
 }
 
+/**
+ * Starting homeworld ownership is public strategic information. This seeds a
+ * minimal, immutable first-contact record for every commander without exposing
+ * the homeworld's structures, garrison, queues, or orbital forces.
+ */
+export function seedKnownEmpireHomeworldIntel(state: GameState): void {
+  state.planetIntel ??= {};
+  for (const observer of EMPIRES) {
+    const observerIntel = state.planetIntel[observer] ??= {};
+    for (const [owner, planetId] of Object.entries(state.startingPlanetIds ?? {}) as Array<[EmpireFaction, string]>) {
+      if (!planetId || observerIntel[planetId]) continue;
+      observerIntel[planetId] = { owner, buildings: [], groundUnits: [], observedAt: state.elapsed };
+    }
+  }
+}
+
 export function refreshPlanetIntel(input: GameState): GameState {
   const state = structuredClone(input);
   updatePlanetIntel(state);

@@ -175,6 +175,7 @@ export interface GameState {
   enemyAttackClock: number;
   enemyMissionCount: number;
   empireCivilizations: Record<EmpireFaction, PlayableFaction>;
+  startingPlanetIds?: Partial<Record<EmpireFaction, string>>;
   additionalEmpires?: Partial<Record<'rival2' | 'rival3', EmpireEconomy>>;
   aiFactions?: EmpireFaction[];
   elapsed: number;

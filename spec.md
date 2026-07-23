@@ -121,7 +121,7 @@ Three end-branch capstones can be researched without a level limit. Industrial I
 - Pre-campaign starter-faction, map-size, and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
 - Per-empire Human, Brood, Aegis, and Iron Covenant identities, with complete exclusive Brood and Aegis rosters for human or AI empires, including distinct economies or doctrine mechanics, research unlocks, combat stats, and presentation.
 - Code-based two-to-four-player competitive lobby with separate empires, optional AI slots, a host-controlled launch, and synchronized authoritative simulation.
-- Per-empire persistent fog of war that hides unscouted ownership and forces, preserves last-known planetary intelligence, and reveals hostile fleets only inside or inbound to friendly sensor coverage.
+- Per-empire persistent fog of war that publicly identifies every empire's starting homeworld, hides unscouted forces, structures, and later expansion, preserves last-known planetary intelligence, and reveals hostile fleets only inside or inbound to friendly sensor coverage.
 - Unlimited planet economy with local mine-count limits and output modifiers.
 - Quantity-based construction with per-planet maxima, costs, and research gates.
 - Ground and space production queues.

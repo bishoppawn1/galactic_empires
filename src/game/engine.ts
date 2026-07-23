@@ -31,7 +31,7 @@ import {
 } from './types';
 import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
-import { updatePlanetIntel } from './visibility';
+import { seedKnownEmpireHomeworldIntel, updatePlanetIntel } from './visibility';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
@@ -355,11 +355,13 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [], enemyResearchQueue: [],
     enemyActionClock: 8, enemyAttackClock: config.difficulty === 'cadet' ? 180 : config.difficulty === 'admiral' ? 100 : 130, enemyMissionCount: 0,
     empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
+    startingPlanetIds: { player: 'terra', enemy: 'cygnus' },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
     messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : playerFaction === 'covenant' ? 'IRON PROTOCOL ONLINE — the Covenant foundries await material.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
   };
   updatePlanetIntel(state);
+  seedKnownEmpireHomeworldIntel(state);
   return state;
 }
 
@@ -392,6 +394,16 @@ export function migrateGameState(input: GameState): GameState {
   state.enemyMissionCount ??= 0;
   state.additionalEmpires ??= {};
   state.aiFactions ??= state.mode === 'solo' ? ['enemy'] : [];
+  if (!state.startingPlanetIds) {
+    state.startingPlanetIds = state.mode === 'competitive'
+      ? {
+          player: 'terra',
+          enemy: 'cygnus',
+          ...(('rival2' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival2')) ? { rival2: 'halcyon' } : {}),
+          ...(('rival3' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival3')) ? { rival3: 'vesta' } : {}),
+        }
+      : { player: 'terra', enemy: 'cygnus' };
+  }
   state.elapsed ??= 0;
   state.nextId ??= 100;
   if (!state.planetIntel || typeof state.planetIntel !== 'object' || Array.isArray(state.planetIntel)) state.planetIntel = {};
@@ -477,6 +489,7 @@ export function migrateGameState(input: GameState): GameState {
     ensureBattlePositions(battle);
   }
   updatePlanetIntel(state);
+  seedKnownEmpireHomeworldIntel(state);
   return state;
 }
 
@@ -955,9 +968,11 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
     else state.additionalEmpires![slot.faction] = newEmpireEconomy(config.difficulty, civilization);
   });
   state.aiFactions = slots.filter(slot => slot.controller === 'ai').map(slot => slot.faction);
+  state.startingPlanetIds = Object.fromEntries(slots.map(slot => [slot.faction, homeIds[EMPIRE_FACTIONS.indexOf(slot.faction)]]));
   state.messages = [`FREE-FOR-ALL LINK ONLINE — ${slots.length} empires await command.`];
   state.planetIntel = {};
   updatePlanetIntel(state);
+  seedKnownEmpireHomeworldIntel(state);
   return state;
 }
 

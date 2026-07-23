@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  UNITS, createInitialState, refreshPlanetIntel, visibleStateForPlayer,
+  UNITS, createCompetitiveState, createInitialState, migrateGameState, refreshPlanetIntel, visibleStateForPlayer,
   type Fleet, type GameState, type Unit, type UnitKind,
 } from '../game';
 
@@ -29,7 +29,7 @@ const fleet = (id: string, destinationId: string, finalDestinationId = destinati
 const planet = (state: GameState, id: string) => state.planets.find(candidate => candidate.id === id)!;
 
 describe('fog of war', () => {
-  it('presents an unscouted rival homeworld as a neutral system with no leaked forces or structures', () => {
+  it('shows an unscouted rival homeworld owner without leaking forces or structures', () => {
     const canonical = createInitialState();
     const cygnus = planet(canonical, 'cygnus');
     cygnus.groundUnits = [unit('hidden-ground', 'infantry', 'enemy')];
@@ -37,10 +37,38 @@ describe('fog of war', () => {
 
     const visible = planet(visibleStateForPlayer(canonical), 'cygnus');
 
-    expect(visible).toMatchObject({ owner: null, intelStatus: 'unscouted' });
+    expect(visible).toMatchObject({ owner: 'enemy', intelStatus: 'stale' });
     expect(visible.buildings).toEqual([]);
     expect(visible.groundUnits).toEqual([]);
     expect(visible.orbitUnits).toEqual([]);
+  });
+
+  it('migrates existing campaigns so their rival homeworld is immediately identifiable', () => {
+    const legacy = createInitialState();
+    delete legacy.startingPlanetIds;
+    delete legacy.planetIntel;
+
+    const migrated = migrateGameState(legacy);
+    const visible = planet(visibleStateForPlayer(migrated), 'cygnus');
+
+    expect(visible.owner).toBe('enemy');
+    expect(visible.intelStatus).toBe('stale');
+  });
+
+  it('identifies every configured AI homeworld in a competitive match', () => {
+    const canonical = createCompetitiveState(undefined, [
+      { faction: 'player', controller: 'human' },
+      { faction: 'enemy', controller: 'ai' },
+      { faction: 'rival2', controller: 'ai' },
+      { faction: 'rival3', controller: 'ai' },
+    ]);
+    const visible = visibleStateForPlayer(canonical);
+
+    expect(planet(visible, 'cygnus')).toMatchObject({ owner: 'enemy', intelStatus: 'stale' });
+    expect(planet(visible, 'halcyon')).toMatchObject({ owner: 'rival2', intelStatus: 'stale' });
+    expect(planet(visible, 'vesta')).toMatchObject({ owner: 'rival3', intelStatus: 'stale' });
+    expect(visible.planets.filter(candidate => candidate.owner && candidate.owner !== 'player').every(candidate =>
+      candidate.buildings.length === 0 && candidate.groundUnits.length === 0 && candidate.orbitUnits.length === 0)).toBe(true);
   });
 
   it('reveals a system while a friendly ship is present and retains only last-known planetary intelligence after it leaves', () => {

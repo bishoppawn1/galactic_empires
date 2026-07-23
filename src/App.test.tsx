@@ -197,17 +197,17 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
-  it('renders the rival homeworld as neutral and withholds its details before scouting', () => {
+  it('identifies the rival homeworld while withholding its details before scouting', () => {
     render(<App />);
-    const hiddenHome = screen.getByRole('button', { name: 'Cygnus Reach UNCHARTED' });
-    expect(hiddenHome).toHaveClass('neutral');
-    expect(within(hiddenHome).getAllByText('NEUTRAL')).toHaveLength(2);
+    const hiddenHome = screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' });
+    expect(hiddenHome).toHaveClass('enemy');
+    expect(within(hiddenHome).getByText('RIVAL A')).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /Space Yard 1 orbiting Cygnus Reach/ })).not.toBeInTheDocument();
 
     fireEvent.click(hiddenHome);
-    expect(screen.getByText('UNSCOUTED // CYGNUS')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'No reconnaissance data' })).toBeInTheDocument();
-    expect(screen.queryByText('HOSTILE INTELLIGENCE')).not.toBeInTheDocument();
+    expect(screen.getByText('RIVAL EMPIRE A // CYGNUS')).toBeInTheDocument();
+    expect(screen.getByText('Last known reconnaissance')).toBeInTheDocument();
+    expect(screen.getByText('LAST KNOWN INTELLIGENCE')).toBeInTheDocument();
   });
 
   it('recolors conquered planets for their current owner instead of their original owner', () => {
@@ -350,7 +350,7 @@ describe('Galactic Empires interface', () => {
     const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
     const scrollTo = vi.fn();
     Object.defineProperty(viewport, 'scrollTo', { configurable: true, value: scrollTo });
-    fireEvent.click(screen.getByRole('button', { name: 'Cygnus Reach UNCHARTED' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' }));
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ left: expect.any(Number), top: expect.any(Number) }));
   });
 

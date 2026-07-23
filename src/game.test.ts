@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -1639,6 +1639,23 @@ describe('combat recovery rules', () => {
     cygnus.orbitUnits = [{ id: 'intruder', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130 }];
     const afterFire = tick(state, 10); const intruder = afterFire.planets.find(p => p.id === 'cygnus')!.orbitUnits[0];
     expect(intruder.shields).toBeLessThan(130);
+  });
+
+  it('covers missile frigates at the far edge of the gravity well with orbital defenses', () => {
+    const state = createInitialState(); const cygnus = addOrbitalDefense(state);
+    const oppositeEdge = GRAVITY_WELL_RADIUS / Math.sqrt(2);
+    cygnus.orbitUnits = [{
+      ...makeUnit('edge-sniper', 'missileFrigate', 'player'),
+      orbitX: -oppositeEdge,
+      orbitY: oppositeEdge,
+    }];
+
+    expect(ORBITAL_DEFENSE_RANGE).toBeGreaterThanOrEqual(GRAVITY_WELL_RADIUS + ORBITAL_DEFENSE_RADIUS);
+    expect(orbitalCombatShots(cygnus)).toContainEqual(expect.objectContaining({
+      attackerId: 'test-defense',
+      targetId: 'edge-sniper',
+      targetType: 'ship',
+    }));
   });
 
   it('lets escort frigates attack hostile ships in the same orbit', () => {

@@ -209,7 +209,9 @@ export const ADVANCED_GROUND_FACTORY_CAPACITY = 2.5;
 export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
 export const isDefenseBuildingKind = (kind: BuildingKind): kind is DefenseBuildingKind => DEFENSE_BUILDING_KINDS.includes(kind as DefenseBuildingKind);
 export const isBuildingOperational = (building: Building) => (building.constructionRemaining ?? 0) <= 0;
-export const ORBITAL_DEFENSE_RANGE = 400;
+// Covers the full gravity well from a platform on the opposite side of orbit,
+// preventing long-range ships from kiting a fixed installation at the edge.
+export const ORBITAL_DEFENSE_RANGE = 1065;
 export const ANTI_SPACE_BATTERY_RANGE = 300;
 export const ORBITAL_DEFENSE_RADIUS = 285;
 export const orbitalDefenseOffset = (index: number, count: number) => {

@@ -488,6 +488,20 @@ describe('Galactic Empires interface', () => {
     }
   });
 
+  it('shows empire-wide lab speed and real-time research estimates', () => {
+    const state = createInitialState();
+    state.planets[0].buildings.push({ id: 'research-lab-primary', kind: 'researchLab' }, { id: 'research-lab-secondary', kind: 'researchLab' });
+    state.researchQueue.push({ id: 'advancedIndustry', remaining: 30, total: 45 });
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    expect(document.querySelector('.research-stats')).toHaveTextContent('2 LABS');
+    expect(document.querySelector('.research-stats')).toHaveTextContent('1.5× SPEED');
+    const node = document.querySelector('[data-tech-id="advancedIndustry"]') as HTMLElement;
+    expect(within(node).getByRole('button', { name: '20s' })).toBeDisabled();
+  });
+
   it('renders orbital defenses as installations in space', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     cygnus.buildings.push({ id: 'test-defense', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });

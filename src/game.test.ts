@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -579,6 +579,20 @@ describe('competitive multiplayer', () => {
     expect(inspected).toMatchObject({ faction: 'enemy', titanUpgrades: ['siegeCore'] });
     expect(swapPlayerPerspective(rivalView)).toEqual(state);
   });
+
+  it('scales each multiplayer empire research queue from its own labs', () => {
+    const state = createCompetitiveState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    terra.buildings.push({ id: 'host-lab', kind: 'researchLab' });
+    cygnus.buildings.push({ id: 'guest-lab-1', kind: 'researchLab' }, { id: 'guest-lab-2', kind: 'researchLab' }, { id: 'guest-lab-3', kind: 'researchLab' });
+    state.researchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
+    state.enemyResearchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
+
+    const progressed = tick(state, 10);
+    expect(progressed.researchQueue[0].remaining).toBe(35);
+    expect(progressed.enemyResearchQueue[0].remaining).toBe(25);
+  });
 });
 
 describe('galaxy routes', () => {
@@ -784,6 +798,35 @@ describe('production and research', () => {
     expect(defenseDurabilityMultiplier(['planetaryFortifications'])).toBe(1.25);
     expect(orbitalDamageMultiplier(['weaponsCalibration'])).toBe(1.15);
     expect(researchIncomeMultiplier(['quantumExtraction', 'deepCoreExtraction'])).toBe(1.5);
+  });
+
+  it('adds half-speed for every empire Research Lab after the first', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    expect(researchLabCount(state)).toBe(0);
+    expect(researchSpeedMultiplier(state)).toBe(0);
+    terra.buildings.push({ id: 'lab-1', kind: 'researchLab' });
+    expect(researchSpeedMultiplier(state)).toBe(1);
+    terra.buildings.push({ id: 'lab-2', kind: 'researchLab' });
+    expect(researchSpeedMultiplier(state)).toBe(1.5);
+    const nyx = state.planets.find(planet => planet.id === 'nyx')!;
+    nyx.owner = 'player';
+    nyx.buildings.push({ id: 'lab-3', kind: 'researchLab' }, { id: 'lab-4', kind: 'researchLab' });
+    expect(researchLabCount(state)).toBe(4);
+    expect(researchSpeedMultiplier(state)).toBe(2.5);
+  });
+
+  it('accelerates active research with additional labs and pauses it without a lab', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    terra.buildings.push({ id: 'lab-primary', kind: 'researchLab' }, { id: 'lab-secondary', kind: 'researchLab' });
+    const started = beginResearch(state, 'advancedIndustry'); expectOk(started);
+    const completed = tick(started.state, 30);
+    expect(completed.completedResearch).toContain('advancedIndustry');
+
+    const paused = beginResearch(state, 'advancedIndustry'); expectOk(paused);
+    paused.state.planets[0].buildings = paused.state.planets[0].buildings.filter(building => building.kind !== 'researchLab');
+    const stillPaused = tick(paused.state, 30);
+    expect(stillPaused.researchQueue[0].remaining).toBe(RESEARCH.advancedIndustry.time);
   });
 
   it('applies Rapid Fabrication to both ground and space production queues', () => {

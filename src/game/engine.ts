@@ -440,6 +440,12 @@ const harvestBattlefieldSalvage = (state: GameState, destroyed: Unit[], particip
 };
 export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('deepCoreExtraction') ? 1.5 : completed.includes('quantumExtraction') ? 1.25 : 1;
 export const researchProductionMultiplier = (completed: ResearchId[]) => completed.includes('rapidFabrication') ? 1.25 : 1;
+export const researchLabCount = (state: GameState, faction: EmpireFaction = 'player') => state.planets.reduce((total, planet) =>
+  total + (planet.owner === faction ? planet.buildings.filter(building => building.kind === 'researchLab').length : 0), 0);
+export const researchSpeedMultiplier = (state: GameState, faction: EmpireFaction = 'player') => {
+  const labs = researchLabCount(state, faction);
+  return labs ? 1 + (labs - 1) * .5 : 0;
+};
 export const phaseTravelMultiplier = (completed: ResearchId[]) => completed.includes('phaseMastery') ? .75 : 1;
 export const shieldRecoveryMultiplier = (completed: ResearchId[]) => completed.includes('shieldHarmonics') ? 1.5 : 1;
 export const orbitalDamageMultiplier = (completed: ResearchId[]) => completed.includes('weaponsCalibration') ? 1.15 : 1;
@@ -1676,7 +1682,7 @@ export function tick(input: GameState, seconds: number): GameState {
   }
 
   if (state.researchQueue.length) {
-    state.researchQueue[0].remaining -= seconds;
+    state.researchQueue[0].remaining -= seconds * researchSpeedMultiplier(state);
     if (state.researchQueue[0].remaining <= 0) {
       const done = state.researchQueue.shift()!; state.completedResearch.push(done.id);
       addMessage(state, `${RESEARCH[done.id].label} research complete.`);
@@ -1686,7 +1692,7 @@ export function tick(input: GameState, seconds: number): GameState {
   for (const faction of EMPIRE_FACTIONS.filter(faction => faction !== 'player')) {
     const economy = empireEconomy(state, faction);
     if (economy.researchQueue.length) {
-      economy.researchQueue[0].remaining -= seconds;
+      economy.researchQueue[0].remaining -= seconds * researchSpeedMultiplier(state, faction);
       if (economy.researchQueue[0].remaining <= 0) economy.completedResearch.push(economy.researchQueue.shift()!.id);
     }
   }

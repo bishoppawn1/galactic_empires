@@ -19,7 +19,7 @@ export const PLAYABLE_FACTION_DEFINITIONS: Record<PlayableFaction, PlayableFacti
     label: 'Human Coalition', shortLabel: 'Coalition', doctrine: 'Combined arms',
     description: 'A flexible roster with dependable industry and no severe strategic weakness.',
     strengths: 'Adaptable fleets · broad technology', weakness: 'No extreme specialization',
-    signatureUnits: ['Escort Frigate', 'Light Tank', 'Battlecruiser'], color: '#55d6be',
+    signatureUnits: ['Escort Frigate', 'Light Tank', 'Battleship'], color: '#55d6be',
   },
   brood: {
     label: 'The Brood', shortLabel: 'Brood', doctrine: 'Overwhelming growth',

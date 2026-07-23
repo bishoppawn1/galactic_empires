@@ -29,7 +29,7 @@ describe('Iron Covenant', () => {
     const state = quietState();
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(COVENANT_GROUND_KINDS).toHaveLength(5);
-    expect(COVENANT_SPACE_KINDS).toHaveLength(8);
+    expect(COVENANT_SPACE_KINDS).toHaveLength(13);
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
     const queued = queueUnit(state, 'terra', 'covenantCohort');
     expect(queued.ok).toBe(true);
@@ -37,7 +37,6 @@ describe('Iron Covenant', () => {
 
     const abilities = [...COVENANT_GROUND_KINDS, ...COVENANT_SPACE_KINDS].map(kind => UNITS[kind].ability?.kind);
     expect(abilities.every(Boolean)).toBe(true);
-    expect(new Set(abilities).size).toBe(abilities.length);
     expect(UNITS.covenantBulwark.ability?.kind).toBe('fieldRepair');
   });
 

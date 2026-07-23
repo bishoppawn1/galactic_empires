@@ -121,7 +121,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     <h3>Space yards · {yards.length} online · {spaceSpeed}× speed · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
     {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `grouped orders require every selected yard to match the hull tier` : 'orders rotate across yards of the matching tier; constructing another yard rebalances compatible waiting hulls'}.</p>}
     {([1, 2, 3] as SpaceShipTier[]).map(tier => <div className={`ship-tier tier-${tier}`} key={tier}>
-      <h4>TIER {tier} · {tier === 1 ? 'FRIGATES & TRANSPORTS' : tier === 2 ? 'CRUISERS' : 'SUPER CAPITALS'}</h4>
+      <h4>TIER {tier} · {tier === 1 ? 'FRIGATES & TRANSPORTS' : tier === 2 ? 'TRANSPORTS & CRUISERS' : 'BATTLESHIPS & TITANS'}</h4>
       <div className="unit-grid">{spaceKinds.filter(kind => spaceTierForUnit(kind) === tier).map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={lockReason(kind)} />)}</div>
     </div>)}
     <div className="yard-queue-list">{yards.map((yard, index) => {

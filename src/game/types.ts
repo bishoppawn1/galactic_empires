@@ -30,10 +30,18 @@ export type GroundUnitKind =
   | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
   | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
-  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
-  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
-  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
-  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor' | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
+  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate'
+  | 'fleetTransportCruiser' | 'lightCruiser' | 'destroyer' | 'flakCruiser'
+  | 'assaultCarrier' | 'battlecruiser' | 'missileBattleship' | 'flakBattleship' | 'dreadnought'
+  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard'
+  | 'hiveCruiser' | 'voidStalker' | 'broodNeedleCruiser' | 'broodSporeguardCruiser'
+  | 'broodCarrier' | 'leviathan' | 'broodNeedleBattleship' | 'broodSporeguardBattleship' | 'worldEater'
+  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate'
+  | 'aegisBastionCruiser' | 'aegisWardCruiser' | 'aegisLanceCruiser' | 'aegisSentinelCruiser'
+  | 'aegisCitadelCarrier' | 'aegisWardBattleship' | 'aegisLanceBattleship' | 'aegisSentinelBattleship' | 'aegisSovereignDreadnought'
+  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor'
+  | 'covenantFoundryCruiser' | 'covenantSalvageCruiser' | 'covenantChainCruiser' | 'covenantInterdictorCruiser'
+  | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantChainBattleship' | 'covenantInterdictorBattleship' | 'covenantDreadforge';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 export type UnitAbilityKind =

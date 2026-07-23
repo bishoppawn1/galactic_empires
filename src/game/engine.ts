@@ -48,7 +48,7 @@ import {
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
-  requiredSpaceYardKind, SPACE_YARD_TIER,
+  requiredSpaceYardKind, SPACE_UPGRADE_LINES, SPACE_YARD_TIER,
   researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
 } from './definitions';
 
@@ -1841,21 +1841,14 @@ function runEnemyStrategicAction(state: GameState) {
       const localShips = [...p.orbitUnits, ...state.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.originId === p.id).map(fleet => fleet.unit)];
       const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
       const needsCarrier = carrierCount < transportTarget;
-      const hasFlakFrigate = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlakFrigateKind);
-      let desired: SpaceUnitKind;
-      if (yard.kind === 'spaceFactory') {
-        desired = needsCarrier ? spaceKind('transport')
-          : !hasFlakFrigate ? spaceKind('flakFrigate')
-            : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
-      } else if (yard.kind === 'advancedSpaceFactory') {
-        desired = spaceKind(state.nextId % 2 ? 'destroyer' : 'lightCruiser');
-      } else {
-        const titan = spaceKind('dreadnought');
-        const capital = spaceKind('battlecruiser');
-        if (state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
-        else if (state.enemyCompletedResearch.includes('titanEngineering') && !factionHasTitan(state, 'enemy')) desired = titan;
-        else if (isTitanKind(capital)) desired = spaceKind('assaultCarrier');
-        else desired = capital;
+      const hasFlakShip = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlakFrigateKind);
+      const tier = SPACE_YARD_TIER[yard.kind];
+      const role = needsCarrier ? 'transport'
+        : !hasFlakShip ? 'flak'
+          : state.nextId % 2 ? 'missile' : 'escort';
+      let desired = SPACE_UPGRADE_LINES[civilization][role][tier - 1];
+      if (tier === 3 && !needsCarrier && state.enemyCompletedResearch.includes('titanEngineering') && !factionHasTitan(state, 'enemy')) {
+        desired = spaceKind('dreadnought');
       }
       enemyQueueUnit(state, p, desired, yard);
     }

@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SPACE_UPGRADE_LINES, SPACE_UPGRADE_ROLES, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type SpaceUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -45,6 +45,37 @@ describe('unit weapon definitions', () => {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
     }
+  });
+
+  it('gives every faction four increasingly powerful ship lines plus one Tier 3 Titan', () => {
+    const rosters = {
+      human: COALITION_SPACE_KINDS,
+      brood: BROOD_SPACE_KINDS,
+      aegis: AEGIS_SPACE_KINDS,
+      covenant: COVENANT_SPACE_KINDS,
+    } satisfies Record<PlayableFaction, typeof SPACE_KINDS>;
+    for (const faction of Object.keys(rosters) as PlayableFaction[]) {
+      const roster = rosters[faction];
+      expect(roster).toHaveLength(13);
+      expect([1, 2, 3].map(tier => roster.filter(kind => UNITS[kind].spaceTier === tier).length)).toEqual([4, 4, 5]);
+      for (const role of SPACE_UPGRADE_ROLES) {
+        const line = SPACE_UPGRADE_LINES[faction][role];
+        expect(line.map(kind => UNITS[kind].spaceTier)).toEqual([1, 2, 3]);
+        for (let tier = 1; tier < line.length; tier += 1) {
+          const previous = UNITS[line[tier - 1]];
+          const upgraded = UNITS[line[tier]];
+          expect(upgraded.hp + upgraded.shields).toBeGreaterThan((previous.hp + previous.shields) * 1.35);
+          expect(upgraded.weapon.damage * upgraded.weapon.projectiles / upgraded.weapon.cooldown)
+            .toBeGreaterThan(previous.weapon.damage * previous.weapon.projectiles / previous.weapon.cooldown * 1.15);
+        }
+      }
+      const transportCapacities = SPACE_UPGRADE_LINES[faction].transport.map(kind => UNITS[kind].capacity!);
+      expect(transportCapacities[1]).toBeGreaterThan(transportCapacities[0]);
+      expect(transportCapacities[2]).toBeGreaterThan(transportCapacities[1]);
+      expect(SPACE_UPGRADE_LINES[faction].flak.every(kind => UNITS[kind].ability?.kind === 'antiFighterCannons')).toBe(true);
+    }
+    expect(SPACE_UPGRADE_LINES.human.escort).toEqual(['escortFrigate', 'lightCruiser', 'battlecruiser']);
+    expect(SPACE_UPGRADE_LINES.human.escort.map(kind => UNITS[kind].label)).toEqual(['Escort Frigate', 'Escort Cruiser', 'Battleship']);
   });
 });
 
@@ -384,7 +415,7 @@ describe('starter faction foundations', () => {
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
     expect(BROOD_GROUND_KINDS).toHaveLength(9);
-    expect(BROOD_SPACE_KINDS).toHaveLength(9);
+    expect(BROOD_SPACE_KINDS).toHaveLength(13);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -415,7 +446,7 @@ describe('starter faction foundations', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(AEGIS_GROUND_KINDS).toHaveLength(5);
-    expect(AEGIS_SPACE_KINDS).toHaveLength(7);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(13);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
@@ -423,11 +454,10 @@ describe('starter faction foundations', () => {
     expect(tick(queued.state, UNITS.aegisWarden.time!).planets[0].groundUnits.some(unit => unit.kind === 'aegisWarden')).toBe(true);
   });
 
-  it('gives every Aegis unit its own tactical ability', () => {
+  it('gives every Aegis unit a tactical ability', () => {
     const kinds = [...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS];
     const abilities = kinds.map(kind => UNITS[kind].ability?.kind);
     expect(abilities.every(Boolean)).toBe(true);
-    expect(new Set(abilities).size).toBe(kinds.length);
   });
 
   it('regenerates Aegis shields faster in orbit and during ground combat', () => {
@@ -547,6 +577,36 @@ describe('starter faction foundations', () => {
     const aegisKinds = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
     expect(queuedKinds.length).toBeGreaterThan(0);
     expect(queuedKinds.every(kind => aegisKinds.has(kind))).toBe(true);
+  });
+
+  it('makes AI shipyards produce the matching faction hull at their exact tier', () => {
+    for (const faction of ['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]) {
+      const state = createCompetitiveState({ mapSize: 'small', difficulty: 'commander' }, [
+        { faction: 'player', controller: 'human', civilization: faction === 'human' ? 'brood' : 'human' },
+        { faction: 'enemy', controller: 'ai', civilization: faction },
+      ]);
+      const enemyHome = state.planets.find(planet => planet.owner === 'enemy')!;
+      enemyHome.buildings.push(
+        { id: `${faction}-advanced-yard`, kind: 'advancedSpaceFactory', spaceQueue: [] },
+        { id: `${faction}-experimental-yard`, kind: 'experimentalSpaceFactory', spaceQueue: [] },
+      );
+      enemyHome.orbitUnits = [
+        ...Array.from({ length: 3 }, (_, index) => makeUnit(`${faction}-carrier-${index}`, SPACE_UPGRADE_LINES[faction].transport[0], 'enemy')),
+        makeUnit(`${faction}-flak`, SPACE_UPGRADE_LINES[faction].flak[0], 'enemy'),
+      ];
+      state.enemyCompletedResearch = ['advancedIndustry', 'orbitalEngineering', 'carrierOperations', 'capitalShips', 'weaponsCalibration'];
+      state.enemyResources = { metal: 100_000, crystal: 100_000, gold: 100_000, biomass: 100_000 };
+      state.enemyActionClock = 0;
+      state.enemyAttackClock = 9999;
+
+      const plannedHome = tick(state, 0).planets.find(planet => planet.id === enemyHome.id)!;
+      for (const yard of spaceYards(plannedHome)) {
+        const queuedKind = yard.spaceQueue?.[0].kind;
+        expect(queuedKind).toBeDefined();
+        expect(UNITS[queuedKind!].spaceTier).toBe(yard.kind === 'spaceFactory' ? 1 : yard.kind === 'advancedSpaceFactory' ? 2 : 3);
+        expect(Object.values(SPACE_UPGRADE_LINES[faction]).flat().includes(queuedKind! as SpaceUnitKind)).toBe(true);
+      }
+    }
   });
 });
 

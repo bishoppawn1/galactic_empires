@@ -320,7 +320,7 @@ describe('starter faction foundations', () => {
     expect(resolved.messages.some(message => message.includes('BROOD HARVEST'))).toBe(true);
   });
 
-  it('recycles its own destroyed ships and their dead cargo', () => {
+  it('recycles its own destroyed organic ships and their dead cargo', () => {
     const state = createInitialState(broodConfig); const terra = state.planets[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const doomed = { ...makeUnit('doomed-spore-ark', 'sporeArk', 'player'), hp: 1, shields: 0, orbitX: 0, orbitY: 0, cargo: [makeUnit('lost-brood', 'broodling', 'player')] };
@@ -329,6 +329,26 @@ describe('starter faction foundations', () => {
     const resolved = tick(state, .1);
     expect(resolved.planets[0].orbitUnits.some(unit => unit.id === doomed.id)).toBe(false);
     expect(resolved.resources.biomass).toBeCloseTo(before + BROOD_BIOMASS_PER_PLANET * .1 + recoverableBiomass([doomed]));
+  });
+
+  it('harvests transport cargo without converting a destroyed metal hull into biomass', () => {
+    const state = createInitialState(broodConfig); const terra = state.planets[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const cargo = [makeUnit('embarked-infantry', 'infantry', 'enemy'), makeUnit('embarked-tank', 'lightTank', 'enemy')];
+    const transport = {
+      ...makeUnit('metal-transport', 'transport', 'enemy'),
+      hp: 1, shields: 0, orbitX: 80, orbitY: 0, cargo, loadedUnitIds: cargo.map(unit => unit.id),
+    };
+    terra.orbitUnits = [{ ...makeUnit('brood-executioner', 'worldEater', 'player'), orbitX: 0, orbitY: 0 }, transport];
+    const before = state.resources.biomass!;
+    const resolved = tick(state, .1);
+
+    expect(resolved.planets[0].orbitUnits.some(unit => unit.id === transport.id)).toBe(false);
+    expect(recoverableBiomass([{ ...transport, cargo: [] }])).toBe(0);
+    expect(recoverableBiomass([transport])).toBe(recoverableBiomass(cargo));
+    expect(resolved.resources.biomass).toBeCloseTo(
+      before + BROOD_BIOMASS_PER_PLANET * .1 + recoverableBiomass(cargo),
+    );
   });
 
   it('swaps civilization identities with multiplayer command perspective', () => {

@@ -1,4 +1,4 @@
-import { UNITS } from './definitions';
+import { BROOD_SPACE_KINDS, UNITS } from './definitions';
 import type { EmpireFaction, GameState, PlayableFaction, ResourcePool, Unit } from './types';
 
 export interface PlayableFactionDefinition {
@@ -67,8 +67,15 @@ export const startingResources = (faction: PlayableFaction): ResourcePool => fac
   ? { metal: 0, crystal: 0, gold: 0, biomass: BROOD_STARTING_BIOMASS }
   : { metal: 520, crystal: 420, gold: 280 };
 
+const BIOLOGICAL_SHIP_KINDS = new Set<string>(BROOD_SPACE_KINDS);
+
 export function recoverableBiomass(units: Unit[]): number {
-  const biomass = (unit: Unit): number => biomassCost(UNITS[unit.kind].cost) + (unit.cargo?.reduce((sum, cargo) => sum + biomass(cargo), 0) ?? 0);
+  const biomass = (unit: Unit): number => {
+    const definition = UNITS[unit.kind];
+    const biologicalHull = definition.factory === 'ground' || BIOLOGICAL_SHIP_KINDS.has(unit.kind);
+    return (biologicalHull ? biomassCost(definition.cost) : 0)
+      + (unit.cargo?.reduce((sum, cargo) => sum + biomass(cargo), 0) ?? 0);
+  };
   return Math.floor(units.reduce((sum, unit) => sum + biomass(unit), 0) * BROOD_BIOMASS_RECOVERY_RATIO);
 }
 

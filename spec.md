@@ -21,7 +21,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 - Metal, Crystal, and Gold are global stockpiles for the Human Coalition, Aegis Directorate, and Iron Covenant.
 - The Brood replaces all three mineral stockpiles and costs with Biomass. It cannot construct mineral mines.
 - Every Brood-controlled planet naturally produces 4 Biomass per second. Quantum Extraction increases that planetary output by 25 percent.
-- After a battle casualty, every participating Brood empire recovers 35 percent of the destroyed units' converted Biomass value. Enemy and friendly ground units, friendly or hostile ships, and dead embarked cargo all count.
+- After a battle casualty, every participating Brood empire recovers 35 percent of the destroyed biological material's converted Biomass value. Enemy and friendly ground units, organic Brood ships, and dead embarked cargo count. Metal ship hulls yield no Biomass; destroying a loaded metal transport harvests only the ground units killed inside it.
 - After a battle casualty, every participating Iron Covenant empire reclaims 25 percent of the destroyed units' Metal cost. Enemy and friendly machines, ships, and embarked cargo count; a surviving Salvage Frigate raises orbital recovery by 50 percent.
 - Resources on every planet are unlimited and never run dry.
 - Each planet has a different maximum number of Metal Mines, Crystal Extractors, and Gold Mines. Ground Defenses, Anti-Space Batteries, and Orbital Defenses each have a maximum of ten per planet. Both Ground Factory types and all three Space Yard classes are unlimited.

@@ -265,6 +265,27 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
   });
 
+  it('preserves map zoom after visiting research and following a ground battle', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [{ ...makeUnit('zoom-attacker', 'infantry', 'player'), battleX: 10, battleY: 50 }],
+      defenders: [{ ...makeUnit('zoom-defender', 'infantry', 'enemy'), battleX: 90, battleY: 50 }],
+    }];
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'galaxy' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Return to galaxy' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+  });
+
   it('pans the galaxy camera with WASD controls', () => {
     render(<App />);
     const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;

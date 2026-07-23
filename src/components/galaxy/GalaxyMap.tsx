@@ -19,8 +19,9 @@ const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU
 const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 190;
 
-export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
+export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
+  zoom?: number; onZoomChange?: (zoom: number) => void;
   onOrderToPlanet: (id: string) => void;
   onSelectShip: (planetId: string, unitId: string, additive: boolean) => void; onGroupSelect: (ids: string[]) => void;
   onSelectSpaceYard: (planetId: string, yardId: string, additive: boolean) => void;
@@ -38,7 +39,9 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   const pressedPanKeysRef = useRef(new Set<string>());
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>();
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number }>();
-  const [zoom, setZoom] = useState(1);
+  const [localZoom, setLocalZoom] = useState(1);
+  const zoom = controlledZoom ?? localZoom;
+  const setZoom = onZoomChange ?? setLocalZoom;
   const { scrollRef, viewportBounds, scheduleViewportMeasure } = useGalaxyViewport(zoom);
   useEffect(() => {
     const viewport = scrollRef.current; if (!viewport) return;

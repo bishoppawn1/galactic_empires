@@ -138,7 +138,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     return { x: originX + dx / distance * offset, y: originY + dy / distance * offset };
   };
   const marquee = dragStart && dragEnd ? { left: Math.min(dragStart.x, dragEnd.x), top: Math.min(dragStart.y, dragEnd.y), width: Math.abs(dragEnd.x - dragStart.x), height: Math.abs(dragEnd.y - dragStart.y) } : undefined;
-  return <main className={`galaxy ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" onWheel={event => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); changeZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top); }}>
+  return <main className={`galaxy ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map">
     <div className="galaxy-scroll" ref={scrollRef}>
       <div className="galaxy-canvas" style={{ zoom } as React.CSSProperties} onClickCapture={event => {
         const target = event.target as Element;

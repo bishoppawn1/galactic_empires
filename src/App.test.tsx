@@ -286,7 +286,11 @@ describe('Galactic Empires interface', () => {
   it('provides working map zoom controls', () => {
     render(<App />);
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
+    fireEvent.wheel(screen.getByRole('main', { name: 'Galaxy map' }), { deltaY: -120 });
+    expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+    fireEvent.wheel(screen.getByRole('main', { name: 'Galaxy map' }), { deltaY: 120 });
     expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();

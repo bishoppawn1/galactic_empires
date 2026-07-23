@@ -70,6 +70,7 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
 export const RESEARCH: Record<ResearchId, Definition> = {
   advancedIndustry: { label: 'Advanced Industry', description: 'Unlock advanced factories.', cost: pool(220, 180, 140), time: 45 },
   rapidFabrication: { label: 'Rapid Fabrication', description: 'Optimize assembly lines to produce ground and space units 25 percent faster.', cost: pool(330, 280, 210), time: 68, requires: 'advancedIndustry' },
+  industrialIteration: { label: 'Industrial Iteration', description: 'Repeatably refine every production chain for another five percent unit production speed.', cost: pool(560, 440, 320), time: 110, requires: 'rapidFabrication' },
   groundWarfare: { label: 'Ground Warfare', description: 'Develop shielded assault formations and advanced battlefield doctrine.', cost: pool(280, 210, 150), time: 55, requires: 'advancedIndustry' },
   planetaryFortifications: { label: 'Planetary Fortifications', description: 'Reinforce ground and orbital defenses with layered armor and redundant systems.', cost: pool(390, 310, 230), time: 74, requires: 'groundWarfare' },
   fleetLogistics: { label: 'Fleet Logistics', description: 'Prepares the empire for larger fleet operations.', cost: pool(320, 250, 210), time: 60, requires: 'advancedIndustry' },
@@ -78,16 +79,30 @@ export const RESEARCH: Record<ResearchId, Definition> = {
   shieldHarmonics: { label: 'Shield Harmonics', description: 'Increase shield regeneration on every warship by 50 percent.', cost: pool(430, 390, 300), time: 84, requires: 'orbitalEngineering' },
   quantumExtraction: { label: 'Quantum Extraction', description: 'Increase all imperial resource output by 25 percent.', cost: pool(260, 300, 220), time: 58, requires: 'advancedIndustry' },
   deepCoreExtraction: { label: 'Deep-Core Extraction', description: 'Increase the total imperial resource output bonus to 50 percent.', cost: pool(480, 440, 350), time: 92, requires: 'quantumExtraction' },
+  resourceSynthesis: { label: 'Resource Synthesis', description: 'Repeatably improve imperial resource output by another five percent.', cost: pool(620, 560, 430), time: 120, requires: 'deepCoreExtraction' },
   heavyArmor: { label: 'Heavy Armor', description: 'Unlock the heaviest ground assault and siege organisms or vehicles.', cost: pool(430, 330, 235), time: 78, requires: 'groundWarfare' },
   carrierOperations: { label: 'Carrier Operations', description: 'Unlock specialized carriers for large planetary assaults.', cost: pool(460, 370, 280), time: 82, requires: 'fleetLogistics' },
   capitalShips: { label: 'Capital Ship Doctrine', description: 'Unlock capital warships and their fleet-command systems.', cost: pool(520, 420, 320), time: 90, requires: 'orbitalEngineering' },
   weaponsCalibration: { label: 'Weapons Calibration', description: 'Increase damage from all ships and orbital installations by 15 percent.', cost: pool(650, 520, 400), time: 105, requires: 'capitalShips' },
   titanEngineering: { label: 'Titan Engineering', description: 'Unlock each civilization’s colossal apex warship.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
+  combatSimulation: { label: 'Combat Simulation', description: 'Repeatably improve ship and orbital weapon damage by another three percent.', cost: pool(760, 640, 500), time: 135, requires: 'weaponsCalibration' },
 };
+
+export const REPEATABLE_RESEARCH: ResearchId[] = ['industrialIteration', 'resourceSynthesis', 'combatSimulation'];
+export const isRepeatableResearch = (id: ResearchId) => REPEATABLE_RESEARCH.includes(id);
+export const researchLevel = (completed: ResearchId[], id: ResearchId) => completed.filter(completedId => completedId === id).length;
+export const researchCost = (id: ResearchId, completed: ResearchId[]) => {
+  const level = isRepeatableResearch(id) ? researchLevel(completed, id) : 0;
+  const scale = 1 + level * .6;
+  const cost = RESEARCH[id].cost;
+  return pool(Math.ceil(cost.metal * scale), Math.ceil(cost.crystal * scale), Math.ceil(cost.gold * scale));
+};
+export const researchTime = (id: ResearchId, completed: ResearchId[]) => Math.ceil(RESEARCH[id].time! * (1 + (isRepeatableResearch(id) ? researchLevel(completed, id) * .4 : 0)));
 
 export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'],
   rapidFabrication: ['+25% unit production speed'],
+  industrialIteration: ['Repeatable · +5% unit production speed per level'],
   groundWarfare: ['Shock Troopers'],
   planetaryFortifications: ['+25% defense durability'],
   fleetLogistics: ['Carrier doctrine'],
@@ -96,10 +111,12 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   shieldHarmonics: ['+50% ship shield regeneration'],
   quantumExtraction: ['+25% resource output'],
   deepCoreExtraction: ['Resource output bonus increased to +50%'],
+  resourceSynthesis: ['Repeatable · +5% resource output per level'],
   heavyArmor: ['Railgun Tank', 'Plasma Tank', 'Siege Walker'],
   carrierOperations: ['Assault Carrier'],
   capitalShips: ['Battlecruiser'],
   weaponsCalibration: ['+15% ship and orbital weapon damage'],
+  combatSimulation: ['Repeatable · +3% ship and orbital damage per level'],
   titanEngineering: ['Titan Dreadnought'],
 };
 
@@ -109,9 +126,12 @@ const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   fleetLogistics: ['Brood Carrier doctrine'],
   orbitalEngineering: ['Hive Cruiser', 'Void Stalker'],
   quantumExtraction: ['+25% planetary biomass'],
+  industrialIteration: ['Repeatable · +5% gestation speed per level'],
+  resourceSynthesis: ['Repeatable · +5% planetary biomass per level'],
   heavyArmor: ['Crusher Beast', 'Acid Behemoth', 'Siege Crawler'],
   carrierOperations: ['Brood Carrier'],
   capitalShips: ['Leviathan'],
+  combatSimulation: ['Repeatable · +3% biofleet damage per level'],
   titanEngineering: ['World Eater'],
 };
 
@@ -119,13 +139,59 @@ const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Paladin Guard'],
   fleetLogistics: ['Citadel carrier doctrine'], orbitalEngineering: ['Ward Cruiser'], quantumExtraction: ['+25% resource output'],
   heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Carrier'], capitalShips: ['Sovereign command systems'], titanEngineering: ['Sovereign Dreadnought'],
+  industrialIteration: ['Repeatable · +5% sentinel production per level'], resourceSynthesis: ['Repeatable · +5% resource output per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
 };
 
 const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Repair Drone'],
   fleetLogistics: ['Fabricator carrier doctrine'], orbitalEngineering: ['Foundry Cruiser'], quantumExtraction: ['+25% resource output'],
   heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Carrier'], capitalShips: ['Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
+  industrialIteration: ['Repeatable · +5% assembly speed per level'], resourceSynthesis: ['Repeatable · +5% matter reclamation per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
 };
+
+const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Record<ResearchId, string>> = {
+  human: {
+    advancedIndustry: 'Coalition Engineering', rapidFabrication: 'Modular Assembly', industrialIteration: 'Autonomous Fabrication',
+    groundWarfare: 'Combined Arms Doctrine', planetaryFortifications: 'Fortress Worlds', heavyArmor: 'Siege Corps',
+    fleetLogistics: 'Expeditionary Logistics', phaseMastery: 'Navigator Mastery', carrierOperations: 'Marine Carrier Groups',
+    orbitalEngineering: 'Naval Architecture', shieldHarmonics: 'Harmonic Shielding', capitalShips: 'Capital Ship Doctrine',
+    weaponsCalibration: 'Fire-Control Networks', titanEngineering: 'Titan Command',
+    quantumExtraction: 'Quantum Extraction', deepCoreExtraction: 'Deep-Core Exploitation', resourceSynthesis: 'Colonial Optimization',
+    combatSimulation: 'Fleet War Games',
+  },
+  brood: {
+    advancedIndustry: 'Evolved Industry', rapidFabrication: 'Accelerated Gestation', industrialIteration: 'Endless Molting',
+    groundWarfare: 'Synaptic Warfare', planetaryFortifications: 'Carapace Worlds', heavyArmor: 'Apex Morphology',
+    fleetLogistics: 'Spore Migration', phaseMastery: 'Void Instinct', carrierOperations: 'Brood Nurseries',
+    orbitalEngineering: 'Biofleet Evolution', shieldHarmonics: 'Regenerative Membranes', capitalShips: 'Leviathan Genesis',
+    weaponsCalibration: 'Predatory Synapses', titanEngineering: 'World Eater Genesis',
+    quantumExtraction: 'Biomass Assimilation', deepCoreExtraction: 'Planetary Digestion', resourceSynthesis: 'Biomass Recursion',
+    combatSimulation: 'Predatory Adaptation',
+  },
+  aegis: {
+    advancedIndustry: 'Harmonic Fabrication', rapidFabrication: 'Sentinel Assembly', industrialIteration: 'Recursive Wardcraft',
+    groundWarfare: 'Guardian Doctrine', planetaryFortifications: 'Bastion Worlds', heavyArmor: 'Fortress Chassis',
+    fleetLogistics: 'Citadel Logistics', phaseMastery: 'Farcast Navigation', carrierOperations: 'Citadel Operations',
+    orbitalEngineering: 'Ward Architecture', shieldHarmonics: 'Resonant Shields', capitalShips: 'Sovereign Doctrine',
+    weaponsCalibration: 'Lattice Targeting', titanEngineering: 'Sovereign Ascension',
+    quantumExtraction: 'Luminous Extraction', deepCoreExtraction: 'Stellar Refinement', resourceSynthesis: 'Harmonic Abundance',
+    combatSimulation: 'Eternal Vigil',
+  },
+  covenant: {
+    advancedIndustry: 'Foundry Awakening', rapidFabrication: 'Accelerated Assembly', industrialIteration: 'Recursive Fabrication',
+    groundWarfare: 'Cohort Battle Logic', planetaryFortifications: 'Iron Worlds', heavyArmor: 'Juggernaut Patterns',
+    fleetLogistics: 'Machine Logistics', phaseMastery: 'Phase Calculation', carrierOperations: 'Fabricator Operations',
+    orbitalEngineering: 'Foundry Hulls', shieldHarmonics: 'Redundant Plating', capitalShips: 'Ironclad Doctrine',
+    weaponsCalibration: 'Dismantler Calibration', titanEngineering: 'Dreadforge Protocol',
+    quantumExtraction: 'Matter Reclamation', deepCoreExtraction: 'Core Strip-Mining', resourceSynthesis: 'Closed-Loop Reclamation',
+    combatSimulation: 'Combat Logic Refinement',
+  },
+};
+
+export const researchDefinitionForCivilization = (id: ResearchId, civilization: PlayableFaction): Definition => ({
+  ...RESEARCH[id],
+  label: FACTION_RESEARCH_LABELS[civilization][id],
+});
 
 export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) => {
   const factionUnlocks = civilization === 'brood' ? BROOD_RESEARCH_UNLOCKS : civilization === 'aegis' ? AEGIS_RESEARCH_UNLOCKS : civilization === 'covenant' ? COVENANT_RESEARCH_UNLOCKS : RESEARCH_UNLOCKS;

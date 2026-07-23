@@ -145,7 +145,8 @@ export type ResearchId =
   | 'groundWarfare' | 'planetaryFortifications' | 'heavyArmor'
   | 'fleetLogistics' | 'phaseMastery' | 'carrierOperations'
   | 'orbitalEngineering' | 'shieldHarmonics' | 'capitalShips' | 'weaponsCalibration' | 'titanEngineering'
-  | 'quantumExtraction' | 'deepCoreExtraction';
+  | 'quantumExtraction' | 'deepCoreExtraction'
+  | 'industrialIteration' | 'resourceSynthesis' | 'combatSimulation';
 export interface ResearchProject { id: ResearchId; remaining: number; total: number }
 export interface EmpireEconomy {
   resources: ResourcePool;

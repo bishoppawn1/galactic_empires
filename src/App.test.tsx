@@ -552,23 +552,28 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '1');
   });
 
-  it('opens research as a top-level empire tab and renders prerequisite branches', () => {
+  it('opens research as a top-level empire tab and renders a connected faction lattice', () => {
     render(<App />);
     const empireViews = screen.getByRole('navigation', { name: 'Empire views' });
     fireEvent.click(within(empireViews).getByRole('button', { name: 'research' }));
 
     expect(screen.getByRole('main', { name: 'Research tech tree' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Technology tree' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(15);
-    expect(document.querySelectorAll('.tech-tier')).toHaveLength(4);
+    expect(screen.getByRole('heading', { name: 'Human Coalition technology lattice' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(18);
+    expect(document.querySelectorAll('.tech-tier')).toHaveLength(5);
+    expect(document.querySelectorAll('.research-connections path')).toHaveLength(17);
     expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'groundWarfare');
     expect(document.querySelector('[data-tech-id="carrierOperations"]')).toHaveAttribute('data-requires', 'fleetLogistics');
     expect(document.querySelector('[data-tech-id="phaseMastery"]')).toHaveAttribute('data-requires', 'fleetLogistics');
     expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'quantumExtraction');
     expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'capitalShips');
     expect(document.querySelector('[data-tech-id="titanEngineering"]')).toHaveAttribute('data-requires', 'capitalShips');
+    expect(document.querySelector('[data-tech-id="industrialIteration"]')).toHaveAttribute('data-requires', 'rapidFabrication');
+    expect(document.querySelector('[data-tech-id="resourceSynthesis"]')).toHaveAttribute('data-requires', 'deepCoreExtraction');
+    expect(document.querySelector('[data-tech-id="combatSimulation"]')).toHaveAttribute('data-requires', 'weaponsCalibration');
     expect(document.querySelector('.expanded-tech-tree')).not.toBeNull();
     expect(screen.getByText('Titan Dreadnought')).toBeInTheDocument();
+    expect(screen.getByText('Fleet War Games')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Planet sections' })).not.toBeInTheDocument();
   });
 

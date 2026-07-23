@@ -45,7 +45,8 @@ import {
   ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, orbitalDefenseOffset, unitAvailableToCivilization,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isRepeatableResearch, orbitalDefenseOffset,
+  researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -469,11 +470,14 @@ const harvestBattlefieldSalvage = (state: GameState, destroyed: Unit[], particip
     if (faction === 'player') addMessage(state, `COVENANT SALVAGE — ${metal} metal reclaimed ${location}.`);
   });
 };
-export const researchIncomeMultiplier = (completed: ResearchId[]) => completed.includes('deepCoreExtraction') ? 1.5 : completed.includes('quantumExtraction') ? 1.25 : 1;
-export const researchProductionMultiplier = (completed: ResearchId[]) => completed.includes('rapidFabrication') ? 1.25 : 1;
+export const researchIncomeMultiplier = (completed: ResearchId[]) => (completed.includes('deepCoreExtraction') ? 1.5 : completed.includes('quantumExtraction') ? 1.25 : 1)
+  * (1 + researchLevel(completed, 'resourceSynthesis') * .05);
+export const researchProductionMultiplier = (completed: ResearchId[]) => (completed.includes('rapidFabrication') ? 1.25 : 1)
+  * (1 + researchLevel(completed, 'industrialIteration') * .05);
 export const phaseTravelMultiplier = (completed: ResearchId[]) => completed.includes('phaseMastery') ? .75 : 1;
 export const shieldRecoveryMultiplier = (completed: ResearchId[]) => completed.includes('shieldHarmonics') ? 1.5 : 1;
-export const orbitalDamageMultiplier = (completed: ResearchId[]) => completed.includes('weaponsCalibration') ? 1.15 : 1;
+export const orbitalDamageMultiplier = (completed: ResearchId[]) => (completed.includes('weaponsCalibration') ? 1.15 : 1)
+  * (1 + researchLevel(completed, 'combatSimulation') * .03);
 export const defenseDurabilityMultiplier = (completed: ResearchId[]) => completed.includes('planetaryFortifications') ? 1.25 : 1;
 export const groundProductionMultiplier = (planet: Planet, completed: ResearchId[] = []) => Math.max(1, planet.buildings.filter(building =>
   building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length) * researchProductionMultiplier(completed);
@@ -600,12 +604,16 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
 export function beginResearch(input: GameState, id: ResearchId): GameResult {
   const state = clone(input); const def = RESEARCH[id];
   if (!state.planets.some(p => p.owner === 'player' && p.buildings.some(b => b.kind === 'researchLab'))) return fail(input, 'Construct a Research Lab first.');
-  if (state.completedResearch.includes(id) || state.researchQueue.some(r => r.id === id)) return fail(input, 'Research already acquired or active.');
-  if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
-  if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
-  spendPlayerResources(state, def.cost);
-  state.researchQueue.push({ id, remaining: def.time!, total: def.time! });
-  addMessage(state, `${def.label} research initiated.`);
+  if ((!isRepeatableResearch(id) && state.completedResearch.includes(id)) || state.researchQueue.some(r => r.id === id)) return fail(input, 'Research already acquired or active.');
+  const civilization = empireCivilization(state);
+  if (!hasResearch(state, def.requires)) return fail(input, `Requires ${researchDefinitionForCivilization(def.requires!, civilization).label}.`);
+  const cost = researchCost(id, state.completedResearch);
+  const time = researchTime(id, state.completedResearch);
+  if (!canPlayerAfford(state, cost)) return fail(input, insufficientPlayerResources(state));
+  spendPlayerResources(state, cost);
+  state.researchQueue.push({ id, remaining: time, total: time });
+  const level = researchLevel(state.completedResearch, id) + 1;
+  addMessage(state, `${researchDefinitionForCivilization(id, civilization).label}${isRepeatableResearch(id) ? ` level ${level}` : ''} research initiated.`);
   return pass(state);
 }
 
@@ -1779,7 +1787,8 @@ export function tick(input: GameState, seconds: number): GameState {
     state.researchQueue[0].remaining -= seconds;
     if (state.researchQueue[0].remaining <= 0) {
       const done = state.researchQueue.shift()!; state.completedResearch.push(done.id);
-      addMessage(state, `${RESEARCH[done.id].label} research complete.`);
+      const definition = researchDefinitionForCivilization(done.id, empireCivilization(state));
+      addMessage(state, `${definition.label}${isRepeatableResearch(done.id) ? ` level ${researchLevel(state.completedResearch, done.id)}` : ''} research complete.`);
     }
   }
 

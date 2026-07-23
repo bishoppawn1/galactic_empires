@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type DefenseBuildingKind, type GroundUnitKind, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -642,13 +642,50 @@ describe('galaxy routes', () => {
 });
 
 describe('production and research', () => {
-  it('defines four tiers of research with fifteen visible unlock packages', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(15);
+  it('defines a connected research lattice with three repeatable capstones', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(18);
+    expect(REPEATABLE_RESEARCH).toEqual(['industrialIteration', 'resourceSynthesis', 'combatSimulation']);
+    expect(REPEATABLE_RESEARCH.every(isRepeatableResearch)).toBe(true);
     expect(RESEARCH.heavyArmor.requires).toBe('groundWarfare');
     expect(RESEARCH.carrierOperations.requires).toBe('fleetLogistics');
     expect(RESEARCH.titanEngineering.requires).toBe('capitalShips');
+    expect(RESEARCH.industrialIteration.requires).toBe('rapidFabrication');
+    expect(RESEARCH.resourceSynthesis.requires).toBe('deepCoreExtraction');
+    expect(RESEARCH.combatSimulation.requires).toBe('weaponsCalibration');
     expect(RESEARCH_UNLOCKS.titanEngineering).toContain('Titan Dreadnought');
     expect(RESEARCH_UNLOCKS.rapidFabrication).toContain('+25% unit production speed');
+  });
+
+  it('specializes research doctrine names for every civilization', () => {
+    const labels = (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).map(civilization =>
+      researchDefinitionForCivilization('combatSimulation', civilization).label);
+    expect(new Set(labels).size).toBe(4);
+    expect(labels).toEqual(['Fleet War Games', 'Predatory Adaptation', 'Eternal Vigil', 'Combat Logic Refinement']);
+    expect(researchDefinitionForCivilization('advancedIndustry', 'brood').label).toBe('Evolved Industry');
+    expect(researchDefinitionForCivilization('advancedIndustry', 'aegis').label).toBe('Harmonic Fabrication');
+  });
+
+  it('researches repeatable capstones forever with scaling costs, time, and bonuses', () => {
+    let state = createInitialState(); const terra = state.planets[0];
+    terra.buildings.push({ id: 'repeatable-lab', kind: 'researchLab' });
+    state.completedResearch.push('advancedIndustry', 'rapidFabrication');
+    state.resources = { metal: 10000, crystal: 10000, gold: 10000 };
+    const firstCost = researchCost('industrialIteration', state.completedResearch);
+    const firstTime = researchTime('industrialIteration', state.completedResearch);
+    const first = beginResearch(state, 'industrialIteration'); expectOk(first);
+    expect(first.state.researchQueue[0]).toMatchObject({ id: 'industrialIteration', total: firstTime });
+    expect(first.state.resources.metal).toBe(10000 - firstCost.metal);
+    state = tick(first.state, firstTime);
+    expect(researchLevel(state.completedResearch, 'industrialIteration')).toBe(1);
+
+    const secondCost = researchCost('industrialIteration', state.completedResearch);
+    const secondTime = researchTime('industrialIteration', state.completedResearch);
+    expect(secondCost.metal).toBeGreaterThan(firstCost.metal);
+    expect(secondTime).toBeGreaterThan(firstTime);
+    const second = beginResearch(state, 'industrialIteration'); expectOk(second);
+    state = tick(second.state, secondTime);
+    expect(researchLevel(state.completedResearch, 'industrialIteration')).toBe(2);
+    expect(researchProductionMultiplier(state.completedResearch)).toBeCloseTo(1.25 * 1.1);
   });
 
   it('requires advanced factories for heavy ground units and capital hulls', () => {
@@ -709,8 +746,8 @@ describe('production and research', () => {
     }
   });
 
-  it('defines six additional research branches with simulation bonuses', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(15);
+  it('defines expanded research branches with simulation bonuses', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(18);
     expect(RESEARCH).toMatchObject({
       rapidFabrication: { requires: 'advancedIndustry' },
       planetaryFortifications: { requires: 'groundWarfare' },
@@ -726,6 +763,9 @@ describe('production and research', () => {
     expect(defenseDurabilityMultiplier(['planetaryFortifications'])).toBe(1.25);
     expect(orbitalDamageMultiplier(['weaponsCalibration'])).toBe(1.15);
     expect(researchIncomeMultiplier(['quantumExtraction', 'deepCoreExtraction'])).toBe(1.5);
+    expect(researchProductionMultiplier(['rapidFabrication', 'industrialIteration', 'industrialIteration'])).toBeCloseTo(1.25 * 1.1);
+    expect(researchIncomeMultiplier(['deepCoreExtraction', 'resourceSynthesis', 'resourceSynthesis'])).toBeCloseTo(1.5 * 1.1);
+    expect(orbitalDamageMultiplier(['weaponsCalibration', 'combatSimulation', 'combatSimulation'])).toBeCloseTo(1.15 * 1.06);
   });
 
   it('applies Rapid Fabrication to both ground and space production queues', () => {
@@ -865,6 +905,14 @@ describe('production and research', () => {
     expect(migrated.fleets[0].route).toEqual([]);
     expect(migrated.fleets[0].finalDestinationId).toBe('halcyon');
     expect(migrated.fleets[0].phase).toBe('tunnel');
+  });
+
+  it('preserves repeatable research levels through save migration', () => {
+    const state = createInitialState();
+    state.completedResearch.push('advancedIndustry', 'rapidFabrication', 'industrialIteration', 'industrialIteration', 'industrialIteration');
+    const migrated = migrateGameState(state);
+    expect(researchLevel(migrated.completedResearch, 'industrialIteration')).toBe(3);
+    expect(researchProductionMultiplier(migrated.completedResearch)).toBeCloseTo(1.25 * 1.15);
   });
 
   it('deploys completed ships into distinct persistent orbit positions', () => {

@@ -18,6 +18,10 @@ const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU
 
 const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 190;
+const MIN_MAP_ZOOM = .02;
+
+export const wholeMapZoom = (viewportWidth: number, viewportHeight: number) => Math.max(MIN_MAP_ZOOM,
+  Math.floor(Math.min(viewportWidth / GALAXY_CANVAS_WIDTH, viewportHeight / GALAXY_CANVAS_HEIGHT) * 1000) / 1000);
 
 export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
@@ -95,7 +99,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     };
   }, []);
   const changeZoom = (requested: number, anchorX?: number, anchorY?: number) => {
-    const next = Math.min(1.5, Math.max(.25, Math.round(requested * 100) / 100));
+    const next = Math.min(1.5, Math.max(MIN_MAP_ZOOM, Math.round(requested * 1000) / 1000));
     const viewport = scrollRef.current;
     if (!viewport || next === zoom) return;
     const x = anchorX ?? viewport.clientWidth / 2, y = anchorY ?? viewport.clientHeight / 2;
@@ -105,6 +109,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       viewport.scrollLeft = logicalX * next - x;
       viewport.scrollTop = logicalY * next - y;
     });
+  };
+  const showWholeMap = () => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    setZoom(wholeMapZoom(viewport.clientWidth, viewport.clientHeight));
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+    scheduleViewportMeasure();
   };
   const interruptibleFleets = state.fleets.filter(fleet => fleet.faction === 'player' && (fleet.phase === 'exiting' || fleet.phase === 'charging'));
   const selectedOriginIds = new Set(selectedShipIds.flatMap(id => {
@@ -295,7 +307,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>
     </div>
-    <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
+    <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button className="reset-zoom" onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button><button className="whole-map-button" title="Show Whole Map" onClick={showWholeMap}>Show Whole Map</button></div>
     <FleetSelectionHud ships={selectedShips} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
     <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>

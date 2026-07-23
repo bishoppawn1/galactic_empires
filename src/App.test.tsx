@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
-import { GalaxyMap } from './components/galaxy/GalaxyMap';
+import { GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { GroundUnitImage } from './components/shared/GroundUnitImage';
 import { ShipImage } from './components/shared/ShipImage';
@@ -263,6 +263,22 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
+
+    const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 640 });
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 440 });
+    Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 500 });
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 500 });
+    fireEvent.click(screen.getByRole('button', { name: 'Show Whole Map' }));
+    expect(screen.getByText('5%', { selector: 'output' })).toBeInTheDocument();
+    expect(viewport.scrollLeft).toBe(0);
+    expect(viewport.scrollTop).toBe(0);
+    expect(screen.getByRole('button', { name: 'Show Whole Map' })).toHaveAttribute('title', 'Show Whole Map');
+  });
+
+  it('calculates whole-map zoom from both viewport dimensions', () => {
+    expect(wholeMapZoom(640, 600)).toBe(.05);
+    expect(wholeMapZoom(1_000, 440)).toBe(.05);
   });
 
   it('preserves map zoom after visiting research and following a ground battle', () => {

@@ -15,7 +15,7 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
   return <aside className="panel">
     <header className="planet-header">
       <div className="mini-planet" style={{ '--planet': planetDisplayColor(planet) } as React.CSSProperties} />
-      <div><small>{factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world'}</p></div>
+      <div><small>{planet.intelStatus === 'unscouted' ? 'UNSCOUTED' : factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.intelStatus === 'unscouted' ? 'Unverified frontier world' : planet.intelStatus === 'stale' ? 'Last known reconnaissance' : planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world'}</p></div>
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}
     <nav className="tabs" aria-label="Planet sections">
@@ -30,6 +30,7 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
 }
 
 function Command({ state, planet }: { state: GameState; planet: Planet }) {
+  if (planet.intelStatus === 'unscouted') return <section><SectionTitle kicker="PLANETARY COMMAND" title="No reconnaissance data" /><Locked text="Bring one of your ships into this system to identify its controller, structures, and ground forces." /></section>;
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);
   const brood = empireCivilization(state) === 'brood';
   return <section>
@@ -45,11 +46,13 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
       const maximum = planet.buildingLimits[kind];
       return <div className="deposit" key={resource}><span>{resource}</span><div><i style={{ width: `${count / maximum * 100}%` }} /></div><b>{count}/{maximum} · ∞</b></div>;
     })}
-    {planet.owner !== 'player' && <div className="intel"><b>{planet.owner ? 'HOSTILE INTELLIGENCE' : 'NEUTRAL GARRISON'}</b><p>{planet.owner ? 'Select a transport in a friendly orbit, then click this planet. Squads embark and invade automatically.' : `${planet.groundUnits.length} independent defender${planet.groundUnits.length === 1 ? '' : 's'} detected. Land ground forces to secure this world.`}</p></div>}
+    {planet.intelStatus === 'stale' && <div className="intel"><b>LAST KNOWN INTELLIGENCE</b><p>Ownership, structures, and ground forces may have changed since your ships left this system.</p></div>}
+    {planet.owner !== 'player' && planet.intelStatus !== 'stale' && <div className="intel"><b>{planet.owner ? 'HOSTILE INTELLIGENCE' : 'NEUTRAL GARRISON'}</b><p>{planet.owner ? 'Select a transport in a friendly orbit, then click this planet. Squads embark and invade automatically.' : `${planet.groundUnits.length} independent defender${planet.groundUnits.length === 1 ? '' : 's'} detected. Land ground forces to secure this world.`}</p></div>}
   </section>;
 }
 
 function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (command: GameCommand) => void }) {
+  if (planet.intelStatus === 'unscouted') return <Locked text="Construction data is unavailable until this system is scouted." />;
   if (planet.owner !== 'player') return <Locked text="Construction is only available on your colonies." />;
   const civilization = empireCivilization(state);
   const availableBuildings = civilization === 'brood' ? BUILDING_KINDS.filter(kind => !['metalMine', 'crystalMine', 'goldMine'].includes(kind)) : BUILDING_KINDS;
@@ -85,6 +88,7 @@ function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; sp
 }
 
 function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
+  if (planet.intelStatus === 'unscouted') return <section><SectionTitle kicker="FORCE COMMAND" title="No force intelligence" /><Locked text="Bring one of your ships into this system to reveal deployed ground and orbital forces." /></section>;
   const civilization = empireCivilization(state);
   const groundKinds = groundUnitKindsForCivilization(civilization);
   const spaceKinds = spaceUnitKindsForCivilization(civilization);

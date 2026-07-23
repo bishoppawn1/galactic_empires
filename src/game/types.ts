@@ -107,6 +107,13 @@ export interface Planet {
   enemyOrbitFocusTargetId?: string;
   orbitFocusTargetIds?: Partial<Record<EmpireFaction, string>>;
   defenseRebuildCooldowns?: Partial<Record<DefenseBuildingKind, number>>;
+  intelStatus?: 'unscouted' | 'stale' | 'current';
+}
+export interface PlanetIntel {
+  owner: Faction;
+  buildings: Building[];
+  groundUnits: Unit[];
+  observedAt: number;
 }
 export interface PlanetConnection { from: Planet; to: Planet; distance: number }
 export interface Fleet {
@@ -171,6 +178,7 @@ export interface GameState {
   nextId: number;
   neutralGarrisonsInitialized: boolean;
   messages: string[];
+  planetIntel?: Partial<Record<EmpireFaction, Record<string, PlanetIntel>>>;
 }
 
 export interface Definition {

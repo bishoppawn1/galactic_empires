@@ -31,6 +31,7 @@ import {
 } from './types';
 import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
+import { updatePlanetIntel } from './visibility';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
@@ -304,7 +305,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   ];
   const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(['large', 'huge'].includes(config.mapSize) ? largePlanets : []), ...(config.mapSize === 'huge' ? hugePlanets : [])];
   seedNeutralGarrisons(planets);
-  return {
+  const state: GameState = {
     mode,
     config,
     resources: startingResources(playerFaction),
@@ -317,6 +318,8 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
     messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : playerFaction === 'covenant' ? 'IRON PROTOCOL ONLINE — the Covenant foundries await material.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
   };
+  updatePlanetIntel(state);
+  return state;
 }
 
 const clone = (state: GameState): GameState => structuredClone(state);
@@ -350,6 +353,11 @@ export function migrateGameState(input: GameState): GameState {
   state.aiFactions ??= state.mode === 'solo' ? ['enemy'] : [];
   state.elapsed ??= 0;
   state.nextId ??= 100;
+  if (!state.planetIntel || typeof state.planetIntel !== 'object' || Array.isArray(state.planetIntel)) state.planetIntel = {};
+  for (const faction of ['player', 'enemy', 'rival2', 'rival3'] as EmpireFaction[]) {
+    const records = state.planetIntel[faction];
+    if (!records || typeof records !== 'object' || Array.isArray(records)) state.planetIntel[faction] = {};
+  }
   const migrateUnitRoster = (savedUnit: Unit) => {
     if (savedUnit.faction !== 'neutral') {
       const migratedKind = civilizationUnitKind(empireCivilization(state, savedUnit.faction), savedUnit.kind);
@@ -426,6 +434,7 @@ export function migrateGameState(input: GameState): GameState {
     ensureGroundDefenseBattleUnits(state, battle);
     ensureBattlePositions(battle);
   }
+  updatePlanetIntel(state);
   return state;
 }
 
@@ -846,6 +855,8 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
   });
   state.aiFactions = slots.filter(slot => slot.controller === 'ai').map(slot => slot.faction);
   state.messages = [`FREE-FOR-ALL LINK ONLINE — ${slots.length} empires await command.`];
+  state.planetIntel = {};
+  updatePlanetIntel(state);
   return state;
 }
 
@@ -1811,5 +1822,6 @@ export function tick(input: GameState, seconds: number): GameState {
     if (combatSeconds) tickOrbitCombat(state, p, combatSeconds);
     resolveLandingApproaches(state, p);
   }
+  updatePlanetIntel(state);
   return state;
 }

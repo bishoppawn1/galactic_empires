@@ -177,6 +177,9 @@ describe('Galactic Empires interface', () => {
   });
 
   it('uses explicit, redundant ownership markers for player and enemy planets', () => {
+    const state = createInitialState();
+    state.planets.find(planet => planet.id === 'cygnus')!.orbitUnits.push(makeUnit('ownership-scout', 'escortFrigate', 'player'));
+    saveState(state);
     render(<App />);
     const playerPlanet = screen.getByRole('button', { name: 'Terra Nova COLONY' });
     const enemyPlanet = screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' });
@@ -192,9 +195,24 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
+  it('renders the rival homeworld as neutral and withholds its details before scouting', () => {
+    render(<App />);
+    const hiddenHome = screen.getByRole('button', { name: 'Cygnus Reach UNCHARTED' });
+    expect(hiddenHome).toHaveClass('neutral');
+    expect(within(hiddenHome).getAllByText('NEUTRAL')).toHaveLength(2);
+    expect(screen.queryByRole('img', { name: /Space Yard 1 orbiting Cygnus Reach/ })).not.toBeInTheDocument();
+
+    fireEvent.click(hiddenHome);
+    expect(screen.getByText('UNSCOUTED // CYGNUS')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No reconnaissance data' })).toBeInTheDocument();
+    expect(screen.queryByText('HOSTILE INTELLIGENCE')).not.toBeInTheDocument();
+  });
+
   it('recolors conquered planets for their current owner instead of their original owner', () => {
     const state = createInitialState();
-    state.planets.find(planet => planet.id === 'terra')!.owner = 'enemy';
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    terra.owner = 'enemy';
+    terra.orbitUnits.push(makeUnit('lost-home-scout', 'escortFrigate', 'player'));
     state.planets.find(planet => planet.id === 'cygnus')!.owner = 'player';
     saveState(state);
     render(<App />);
@@ -210,6 +228,9 @@ describe('Galactic Empires interface', () => {
   });
 
   it('reports the small garrison defending an unclaimed planet', () => {
+    const state = createInitialState();
+    state.planets.find(planet => planet.id === 'halcyon')!.orbitUnits.push(makeUnit('garrison-scout', 'escortFrigate', 'player'));
+    saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Halcyon UNCHARTED' }));
     expect(screen.getByText('NEUTRAL GARRISON')).toBeInTheDocument();
@@ -252,6 +273,9 @@ describe('Galactic Empires interface', () => {
   });
 
   it('renders known hostile shipyards on the galaxy map', () => {
+    const state = createInitialState();
+    state.planets.find(planet => planet.id === 'cygnus')!.orbitUnits.push(makeUnit('yard-scout', 'escortFrigate', 'player'));
+    saveState(state);
     render(<App />);
     expect(screen.getByRole('img', { name: 'Enemy Space Yard 1 orbiting Cygnus Reach' })).toBeInTheDocument();
   });
@@ -323,7 +347,7 @@ describe('Galactic Empires interface', () => {
     const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
     const scrollTo = vi.fn();
     Object.defineProperty(viewport, 'scrollTo', { configurable: true, value: scrollTo });
-    fireEvent.click(screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cygnus Reach UNCHARTED' }));
     expect(scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ left: expect.any(Number), top: expect.any(Number) }));
   });
 
@@ -568,9 +592,10 @@ describe('Galactic Empires interface', () => {
   it('renders orbital defenses as installations in space', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     cygnus.buildings.push({ id: 'test-defense', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });
+    cygnus.orbitUnits.push(makeUnit('defense-scout', 'escortFrigate', 'player'));
     saveState(state);
     render(<App />);
-    expect(screen.getByRole('img', { name: 'Orbital Defense Platform 1 at Cygnus Reach' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Target enemy Orbital Defense Platform 1 at Cygnus Reach' })).toBeInTheDocument();
   });
 
   it('shows orbital weapons fire and lets the player target an enemy platform', () => {
@@ -655,7 +680,10 @@ describe('Galactic Empires interface', () => {
   it('renders hull classes at distinct map scales with square player control frames', () => {
     const state = stateWithPlayerForces();
     state.planets[0].orbitUnits.push(makeUnit('u7', 'dreadnought', 'player'));
-    state.planets.find(planet => planet.id === 'cygnus')!.orbitUnits.push(makeUnit('enemy-map-ship', 'escortFrigate', 'enemy'));
+    state.planets.find(planet => planet.id === 'cygnus')!.orbitUnits.push(
+      makeUnit('map-scout', 'transport', 'player'),
+      makeUnit('enemy-map-ship', 'escortFrigate', 'enemy'),
+    );
     saveState(state);
     render(<App />);
 
@@ -704,7 +732,10 @@ describe('Galactic Empires interface', () => {
 
   it('batches dense hostile fleets into one canvas layer', () => {
     const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
-    cygnus.orbitUnits = Array.from({ length: 500 }, (_, index) => ({ ...makeUnit(`dense-enemy-${index}`, 'escortFrigate', 'enemy'), orbitX: index % 25 * 8, orbitY: Math.floor(index / 25) * 8 }));
+    cygnus.orbitUnits = [
+      makeUnit('dense-fleet-scout', 'transport', 'player'),
+      ...Array.from({ length: 500 }, (_, index) => ({ ...makeUnit(`dense-enemy-${index}`, 'escortFrigate', 'enemy'), orbitX: index % 25 * 8, orbitY: Math.floor(index / 25) * 8 })),
+    ];
     saveState(state);
     render(<App />);
 
@@ -729,7 +760,7 @@ describe('Galactic Empires interface', () => {
   });
 
   it('inspects an enemy ship while it is in phase transit', () => {
-    const state = createInitialState(); const origin = state.planets[0], destination = state.planets[1];
+    const state = createInitialState(); const origin = state.planets[1], destination = state.planets[0];
     state.fleets = [{
       id: 'enemy-transit-fleet', faction: 'enemy', originId: origin.id, destinationId: destination.id,
       unit: { ...makeUnit('enemy-transit-ship', 'missileFrigate', 'enemy'), hp: 175, shields: 61 },

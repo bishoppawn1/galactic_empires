@@ -1,4 +1,4 @@
-import type { EmpireEconomy, EmpireFaction, Faction, GameState, Unit, UnitFaction } from './types';
+import type { EmpireEconomy, EmpireFaction, Faction, GameState, PlanetIntel, Unit, UnitFaction } from './types';
 
 const swapFaction = <T extends Faction | UnitFaction>(faction: T, target: EmpireFaction): T => (
   faction === 'player' ? target : faction === target ? 'player' : faction
@@ -50,6 +50,18 @@ export function viewStateForFaction(input: GameState, target: EmpireFaction = 'e
   installEconomy(state, target, playerEconomy);
   [state.empireCivilizations.player, state.empireCivilizations[target]] = [state.empireCivilizations[target], state.empireCivilizations.player];
   state.aiFactions = state.aiFactions?.map(faction => swapFaction(faction, target));
+  if (state.planetIntel) {
+    const swappedIntel: Partial<Record<EmpireFaction, Record<string, PlanetIntel>>> = {};
+    for (const [observer, records] of Object.entries(state.planetIntel) as Array<[EmpireFaction, Record<string, PlanetIntel>]>) {
+      const swappedObserver = swapFaction(observer, target);
+      swappedIntel[swappedObserver] = records;
+      Object.values(records).forEach(snapshot => {
+        snapshot.owner = swapFaction(snapshot.owner, target);
+        snapshot.groundUnits.forEach(unit => swapUnit(unit, target));
+      });
+    }
+    state.planetIntel = swappedIntel;
+  }
   for (const planet of state.planets) {
     const focus = swapFocus(planet.orbitFocusTargetId, planet.enemyOrbitFocusTargetId, planet.orbitFocusTargetIds, target);
     if (focus.player) planet.orbitFocusTargetId = focus.player; else delete planet.orbitFocusTargetId;

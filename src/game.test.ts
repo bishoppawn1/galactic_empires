@@ -1802,7 +1802,7 @@ describe('combat recovery rules', () => {
     expect(destroyed.messages).toContain('1 orbital defense platform destroyed at Cygnus Reach.');
   });
 
-  it('lets ships destroy anti-space batteries and starts their rebuild lock', () => {
+  it('keeps surface anti-space batteries protected from orbital ship fire', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     cygnus.buildings.push({
@@ -1812,11 +1812,18 @@ describe('combat recovery rules', () => {
     });
     cygnus.orbitUnits = [{ ...makeUnit('battery-killer', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 }];
 
-    const destroyed = tick(state, 100);
-    const planet = destroyed.planets.find(p => p.id === cygnus.id)!;
-    expect(planet.buildings.some(building => building.kind === 'antiSpaceDefense')).toBe(false);
-    expect(planet.defenseRebuildCooldowns?.antiSpaceDefense).toBe(DEFENSE_REBUILD_COOLDOWN_SECONDS);
-    expect(destroyed.messages).toContain('1 anti-space battery destroyed at Cygnus Reach.');
+    const shots = orbitalCombatShots(cygnus);
+    expect(shots).toContainEqual(expect.objectContaining({ attackerId: 'test-battery', targetId: 'battery-killer' }));
+    expect(shots).not.toContainEqual(expect.objectContaining({ targetId: 'test-battery' }));
+
+    const afterCombat = tick(state, 100);
+    const planet = afterCombat.planets.find(p => p.id === cygnus.id)!;
+    expect(planet.buildings.find(building => building.id === 'test-battery')).toMatchObject({
+      hp: ANTI_SPACE_BATTERY_STATS.hp,
+      shields: ANTI_SPACE_BATTERY_STATS.shields,
+    });
+    expect(planet.defenseRebuildCooldowns?.antiSpaceDefense).toBeUndefined();
+    expect(afterCombat.messages).not.toContain('1 anti-space battery destroyed at Cygnus Reach.');
   });
 
   it('supports locking an enemy orbital defense as the priority target', () => {

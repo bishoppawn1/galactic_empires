@@ -1402,16 +1402,13 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shots: OrbitalCombatShot[] = [];
   const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
   const batteries = p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building));
-  const installations = [...defenses, ...batteries];
   const combatants = p.orbitUnits.filter(unit => unit.faction !== 'neutral');
   const factions = new Set(combatants.map(unit => unit.faction));
   const hasHostileInstallations = !!p.owner && combatants.some(unit => unit.faction !== p.owner) && (defenses.length > 0 || batteries.length > 0);
   if (factions.size < 2 && !hasHostileInstallations) return shots;
   const hostileShipsByFaction = new Map<UnitFaction, Unit[]>();
   for (const faction of factions) hostileShipsByFaction.set(faction, combatants.filter(unit => unit.faction !== faction));
-  const defensePosition = (defense: Building) => defense.kind === 'spaceDefense'
-    ? orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length)
-    : { x: 0, y: 0 };
+  const defensePosition = (defense: Building) => orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length);
   const shipPosition = (ship: Unit) => ({ x: ship.orbitX ?? 0, y: ship.orbitY ?? 0 });
   const shipInRange = (attacker: Unit, target: Unit) => {
     const from = shipPosition(attacker), to = shipPosition(target);
@@ -1422,7 +1419,10 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const faction = attacker.faction as EmpireFaction;
     const hostileShips = hostileShipsByFaction.get(faction) ?? [];
     const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
-    const hostileDefenses = p.owner && p.owner !== faction ? installations : [];
+    // Anti-Space Batteries are protected surface emplacements. Ships can target
+    // armed orbital platforms, but cannot fire through the planet to destroy a
+    // ground-based battery.
+    const hostileDefenses = p.owner && p.owner !== faction ? defenses : [];
     const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : p.orbitFocusTargetIds?.[faction];
     const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);
     const attackerPosition = shipPosition(attacker);
@@ -1640,10 +1640,7 @@ function directAiOrbitalShips(state: GameState, p: Planet) {
       || typeof ship.orbitTargetX === 'number' || typeof ship.orbitTargetY === 'number') continue;
     const hostileShips = p.orbitUnits.filter(target => target.faction !== 'neutral' && target.faction !== ship.faction);
     const hostileInstallations = p.owner && p.owner !== ship.faction
-      ? [
-          ...p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building)).map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length)),
-          ...p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building)).map(() => ({ x: 0, y: 0 })),
-        ]
+      ? p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building)).map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length))
       : [];
     const targets = [
       ...hostileShips.map(target => ({ x: target.orbitX ?? 0, y: target.orbitY ?? 0 })),

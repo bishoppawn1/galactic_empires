@@ -335,6 +335,21 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText(/1 \/ 5 BUILT/)).toBeInTheDocument();
   });
 
+  it('shows defensive construction progress and rebuild lockouts', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.buildings.push({ id: 'building-ground-defense', kind: 'groundDefense', constructionRemaining: 4.5, constructionTotal: 8 });
+    terra.defenseRebuildCooldowns = { antiSpaceDefense: 7.5 };
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'construction' }));
+
+    const groundDefenseCard = screen.getByText('Ground Defenses', { selector: '.card-copy b' }).closest('article')!;
+    const batteryCard = screen.getByText('Anti-Space Battery', { selector: '.card-copy b' }).closest('article')!;
+    expect(groundDefenseCard).toHaveTextContent('0 BUILT · 1 BUILDING · 4.5s');
+    expect(batteryCard).toHaveTextContent('REBUILD LOCK 7.5s');
+    expect(within(batteryCard).getByRole('button', { name: '7.5s LOCK' })).toBeDisabled();
+  });
+
   it('shows unlimited capacity for factories and space yards', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'construction' }));

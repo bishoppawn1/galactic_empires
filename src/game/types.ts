@@ -21,6 +21,7 @@ export type BuildingKind =
   | 'antiSpaceDefense'
   | 'spaceDefense'
   | 'researchLab';
+export type DefenseBuildingKind = 'groundDefense' | 'antiSpaceDefense' | 'spaceDefense';
 
 export type GroundUnitKind =
   | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
@@ -48,6 +49,8 @@ export interface Building {
   id: string;
   kind: BuildingKind;
   spaceQueue?: QueueItem[];
+  constructionRemaining?: number;
+  constructionTotal?: number;
   hp?: number;
   maxHp?: number;
   shields?: number;
@@ -103,6 +106,7 @@ export interface Planet {
   orbitFocusTargetId?: string;
   enemyOrbitFocusTargetId?: string;
   orbitFocusTargetIds?: Partial<Record<EmpireFaction, string>>;
+  defenseRebuildCooldowns?: Partial<Record<DefenseBuildingKind, number>>;
 }
 export interface PlanetConnection { from: Planet; to: Planet; distance: number }
 export interface Fleet {

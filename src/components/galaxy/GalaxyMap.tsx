@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
   type GameState, type Planet,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -184,14 +184,17 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         <ShipCanvasLayer state={state} bounds={viewportBounds} zoom={zoom} selectedShipIds={selectedShipIds} />
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
-            const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
+            const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
             const shipIndexes = new Map(p.orbitUnits.map((ship, index) => [ship.id, index]));
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
             const mapPosition = (id: string, type: 'ship' | 'defense' | 'battery') => {
               if (type === 'battery') return { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 };
               if (type === 'defense') {
                 const index = defenses.findIndex(defense => defense.id === id);
-                return index < 0 ? undefined : defenseMapPosition(p, index, defenses.length);
+                if (index >= 0) return defenseMapPosition(p, index, defenses.length);
+                return p.buildings.some(building => building.id === id && building.kind === 'antiSpaceDefense' && isBuildingOperational(building))
+                  ? { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 }
+                  : undefined;
               }
               const ship = shipsById.get(id);
               return ship ? shipMapPosition(p, ship, shipIndexes.get(id) ?? 0) : undefined;
@@ -262,7 +265,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           });
         })}
         {state.planets.flatMap(p => {
-          const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
+          const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
           return defenses.map((defense, index) => {
             const position = defenseMapPosition(p, index, defenses.length);
             const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');

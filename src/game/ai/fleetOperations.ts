@@ -1,4 +1,4 @@
-import { UNITS } from '../definitions';
+import { UNITS, isBuildingOperational } from '../definitions';
 import { findPlanetPath } from '../navigation';
 import type { GameState, Planet, Unit } from '../types';
 
@@ -47,7 +47,7 @@ export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
       if (!path) return [];
       const priority = reinforce ? 0
         : invasionTargets.has(target.id) ? 1
-          : hasHostileShips(target) || target.buildings.some(building => building.kind === 'spaceDefense') ? 2 : 3;
+          : hasHostileShips(target) || target.buildings.some(building => building.kind === 'spaceDefense' && isBuildingOperational(building)) ? 2 : 3;
       return [{ target, priority, distance: routeDistance(state, path), kind: reinforce ? 'reinforce' as const : 'strike' as const }];
     }).sort((a, b) => a.priority - b.priority || a.distance - b.distance || a.target.id.localeCompare(b.target.id));
     const destination = targets[0];

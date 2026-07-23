@@ -1,4 +1,4 @@
-import type { BuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
+import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
 import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
@@ -20,9 +20,9 @@ export const BUILDINGS: Record<BuildingKind, Definition> = {
   advancedGroundFactory: { label: 'Advanced Ground Factory', description: 'Foundation for heavy armies.', cost: pool(280, 180, 120), requires: 'advancedIndustry' },
   spaceFactory: { label: 'Space Yard', description: 'Builds transports and light warships.', cost: pool(160, 110, 65) },
   advancedSpaceFactory: { label: 'Advanced Space Yard', description: 'Builds late-game vessels.', cost: pool(340, 240, 170), requires: 'advancedIndustry' },
-  groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25) },
-  antiSpaceDefense: { label: 'Anti-Space Battery', description: 'Damages hostile ships in orbit.', cost: pool(130, 75, 55) },
-  spaceDefense: { label: 'Orbital Defenses', description: 'Protects the planet’s orbital space.', cost: pool(180, 100, 75) },
+  groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25), time: 8 },
+  antiSpaceDefense: { label: 'Anti-Space Battery', description: 'Damages hostile ships in orbit.', cost: pool(130, 75, 55), time: 10 },
+  spaceDefense: { label: 'Orbital Defenses', description: 'Protects the planet’s orbital space.', cost: pool(180, 100, 75), time: 12 },
   researchLab: { label: 'Research Lab', description: 'Unlocks strategic research.', cost: pool(190, 160, 130) },
 };
 
@@ -133,6 +133,11 @@ export const researchUnlocksForCivilization = (id: ResearchId, civilization: Pla
 };
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
+export const ANTI_SPACE_BATTERY_STATS = { hp: 300, shields: 120, damage: 12 } as const;
+export const DEFENSE_REBUILD_COOLDOWN_SECONDS = 10;
+export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
+export const isDefenseBuildingKind = (kind: BuildingKind): kind is DefenseBuildingKind => DEFENSE_BUILDING_KINDS.includes(kind as DefenseBuildingKind);
+export const isBuildingOperational = (building: Building) => (building.constructionRemaining ?? 0) <= 0;
 export const ORBITAL_DEFENSE_RANGE = 400;
 export const ANTI_SPACE_BATTERY_RANGE = 300;
 export const ORBITAL_DEFENSE_RADIUS = 285;

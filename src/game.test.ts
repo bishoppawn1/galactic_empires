@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type GroundUnitKind, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, type DefenseBuildingKind, type GroundUnitKind, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -172,6 +172,48 @@ describe('economy and construction', () => {
       }
       expect(state.planets[0].buildings.filter(building => building.kind === kind)).toHaveLength(legacyMaximum + 1);
     }
+  });
+
+  it('constructs each defensive building over time before it becomes operational', () => {
+    let state = createInitialState(); state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const kinds = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'] as const;
+    for (const kind of kinds) {
+      const result = constructBuilding(state, 'terra', kind); expectOk(result); state = result.state;
+      const building = state.planets[0].buildings.find(candidate => candidate.kind === kind)!;
+      expect(building).toMatchObject({ constructionRemaining: BUILDINGS[kind].time, constructionTotal: BUILDINGS[kind].time });
+      expect(isBuildingOperational(building)).toBe(false);
+    }
+
+    const original = structuredClone(state);
+    const afterEightSeconds = tick(state, 8);
+    expect(isBuildingOperational(afterEightSeconds.planets[0].buildings.find(building => building.kind === 'groundDefense')!)).toBe(true);
+    expect(afterEightSeconds.planets[0].buildings.find(building => building.kind === 'antiSpaceDefense')!.constructionRemaining).toBe(2);
+    expect(afterEightSeconds.planets[0].buildings.find(building => building.kind === 'spaceDefense')!.constructionRemaining).toBe(4);
+    expect(state).toEqual(original);
+
+    const completed = tick(afterEightSeconds, 4);
+    expect(completed.planets[0].buildings.filter(building => kinds.includes(building.kind as typeof kinds[number])).every(isBuildingOperational)).toBe(true);
+  });
+
+  it('enforces a ten-second rebuild lock for every destroyed defense type', () => {
+    const state = createInitialState(); state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const kinds: DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
+    state.planets[0].defenseRebuildCooldowns = Object.fromEntries(kinds.map(kind => [kind, DEFENSE_REBUILD_COOLDOWN_SECONDS]));
+
+    kinds.forEach(kind => {
+      const locked = constructBuilding(state, 'terra', kind);
+      expect(locked.ok).toBe(false);
+      if (!locked.ok) expect(locked.error).toContain('rebuild locked for 10s');
+      expect(locked.state).toBe(state);
+    });
+
+    const almostReady = tick(state, 9.5);
+    expect(constructBuilding(almostReady, 'terra', 'groundDefense').ok).toBe(false);
+    const ready = tick(almostReady, .5);
+    expect(ready.planets[0].defenseRebuildCooldowns).toEqual({});
+    kinds.forEach(kind => expect(constructBuilding(ready, 'terra', kind).ok).toBe(true));
   });
 });
 
@@ -1538,7 +1580,25 @@ describe('combat recovery rules', () => {
 
     const destroyed = tick(state, 100);
     expect(destroyed.planets.find(p => p.id === 'cygnus')!.buildings.some(b => b.kind === 'spaceDefense')).toBe(false);
+    expect(destroyed.planets.find(p => p.id === 'cygnus')!.defenseRebuildCooldowns?.spaceDefense).toBe(DEFENSE_REBUILD_COOLDOWN_SECONDS);
     expect(destroyed.messages).toContain('1 orbital defense platform destroyed at Cygnus Reach.');
+  });
+
+  it('lets ships destroy anti-space batteries and starts their rebuild lock', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    cygnus.buildings.push({
+      id: 'test-battery', kind: 'antiSpaceDefense',
+      hp: ANTI_SPACE_BATTERY_STATS.hp, maxHp: ANTI_SPACE_BATTERY_STATS.hp,
+      shields: ANTI_SPACE_BATTERY_STATS.shields, maxShields: ANTI_SPACE_BATTERY_STATS.shields,
+    });
+    cygnus.orbitUnits = [{ ...makeUnit('battery-killer', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 }];
+
+    const destroyed = tick(state, 100);
+    const planet = destroyed.planets.find(p => p.id === cygnus.id)!;
+    expect(planet.buildings.some(building => building.kind === 'antiSpaceDefense')).toBe(false);
+    expect(planet.defenseRebuildCooldowns?.antiSpaceDefense).toBe(DEFENSE_REBUILD_COOLDOWN_SECONDS);
+    expect(destroyed.messages).toContain('1 anti-space battery destroyed at Cygnus Reach.');
   });
 
   it('supports locking an enemy orbital defense as the priority target', () => {

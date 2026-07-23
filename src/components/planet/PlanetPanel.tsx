@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceProductionMultiplier, spaceYards,
+  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, spaceProductionMultiplier, spaceYards,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
@@ -57,11 +57,20 @@ function Construction({ state, planet, act }: { state: GameState; planet: Planet
     <div className="card-list">
       {availableBuildings.map(kind => {
         const def = BUILDINGS[kind]; const count = planet.buildings.filter(building => building.kind === kind).length; const maximum = planet.buildingLimits[kind];
+        const constructing = planet.buildings.filter(building => building.kind === kind && !isBuildingOperational(building));
+        const operationalCount = count - constructing.length;
+        const nextCompletion = constructing.length ? Math.min(...constructing.map(building => building.constructionRemaining!)) : 0;
+        const rebuildCooldown = isDefenseBuildingKind(kind) ? planet.defenseRebuildCooldowns?.[kind] ?? 0 : 0;
         const unlimited = hasUnlimitedBuildingCapacity(kind);
         const locked = !!def.requires && !state.completedResearch.includes(def.requires);
+        const atMaximum = !unlimited && count >= maximum;
+        const disabled = locked || atMaximum || rebuildCooldown > 0;
+        const status = constructing.length
+          ? `${operationalCount} BUILT · ${constructing.length} BUILDING · ${formatProductionSeconds(nextCompletion)}`
+          : `${count} / ${unlimited ? '∞' : maximum} BUILT`;
         return <article className={`build-card ${locked ? 'locked-card' : ''}`} key={kind}>
-          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{count} / {unlimited ? '∞' : maximum} BUILT · {formatFactionCost(def.cost, civilization)}</em></div>
-          <button disabled={locked || (!unlimited && count >= maximum)} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : !unlimited && count >= maximum ? 'MAX' : 'BUILD +1'}</button>
+          <div className="building-icon">{buildingIcon(kind)}</div><div className="card-copy"><b>{def.label}</b><small>{def.description}</small><em>{status} · {formatFactionCost(def.cost, civilization)}{def.time ? ` · ${formatProductionSeconds(def.time)}` : ''}{rebuildCooldown > 0 ? ` · REBUILD LOCK ${formatProductionSeconds(rebuildCooldown)}` : ''}</em></div>
+          <button disabled={disabled} onClick={() => act({ type: 'construct', planetId: planet.id, kind })}>{locked ? 'LOCKED' : rebuildCooldown > 0 ? `${formatProductionSeconds(rebuildCooldown)} LOCK` : atMaximum ? 'MAX' : 'BUILD +1'}</button>
         </article>;
       })}
     </div>

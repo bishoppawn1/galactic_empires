@@ -2,6 +2,7 @@ import {
   DEFAULT_GAME_CONFIG,
   type Building,
   type BuildingKind,
+  type DefenseBuildingKind,
   type Definition,
   type EnemyDifficulty,
   type EmpireEconomy,
@@ -40,10 +41,10 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ANTI_SPACE_BATTERY_RANGE, BUILDINGS, BUILDING_KINDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, orbitalDefenseOffset, unitAvailableToCivilization,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, orbitalDefenseOffset, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -192,11 +193,37 @@ function ensureOrbitPositions(planet: Planet) {
 }
 
 function ensureOrbitalDefenseHealth(building: Building) {
-  if (building.kind !== 'spaceDefense') return;
-  building.maxHp ??= ORBITAL_DEFENSE_STATS.hp;
+  if (building.kind !== 'spaceDefense' && building.kind !== 'antiSpaceDefense') return;
+  const stats = building.kind === 'spaceDefense' ? ORBITAL_DEFENSE_STATS : ANTI_SPACE_BATTERY_STATS;
+  building.maxHp ??= stats.hp;
   building.hp ??= building.maxHp;
-  building.maxShields ??= ORBITAL_DEFENSE_STATS.shields;
+  building.maxShields ??= stats.shields;
   building.shields ??= building.maxShields;
+}
+
+function startDefenseRebuildCooldown(planet: Planet, kind: DefenseBuildingKind) {
+  planet.defenseRebuildCooldowns ??= {};
+  planet.defenseRebuildCooldowns[kind] = Math.max(planet.defenseRebuildCooldowns[kind] ?? 0, DEFENSE_REBUILD_COOLDOWN_SECONDS);
+}
+
+function advanceDefenseConstruction(state: GameState, planet: Planet, seconds: number) {
+  if (planet.defenseRebuildCooldowns) {
+    for (const kind of Object.keys(planet.defenseRebuildCooldowns) as DefenseBuildingKind[]) {
+      const remaining = Math.max(0, (planet.defenseRebuildCooldowns[kind] ?? 0) - seconds);
+      if (remaining > 0) planet.defenseRebuildCooldowns[kind] = remaining;
+      else delete planet.defenseRebuildCooldowns[kind];
+    }
+  }
+  planet.buildings.forEach(building => {
+    if (!isDefenseBuildingKind(building.kind) || !building.constructionRemaining) return;
+    const before = building.constructionRemaining;
+    building.constructionRemaining = Math.max(0, before - seconds);
+    if (building.constructionRemaining > 0) return;
+    delete building.constructionRemaining;
+    delete building.constructionTotal;
+    ensureOrbitalDefenseHealth(building);
+    if (planet.owner === 'player') addMessage(state, `${BUILDINGS[building.kind].label} construction complete on ${planet.name}.`);
+  });
 }
 
 const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, number> => ({
@@ -347,6 +374,11 @@ export function migrateGameState(input: GameState): GameState {
   };
   for (const p of state.planets) {
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
+    p.defenseRebuildCooldowns ??= {};
+    for (const kind of Object.keys(p.defenseRebuildCooldowns) as DefenseBuildingKind[]) {
+      const remaining = p.defenseRebuildCooldowns[kind];
+      if (!isDefenseBuildingKind(kind) || typeof remaining !== 'number' || !Number.isFinite(remaining) || remaining <= 0) delete p.defenseRebuildCooldowns[kind];
+    }
     p.groundUnits = Array.isArray(p.groundUnits) ? p.groundUnits : [];
     p.orbitUnits = Array.isArray(p.orbitUnits) ? p.orbitUnits : [];
     p.groundQueue = Array.isArray(p.groundQueue) ? p.groundQueue : [];
@@ -476,14 +508,21 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
   const count = p.buildings.filter(b => b.kind === kind).length;
   const unlimited = hasUnlimitedBuildingCapacity(kind);
   if (!unlimited && count >= p.buildingLimits[kind]) return fail(input, `${p.name} has reached its ${def.label} limit.`);
+  const rebuildCooldown = isDefenseBuildingKind(kind) ? p.defenseRebuildCooldowns?.[kind] ?? 0 : 0;
+  if (rebuildCooldown > 0) return fail(input, `${def.label} rebuild locked for ${Number(rebuildCooldown.toFixed(1))}s.`);
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
   if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
   spendPlayerResources(state, def.cost);
-  const building: Building = { id: `b${state.nextId++}`, kind };
+  const building: Building = {
+    id: `b${state.nextId++}`, kind,
+    ...(isDefenseBuildingKind(kind) ? { constructionRemaining: def.time!, constructionTotal: def.time! } : {}),
+  };
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
   p.buildings.push(building);
-  addMessage(state, `${def.label} ${count + 1}/${unlimited ? '∞' : p.buildingLimits[kind]} constructed on ${p.name}.`);
+  addMessage(state, isDefenseBuildingKind(kind)
+    ? `${def.label} construction started on ${p.name} — ${def.time}s.`
+    : `${def.label} ${count + 1}/${unlimited ? '∞' : p.buildingLimits[kind]} constructed on ${p.name}.`);
   return pass(state);
 }
 
@@ -705,7 +744,7 @@ function ensureGroundDefenseBattleUnits(state: GameState, battle: GroundBattle) 
   if (battle.groundDefenseBuildingIds !== undefined) return;
   const p = getPlanet(state, battle.planetId);
   if (!p || !p.owner) { battle.groundDefenseBuildingIds = []; return; }
-  const defenses = p.buildings.filter(building => building.kind === 'groundDefense');
+  const defenses = p.buildings.filter(building => building.kind === 'groundDefense' && isBuildingOperational(building));
   battle.groundDefenseBuildingIds = defenses.map(building => building.id);
   const existingSources = new Set(battle.defenders.map(defender => defender.sourceBuildingId));
   battle.defenders.push(...defenses.filter(building => !existingSources.has(building.id)).map(building => groundDefenseUnit(state, building, p.owner!)));
@@ -737,7 +776,7 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
     p.owner = faction; p.groundUnits.push(...recoverGroundUnits(cargo));
     addMessage(state, faction === 'player' ? `${p.name} colonized by ${cargo.length} automatically deployed squad${cargo.length === 1 ? '' : 's'}.` : `Enemy forces established a new base on ${p.name}.`);
   } else if (p.owner !== faction) {
-    const defenses = p.buildings.filter(building => building.kind === 'groundDefense');
+    const defenses = p.buildings.filter(building => building.kind === 'groundDefense' && isBuildingOperational(building));
     const fortifications = defenses.map(building => groundDefenseUnit(state, building, p.owner!));
     if (p.groundUnits.length || fortifications.length) {
       const battle: GroundBattle = { planetId: p.id, attackers: cargo, defenders: [...p.groundUnits, ...fortifications], attackerFaction: faction, groundDefenseBuildingIds: defenses.map(building => building.id) };
@@ -1114,7 +1153,9 @@ function resolveGroundDefenseBuildings(p: Planet, battle: GroundBattle, survivin
   const deployedIds = new Set(battle.groundDefenseBuildingIds ?? []);
   if (!deployedIds.size) return;
   const survivingIds = new Set(survivingDefenders.map(unit => unit.sourceBuildingId).filter((id): id is string => !!id));
+  const destroyed = p.buildings.some(building => building.kind === 'groundDefense' && deployedIds.has(building.id) && !survivingIds.has(building.id));
   p.buildings = p.buildings.filter(building => !deployedIds.has(building.id) || survivingIds.has(building.id));
+  if (destroyed) startDefenseRebuildCooldown(p, 'groundDefense');
 }
 
 const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !unit.sourceBuildingId));
@@ -1195,15 +1236,18 @@ const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) =
 
 export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shots: OrbitalCombatShot[] = [];
-  const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
-  const batteries = p.buildings.filter(building => building.kind === 'antiSpaceDefense');
+  const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
+  const batteries = p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building));
+  const installations = [...defenses, ...batteries];
   const combatants = p.orbitUnits.filter(unit => unit.faction !== 'neutral');
   const factions = new Set(combatants.map(unit => unit.faction));
   const hasHostileInstallations = !!p.owner && combatants.some(unit => unit.faction !== p.owner) && (defenses.length > 0 || batteries.length > 0);
   if (factions.size < 2 && !hasHostileInstallations) return shots;
   const hostileShipsByFaction = new Map<UnitFaction, Unit[]>();
   for (const faction of factions) hostileShipsByFaction.set(faction, combatants.filter(unit => unit.faction !== faction));
-  const defensePosition = (defense: Building) => orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length);
+  const defensePosition = (defense: Building) => defense.kind === 'spaceDefense'
+    ? orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length)
+    : { x: 0, y: 0 };
   const shipPosition = (ship: Unit) => ({ x: ship.orbitX ?? 0, y: ship.orbitY ?? 0 });
   const shipInRange = (attacker: Unit, target: Unit) => {
     const from = shipPosition(attacker), to = shipPosition(target);
@@ -1214,7 +1258,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const faction = attacker.faction as EmpireFaction;
     const hostileShips = hostileShipsByFaction.get(faction) ?? [];
     const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
-    const hostileDefenses = p.owner && p.owner !== faction ? defenses : [];
+    const hostileDefenses = p.owner && p.owner !== faction ? installations : [];
     const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : p.orbitFocusTargetIds?.[faction];
     const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);
     const attackerPosition = shipPosition(attacker);
@@ -1282,7 +1326,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
 }
 
 function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
-  const defenses = p.buildings.filter(b => b.kind === 'spaceDefense');
+  const defenses = p.buildings.filter(b => b.kind === 'spaceDefense' && isBuildingOperational(b));
   defenses.forEach(ensureOrbitalDefenseHealth);
   const shots = orbitalCombatShots(p);
   if (!shots.length) {
@@ -1354,12 +1398,17 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const defenseProtection = p.owner ? 1 / defenseDurabilityMultiplier(empireEconomy(state, p.owner).completedResearch) : 1;
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)! * defenseProtection) : building);
 
-  const destroyedDefenses = p.buildings.filter(building => building.kind === 'spaceDefense' && building.hp! <= 0);
+  const destroyedDefenses = p.buildings.filter(building => (building.kind === 'spaceDefense' || building.kind === 'antiSpaceDefense') && building.hp! <= 0);
   if (destroyedDefenses.length) {
     const destroyedIds = new Set(destroyedDefenses.map(building => building.id));
+    const orbitalDefenseCount = destroyedDefenses.filter(building => building.kind === 'spaceDefense').length;
+    const batteryCount = destroyedDefenses.filter(building => building.kind === 'antiSpaceDefense').length;
+    if (orbitalDefenseCount) startDefenseRebuildCooldown(p, 'spaceDefense');
+    if (batteryCount) startDefenseRebuildCooldown(p, 'antiSpaceDefense');
     p.buildings = p.buildings.filter(building => !destroyedIds.has(building.id));
     if (p.orbitFocusTargetId && destroyedIds.has(p.orbitFocusTargetId)) delete p.orbitFocusTargetId;
-    addMessage(state, `${destroyedDefenses.length} orbital defense platform${destroyedDefenses.length === 1 ? '' : 's'} destroyed at ${p.name}.`);
+    if (orbitalDefenseCount) addMessage(state, `${orbitalDefenseCount} orbital defense platform${orbitalDefenseCount === 1 ? '' : 's'} destroyed at ${p.name}.`);
+    if (batteryCount) addMessage(state, `${batteryCount} anti-space batter${batteryCount === 1 ? 'y' : 'ies'} destroyed at ${p.name}.`);
   }
   p.orbitUnits = p.orbitUnits.filter(unit => unit.hp > 0);
   const survivingShipIds = new Set(p.orbitUnits.map(unit => unit.id));
@@ -1397,8 +1446,8 @@ function directAiOrbitalShips(state: GameState, p: Planet) {
     const hostileShips = p.orbitUnits.filter(target => target.faction !== 'neutral' && target.faction !== ship.faction);
     const hostileInstallations = p.owner && p.owner !== ship.faction
       ? [
-          ...p.buildings.filter(building => building.kind === 'spaceDefense').map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length)),
-          ...p.buildings.filter(building => building.kind === 'antiSpaceDefense').map(() => ({ x: 0, y: 0 })),
+          ...p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building)).map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length)),
+          ...p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building)).map(() => ({ x: 0, y: 0 })),
         ]
       : [];
     const targets = [
@@ -1519,9 +1568,13 @@ function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount
   const maximum = unlimited ? desiredCount : Math.min(desiredCount, p.buildingLimits[kind]);
   if (usesBiomass(state, 'enemy') && ['metalMine', 'crystalMine', 'goldMine'].includes(kind)) return false;
   if (p.buildings.filter(building => building.kind === kind).length >= maximum
+    || (isDefenseBuildingKind(kind) && (p.defenseRebuildCooldowns?.[kind] ?? 0) > 0)
     || !enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return false;
   spendEnemyResources(state, def.cost);
-  const building: Building = { id: `eb${state.nextId++}`, kind };
+  const building: Building = {
+    id: `eb${state.nextId++}`, kind,
+    ...(isDefenseBuildingKind(kind) ? { constructionRemaining: def.time!, constructionTotal: def.time! } : {}),
+  };
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
   p.buildings.push(building);
@@ -1663,6 +1716,7 @@ export function tick(input: GameState, seconds: number): GameState {
   const state = migrateGameState(input); state.elapsed += seconds;
   state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(empireEconomy(state, fleet.faction).completedResearch)), seconds) }));
   for (const p of state.planets) {
+    advanceDefenseConstruction(state, p, seconds);
     ensureOrbitPositions(p);
     directAiOrbitalShips(state, p);
     if (p.owner) {

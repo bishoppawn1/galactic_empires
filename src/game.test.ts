@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -1132,7 +1132,9 @@ describe('transport and colonization', () => {
     const fleet = leaving.fleets[0];
     const terra = leaving.planets.find(planet => planet.id === 'terra')!;
     const halcyon = leaving.planets.find(planet => planet.id === 'halcyon')!;
-    const dx = halcyon.x - terra.x, dy = halcyon.y - terra.y, distance = Math.hypot(dx, dy);
+    const dx = GALAXY_CANVAS_WIDTH * (halcyon.x - terra.x) / 100;
+    const dy = GALAXY_CANVAS_HEIGHT * (halcyon.y - terra.y) / 100;
+    const distance = Math.hypot(dx, dy);
     const progress = fleet.progress / fleet.travelTime;
     const expectedX = fleet.departureX! + (dx / distance * MAX_SHIP_ORBIT_RADIUS - fleet.departureX!) * progress;
     const expectedY = fleet.departureY! + (dy / distance * MAX_SHIP_ORBIT_RADIUS - fleet.departureY!) * progress;
@@ -1144,6 +1146,38 @@ describe('transport and colonization', () => {
     expect(returned.orbitY).toBeCloseTo(expectedY);
     expect(returned).toMatchObject({ orbitTargetX: 80, orbitTargetY: 40 });
     expect(canceled.state.messages[0]).toBe('Jump canceled — 1 ship maneuvering inside Terra Nova gravity well.');
+  });
+
+  it('keeps a large departing fleet on its simulated path and vulnerable until tunnel entry', () => {
+    let state = createInitialState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const halcyon = state.planets.find(planet => planet.id === 'halcyon')!;
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 9999;
+    terra.orbitUnits = [
+      ...Array.from({ length: 96 }, (_, index) => makeUnit(`departing-${index}`, 'escortFrigate', 'player')),
+      { ...makeUnit('departure-interceptor', 'dreadnought', 'enemy'), orbitX: 100, orbitY: 0 },
+    ];
+    state = tick(state, 0);
+    const unitIds = terra.orbitUnits.filter(unit => unit.faction === 'player').map(unit => unit.id);
+    const order = dispatchSpaceUnits(state, terra.id, unitIds, halcyon.id);
+    expectOk(order);
+
+    const advanced = tick(order.state, .1);
+    const dx = GALAXY_CANVAS_WIDTH * (halcyon.x - terra.x) / 100;
+    const dy = GALAXY_CANVAS_HEIGHT * (halcyon.y - terra.y) / 100;
+    const distance = Math.hypot(dx, dy);
+    const borderX = dx / distance * MAX_SHIP_ORBIT_RADIUS;
+    const borderY = dy / distance * MAX_SHIP_ORBIT_RADIUS;
+    const departing = advanced.fleets.filter(fleet => unitIds.includes(fleet.unit.id));
+
+    expect(departing).toHaveLength(96);
+    departing.forEach(fleet => {
+      const progress = fleet.progress / fleet.travelTime;
+      expect(fleet.unit.orbitX).toBeCloseTo(fleet.departureX! + (borderX - fleet.departureX!) * progress);
+      expect(fleet.unit.orbitY).toBeCloseTo(fleet.departureY! + (borderY - fleet.departureY!) * progress);
+    });
+    expect(departing.some(fleet => fleet.unit.hp < fleet.unit.maxHp || fleet.unit.shields < fleet.unit.maxShields)).toBe(true);
   });
 
   it('allows cancellation while charging but commits the jump after tunnel entry', () => {

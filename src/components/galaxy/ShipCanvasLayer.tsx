@@ -32,11 +32,10 @@ export function inspectableShipAtPoint(state: GameState, x: number, y: number) {
       if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: planet.id, unitId: ship.id, distance };
     });
   }
-  state.fleets.forEach((fleet, index) => {
+  state.fleets.forEach(fleet => {
     if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return;
     const position = fleetMapPosition(fleet, state.planets);
-    const shipX = position.x + (index % 4) * 18, shipY = position.y + Math.floor(index / 4) * 18;
-    const distance = Math.hypot(shipX - x, shipY - y);
+    const distance = Math.hypot(position.x - x, position.y - y);
     const hitRadius = Math.max(20, shipDisplaySize(fleet.unit.kind) * .45);
     if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: fleet.destinationId, unitId: fleet.unit.id, distance };
   });
@@ -64,12 +63,11 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
         ? [{ id: ship.id, kind: ship.kind, faction: ship.faction, ...position, heading: orbitShipHeading(ship), charging: false } satisfies CanvasShip]
         : [];
     }));
-    const traveling = state.fleets.flatMap((fleet, index) => {
+    const traveling = state.fleets.flatMap(fleet => {
       if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return [];
       const position = fleetMapPosition(fleet, state.planets);
-      const x = position.x + (index % 4) * 18, y = position.y + Math.floor(index / 4) * 18;
-      return pointInViewport(bounds, x, y, shipDisplaySize(fleet.unit.kind))
-        ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x, y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]
+      return pointInViewport(bounds, position.x, position.y, shipDisplaySize(fleet.unit.kind))
+        ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x: position.x, y: position.y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]
         : [];
     });
     return [...orbiting, ...traveling];

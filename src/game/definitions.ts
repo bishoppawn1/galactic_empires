@@ -11,6 +11,8 @@ export const STANDARD_RESOURCES = ['metal', 'crystal', 'gold'] as const;
 export const RESOURCE_TRADE_RATE = 3;
 export const RESOURCE_TRADE_DEFAULT_SPEND = 150;
 export const RESOURCE_TRADE_MAX_SPEND = 1_000_000_000;
+export const GALAXY_CANVAS_WIDTH = 12800;
+export const GALAXY_CANVAS_HEIGHT = 8800;
 
 export const BUILDINGS: Record<BuildingKind, Definition> = {
   metalMine: { label: 'Metal Mine', description: 'Produces a permanent stream of metal.', cost: pool(0, 80, 45) },

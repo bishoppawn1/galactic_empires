@@ -1,7 +1,9 @@
-import { MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, headingForVector, orbitalDefenseOffset, type Fleet, type Planet, type Unit } from '../../game';
+import {
+  GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  headingForVector, orbitalDefenseOffset, type Fleet, type Planet, type Unit,
+} from '../../game';
 
-export const GALAXY_CANVAS_WIDTH = 12800;
-export const GALAXY_CANVAS_HEIGHT = 8800;
+export { GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH };
 
 export interface GalaxyViewportBounds {
   left: number;
@@ -62,7 +64,11 @@ export const orbitShipHeading = (ship: Unit) => typeof ship.orbitTargetX === 'nu
 export const fleetHeading = (fleet: Fleet, planets: Planet[]) => {
   const from = planets.find(planet => planet.id === fleet.originId)!;
   const to = planets.find(planet => planet.id === fleet.destinationId)!;
-  return headingForVector(to.x - from.x, to.y - from.y, fleet.unit.heading);
+  return headingForVector(
+    GALAXY_CANVAS_WIDTH * (to.x - from.x) / 100,
+    GALAXY_CANVAS_HEIGHT * (to.y - from.y) / 100,
+    fleet.unit.heading,
+  );
 };
 
 export const yardMapPosition = (planet: Planet, index: number, count: number) => {

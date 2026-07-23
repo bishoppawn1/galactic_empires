@@ -818,6 +818,22 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '0');
   });
 
+  it('keeps large-fleet departure markers on their simulated paths without list offsets', () => {
+    const state = createInitialState(); const origin = state.planets[0], destination = state.planets[1];
+    state.fleets = Array.from({ length: 96 }, (_, index) => ({
+      id: `player-departure-${index}`, faction: 'player' as const, originId: origin.id, destinationId: destination.id,
+      unit: { ...makeUnit(`player-departure-ship-${index}`, 'escortFrigate', 'player'), orbitX: 100, orbitY: -80 },
+      departureX: 100, departureY: -80, progress: 2, travelTime: 10, phase: 'exiting' as const,
+    }));
+    const expected = fleetMapPosition(state.fleets[95], state.planets);
+    saveState(state);
+    render(<App />);
+
+    const markers = document.querySelectorAll('.transit-ship.player.exiting');
+    expect(markers).toHaveLength(96);
+    expect(markers[95]).toHaveStyle({ left: `${expected.x}px`, top: `${expected.y}px` });
+  });
+
   it('renders every active orbital salvo in a large engagement', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = Array.from({ length: 80 }, (_, index) => ({

@@ -1251,7 +1251,7 @@ describe('transport and colonization', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 1000, 1000); expectOk(moved);
     const target = moved.state.planets[0].orbitUnits[0];
-    expect(GRAVITY_WELL_RADIUS).toBe(780);
+    expect(GRAVITY_WELL_RADIUS).toBe(960);
     expect(Math.hypot(target.orbitTargetX!, target.orbitTargetY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
   });
 

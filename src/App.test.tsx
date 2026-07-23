@@ -755,10 +755,10 @@ describe('Galactic Empires interface', () => {
 
     const canvas = document.querySelector('.galaxy-canvas');
     expect(canvas).not.toBeNull();
-    fireEvent.mouseDown(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
-    fireEvent.mouseUp(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
+    fireEvent.mouseDown(canvas as HTMLElement, { clientX: 3666, clientY: 4928 });
+    fireEvent.mouseUp(canvas as HTMLElement, { clientX: 3666, clientY: 4928 });
     expect(screen.queryByText('1 ship maneuvering inside Terra Nova gravity well.')).not.toBeInTheDocument();
-    fireEvent.contextMenu(canvas as HTMLElement, { clientX: 2666, clientY: 4928 });
+    fireEvent.contextMenu(canvas as HTMLElement, { clientX: 3666, clientY: 4928 });
 
     expect(screen.getByText('1 ship maneuvering inside Terra Nova gravity well.')).toBeInTheDocument();
     expect(transport).toHaveStyle({ left: '2816px', top: '4748px' });
@@ -806,8 +806,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
 
     const canvas = document.querySelector('.galaxy-canvas')!;
-    fireEvent.mouseDown(canvas, { clientX: 1900, clientY: 4928 });
-    fireEvent.mouseUp(canvas, { clientX: 1900, clientY: 4928 });
+    fireEvent.mouseDown(canvas, { clientX: 1700, clientY: 4928 });
+    fireEvent.mouseUp(canvas, { clientX: 1700, clientY: 4928 });
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
   });
 

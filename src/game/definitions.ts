@@ -1,4 +1,4 @@
-import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceUnitKind, UnitDefinition, UnitKind } from './types';
+import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, SpaceShipTier, SpaceUnitKind, SpaceYardKind, UnitDefinition, UnitKind } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
 import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
@@ -20,8 +20,9 @@ export const BUILDINGS: Record<BuildingKind, Definition> = {
   goldMine: { label: 'Gold Mine', description: 'Produces a permanent stream of gold.', cost: pool(85, 65, 0) },
   groundFactory: { label: 'Ground Factory', description: 'Produces basic planetary forces.', cost: pool(140, 80, 40) },
   advancedGroundFactory: { label: 'Advanced Ground Factory', description: 'Produces heavy armies with 2.5× factory capacity.', cost: pool(280, 180, 120), requires: 'advancedIndustry' },
-  spaceFactory: { label: 'Space Yard', description: 'Builds transports and light warships.', cost: pool(160, 110, 65) },
-  advancedSpaceFactory: { label: 'Advanced Space Yard', description: 'Builds late-game vessels.', cost: pool(340, 240, 170), requires: 'advancedIndustry' },
+  spaceFactory: { label: 'Space Yard', description: 'Tier 1 yard for transports and frigates.', cost: pool(160, 110, 65) },
+  advancedSpaceFactory: { label: 'Advanced Space Yard', description: 'Tier 2 yard for cruiser-class warships.', cost: pool(340, 240, 170), requires: 'advancedIndustry' },
+  experimentalSpaceFactory: { label: 'Experimental Space Yard', description: 'Tier 3 yard for mega-carriers, capital ships, and Titans.', cost: pool(650, 480, 350), requires: 'capitalShips' },
   groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25), time: 8 },
   antiSpaceDefense: { label: 'Anti-Space Battery', description: 'Damages hostile ships in orbit.', cost: pool(130, 75, 55), time: 10 },
   spaceDefense: { label: 'Orbital Defenses', description: 'Protects the planet’s orbital space.', cost: pool(180, 100, 75), time: 12 },
@@ -34,20 +35,20 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   recon: { label: 'Light Recon Vehicle', description: 'Fast scouting armor with twin autocannons.', cost: pool(55, 18, 9), time: 16, factory: 'ground', hp: 130, shields: 15, range: 11, moveSpeed: 11, weapon: { label: 'Twin Autocannon', damage: 1, cooldown: .5, projectiles: 2, effect: 'kinetic' } },
   lightTank: { label: 'Light Tank', description: 'Durable armor carrying a medium accelerator cannon.', cost: pool(82, 30, 15), time: 22, factory: 'ground', hp: 220, shields: 30, range: 16, moveSpeed: 5, weapon: { label: 'Accelerator Cannon', damage: 7, cooldown: 1.2, projectiles: 1, effect: 'kinetic' } },
   artillery: { label: 'Light Artillery', description: 'Long-range fire support delivering heavy mortar salvos.', cost: pool(75, 36, 18), time: 24, factory: 'ground', hp: 115, shields: 10, range: 30, moveSpeed: 3.5, weapon: { label: 'Arc Mortar', damage: 18, cooldown: 2.6, projectiles: 1, effect: 'artillery' } },
-  transport: { label: 'Transport', description: 'Carries four squads and mounts a light point-defense laser.', cost: pool(70, 48, 20), time: 18, factory: 'space', hp: 180, shields: 90, range: 160, moveSpeed: 0, weapon: { label: 'Point-Defense Laser', damage: .14, cooldown: .25, projectiles: 1, effect: 'laser' }, capacity: 4 },
-  escortFrigate: { label: 'Escort Frigate', description: 'Close escort with three low-damage continuous laser emitters.', cost: pool(120, 70, 35), time: 26, factory: 'space', hp: 260, shields: 130, range: 280, moveSpeed: 0, weapon: { label: 'Triple Laser Array', damage: .5, cooldown: .4, projectiles: 3, effect: 'laser' } },
-  missileFrigate: { label: 'Missile Frigate', description: 'Long-range frigate with one slow, devastating missile launcher.', cost: pool(135, 82, 42), time: 30, factory: 'space', hp: 230, shields: 115, range: 440, moveSpeed: 0, weapon: { label: 'Heavy Siege Missile', damage: 17, cooldown: 3.5, projectiles: 1, effect: 'missile' } },
-  flakFrigate: { label: 'Flak Frigate', description: 'A compact escort mounting rapid tracking cannons for screening hostile strike craft.', cost: pool(145, 90, 45), time: 32, factory: 'space', hp: 245, shields: 125, range: 300, moveSpeed: 0, weapon: { label: 'Quad Flak Cannons', damage: .35, cooldown: .42, projectiles: 4, effect: 'kinetic' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Fighter Screen', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
+  transport: { label: 'Transport', description: 'Carries four squads and mounts a light point-defense laser.', cost: pool(70, 48, 20), time: 18, factory: 'space', spaceTier: 1, hp: 180, shields: 90, range: 160, moveSpeed: 0, weapon: { label: 'Point-Defense Laser', damage: .14, cooldown: .25, projectiles: 1, effect: 'laser' }, capacity: 4 },
+  escortFrigate: { label: 'Escort Frigate', description: 'Close escort with three low-damage continuous laser emitters.', cost: pool(120, 70, 35), time: 26, factory: 'space', spaceTier: 1, hp: 260, shields: 130, range: 280, moveSpeed: 0, weapon: { label: 'Triple Laser Array', damage: .5, cooldown: .4, projectiles: 3, effect: 'laser' } },
+  missileFrigate: { label: 'Missile Frigate', description: 'Long-range frigate with one slow, devastating missile launcher.', cost: pool(135, 82, 42), time: 30, factory: 'space', spaceTier: 1, hp: 230, shields: 115, range: 440, moveSpeed: 0, weapon: { label: 'Heavy Siege Missile', damage: 17, cooldown: 3.5, projectiles: 1, effect: 'missile' } },
+  flakFrigate: { label: 'Flak Frigate', description: 'A compact escort mounting rapid tracking cannons for screening hostile strike craft.', cost: pool(145, 90, 45), time: 32, factory: 'space', spaceTier: 1, hp: 245, shields: 125, range: 300, moveSpeed: 0, weapon: { label: 'Quad Flak Cannons', damage: .35, cooldown: .42, projectiles: 4, effect: 'kinetic' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Fighter Screen', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
   shockTrooper: { label: 'Shock Troopers', description: 'Shielded assault infantry firing paired arc carbines.', cost: pool(88, 55, 30), time: 28, factory: 'ground', hp: 180, shields: 85, range: 17, moveSpeed: 7.5, weapon: { label: 'Dual Arc Carbines', damage: 3, cooldown: .8, projectiles: 2, effect: 'pulse' }, requires: 'groundWarfare', advancedFactory: true },
   railgunTank: { label: 'Railgun Tank', description: 'Fast heavy armor with a deliberate hypervelocity rail shot.', cost: pool(175, 110, 58), time: 42, factory: 'ground', hp: 430, shields: 75, range: 25, moveSpeed: 5.2, weapon: { label: 'Hypervelocity Railgun', damage: 24, cooldown: 1.9, projectiles: 1, effect: 'railgun' }, requires: 'heavyArmor', advancedFactory: true },
-  lightCruiser: { label: 'Light Cruiser', description: 'Powerful warship firing four synchronized pulse cannons.', cost: pool(250, 170, 105), time: 46, factory: 'space', hp: 480, shields: 240, range: 340, moveSpeed: 0, weapon: { label: 'Quad Pulse Cannons', damage: 1.9, cooldown: 1, projectiles: 4, effect: 'pulse' }, requires: 'orbitalEngineering' },
-  destroyer: { label: 'Phase Destroyer', description: 'Hardened line warship with a triple kinetic broadside.', cost: pool(330, 220, 135), time: 54, factory: 'space', hp: 720, shields: 360, range: 360, moveSpeed: 0, weapon: { label: 'Phase-Ion Broadside', damage: 3.5, cooldown: 1, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', advancedFactory: true },
+  lightCruiser: { label: 'Light Cruiser', description: 'Tier 2 line warship improving on frigate protection and firepower.', cost: pool(250, 170, 105), time: 46, factory: 'space', spaceTier: 2, hp: 480, shields: 240, range: 340, moveSpeed: 0, weapon: { label: 'Quad Pulse Cannons', damage: 1.9, cooldown: 1, projectiles: 4, effect: 'pulse' }, requires: 'orbitalEngineering' },
+  destroyer: { label: 'Phase Cruiser', description: 'Tier 2 heavy cruiser with a hardened hull and triple kinetic broadside.', cost: pool(330, 220, 135), time: 54, factory: 'space', spaceTier: 2, hp: 720, shields: 360, range: 360, moveSpeed: 0, weapon: { label: 'Phase-Ion Broadside', damage: 3.5, cooldown: 1, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering' },
   plasmaTank: { label: 'Plasma Tank', description: 'Heavy shielded armor built around a plasma lance.', cost: pool(155, 92, 48), time: 38, factory: 'ground', hp: 390, shields: 90, range: 19, moveSpeed: 4.2, weapon: { label: 'Plasma Lance', damage: 13, cooldown: 1.25, projectiles: 1, effect: 'plasma' }, requires: 'heavyArmor', advancedFactory: true },
   siegeWalker: { label: 'Siege Walker', description: 'Long-range armored platform with a fortress-breaking cannon.', cost: pool(210, 135, 72), time: 52, factory: 'ground', hp: 520, shields: 120, range: 36, moveSpeed: 2.6, weapon: { label: 'Quake Siege Cannon', damage: 31, cooldown: 2.1, projectiles: 1, effect: 'siege' }, requires: 'heavyArmor', advancedFactory: true },
   defenseTurret: { label: 'Defense Turret', description: 'Fortified emplacement with a dual repeater cannon.', cost: pool(), factory: 'ground', hp: 320, shields: 70, range: 32, moveSpeed: 0, weapon: { label: 'Dual Repeater Cannon', damage: 4, cooldown: 1, projectiles: 2, effect: 'kinetic' } },
-  assaultCarrier: { label: 'Assault Carrier', description: 'Eight-squad carrier launching replaceable strike fighters that circle hostile hulls.', cost: pool(360, 250, 145), time: 58, factory: 'space', hp: 650, shields: 330, range: 320, moveSpeed: 0, weapon: { label: 'Falcon Strike Wing', damage: 1.5, cooldown: .92, projectiles: 4, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 8, fighterWing: { label: 'Falcon Fighters', capacity: 4, rebuildTime: 18, attritionTime: 15 } },
-  battlecruiser: { label: 'Battlecruiser', description: 'Capital hull armed with two heavy rail batteries.', cost: pool(520, 360, 240), time: 78, factory: 'space', hp: 980, shields: 520, range: 400, moveSpeed: 0, weapon: { label: 'Twin Capital Railguns', damage: 8, cooldown: 1, projectiles: 2, effect: 'railgun' }, requires: 'capitalShips', advancedFactory: true },
-  dreadnought: { label: 'Titan Dreadnought', description: 'Ultimate capital ship firing three colossal siege beams.', cost: pool(900, 680, 460), time: 120, factory: 'space', hp: 1900, shields: 1050, range: 460, moveSpeed: 0, weapon: { label: 'Tri-Core Siege Beams', damage: 10, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true },
+  assaultCarrier: { label: 'Atlas Mega Carrier', description: 'Tier 3 fleet carrier transporting eight squads and launching replaceable strike fighters.', cost: pool(600, 440, 280), time: 92, factory: 'space', spaceTier: 3, hp: 1050, shields: 540, range: 340, moveSpeed: 0, weapon: { label: 'Falcon Strike Wing', damage: 1.5, cooldown: .92, projectiles: 8, effect: 'drone' }, requires: 'carrierOperations', capacity: 8, fighterWing: { label: 'Falcon Fighters', capacity: 8, rebuildTime: 18, attritionTime: 15 } },
+  battlecruiser: { label: 'Battlecruiser', description: 'Tier 3 capital hull armed with two heavy rail batteries.', cost: pool(520, 360, 240), time: 78, factory: 'space', spaceTier: 3, hp: 980, shields: 520, range: 400, moveSpeed: 0, weapon: { label: 'Twin Capital Railguns', damage: 8, cooldown: 1, projectiles: 2, effect: 'railgun' }, requires: 'capitalShips' },
+  dreadnought: { label: 'Titan Dreadnought', description: 'The Coalition’s unique Tier 3 Titan, firing three colossal siege beams.', cost: pool(900, 680, 460), time: 120, factory: 'space', spaceTier: 3, hp: 1900, shields: 1050, range: 460, moveSpeed: 0, weapon: { label: 'Tri-Core Siege Beams', damage: 10, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering' },
   broodling: { label: 'Broodling Pack', description: 'A cheap, fast clutch that becomes deadlier when several packs attack together.', cost: pool(20, 5, 2), time: 7, factory: 'ground', hp: 68, shields: 0, range: 7, moveSpeed: 11, weapon: { label: 'Rending Claws', damage: 1, cooldown: .55, projectiles: 2, effect: 'kinetic' }, ability: { kind: 'swarmInstinct', label: 'Swarm Instinct', description: '+20% damage for each nearby Broodling Pack, up to +60%.' } },
   acidSpitter: { label: 'Acid Spitter', description: 'A fragile hunter whose bile strips protection from priority targets.', cost: pool(39, 12, 5), time: 12, factory: 'ground', hp: 82, shields: 0, range: 21, moveSpeed: 6, weapon: { label: 'Caustic Glob', damage: 8, cooldown: 1.8, projectiles: 1, effect: 'plasma' }, ability: { kind: 'corrosiveBile', label: 'Corrosive Bile', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
   skitterer: { label: 'Skitterer', description: 'A darting reconnaissance organism that is difficult to pin down.', cost: pool(45, 14, 5), time: 13, factory: 'ground', hp: 100, shields: 0, range: 10, moveSpeed: 14, weapon: { label: 'Spine Volley', damage: .8, cooldown: .35, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'evasiveChitin', label: 'Evasive Chitin', description: 'Reduces incoming damage by 30%.' } },
@@ -58,15 +59,15 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   acidBehemoth: { label: 'Acid Behemoth', description: 'A towering reservoir beast that leaves whole formations vulnerable.', cost: pool(148, 84, 40), time: 36, factory: 'ground', hp: 410, shields: 0, range: 23, moveSpeed: 4, weapon: { label: 'Bile Lance', damage: 15, cooldown: 1.15, projectiles: 1, effect: 'plasma' }, requires: 'heavyArmor', advancedFactory: true, ability: { kind: 'corrosiveBile', label: 'Corrosive Torrent', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
   siegeCrawler: { label: 'Siege Crawler', description: 'A living fortress whose quake cysts engulf clustered defenders.', cost: pool(200, 124, 64), time: 48, factory: 'ground', hp: 590, shields: 0, range: 40, moveSpeed: 2.4, weapon: { label: 'Quake Cyst', damage: 29, cooldown: 2, projectiles: 1, effect: 'siege' }, requires: 'heavyArmor', advancedFactory: true, ability: { kind: 'burstSpores', label: 'Quake Bloom', description: 'Deals 35% splash damage to enemies near the primary target.' } },
   spineTower: { label: 'Spine Tower', description: 'A rooted defensive organism whose venomous barbs expose invading formations.', cost: pool(), factory: 'ground', hp: 380, shields: 20, range: 35, moveSpeed: 0, weapon: { label: 'Impaler Spines', damage: 5, cooldown: .9, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'corrosiveBile', label: 'Impaling Venom', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
-  sporeArk: { label: 'Spore Ark', description: 'A living landing vessel that regenerates even while crossing hostile space.', cost: pool(68, 42, 16), time: 16, factory: 'space', hp: 240, shields: 45, range: 140, moveSpeed: 0, weapon: { label: 'Defensive Spores', damage: .18, cooldown: .3, projectiles: 2, effect: 'drone' }, capacity: 5, ability: { kind: 'livingHold', label: 'Living Hold', description: 'Regenerates 4 hull per second in any orbit or phase lane.' } },
-  clawFrigate: { label: 'Claw Frigate', description: 'An aggressive hunter organism that specializes in gutting troop carriers.', cost: pool(112, 62, 28), time: 23, factory: 'space', hp: 300, shields: 70, range: 220, moveSpeed: 0, weapon: { label: 'Ripper Talons', damage: .7, cooldown: .32, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'transportHunter', label: 'Transport Hunter', description: 'Deals 50% more damage to ships carrying ground units.' } },
-  needleFrigate: { label: 'Needle Frigate', description: 'A brittle sniper whose void spines punch through shields into living hull.', cost: pool(128, 76, 34), time: 27, factory: 'space', hp: 200, shields: 80, range: 470, moveSpeed: 0, weapon: { label: 'Void Needle', damage: 15, cooldown: 2.8, projectiles: 1, effect: 'missile' }, ability: { kind: 'shieldPiercing', label: 'Void Piercing', description: 'Half of each attack bypasses shields and strikes hull directly.' } },
-  broodSporeguard: { label: 'Sporeguard Frigate', description: 'A lean escort organism bred to burst tracking spores among hostile strike craft.', cost: pool(140, 84, 40), time: 29, factory: 'space', hp: 270, shields: 65, range: 290, moveSpeed: 0, weapon: { label: 'Tracking Spore Cysts', damage: .4, cooldown: .4, projectiles: 4, effect: 'drone' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Hunter Spores', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
-  hiveCruiser: { label: 'Hive Cruiser', description: 'A synaptic war organism coordinating every nearby living ship.', cost: pool(235, 152, 88), time: 42, factory: 'space', hp: 560, shields: 170, range: 320, moveSpeed: 0, weapon: { label: 'Bioplasma Nodes', damage: 1.8, cooldown: .85, projectiles: 5, effect: 'plasma' }, requires: 'orbitalEngineering', ability: { kind: 'orbitalSynapse', label: 'Orbital Synapse', description: 'Nearby allied ships deal 25% more damage.' } },
-  voidStalker: { label: 'Void Stalker', description: 'A phase-shifting ambush organism that turns aside incoming fire.', cost: pool(310, 198, 112), time: 50, factory: 'space', hp: 650, shields: 280, range: 380, moveSpeed: 0, weapon: { label: 'Phase Spines', damage: 4.3, cooldown: .9, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', advancedFactory: true, ability: { kind: 'phaseCarapace', label: 'Phase Carapace', description: 'Reduces incoming damage by 35%.' } },
-  broodCarrier: { label: 'Brood Carrier', description: 'A mobile hive that regrows attack spawn and splits them across hostile ships.', cost: pool(350, 232, 130), time: 54, factory: 'space', hp: 720, shields: 220, range: 300, moveSpeed: 0, weapon: { label: 'Ripper Spawn Wing', damage: 1.4, cooldown: .7, projectiles: 6, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 10, fighterWing: { label: 'Ripper Spawn', capacity: 6, rebuildTime: 12, attritionTime: 10 }, ability: { kind: 'spawnCloud', label: 'Spawn Cloud', description: 'Every fighter attack also pressures a second nearby hostile ship for 50% damage.' } },
-  leviathan: { label: 'Leviathan', description: 'A capital predator that consumes matter to mend its wounded body.', cost: pool(500, 330, 210), time: 72, factory: 'space', hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Twin Nova Glands', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', advancedFactory: true, ability: { kind: 'devour', label: 'Devour', description: 'Restores hull equal to 20% of the damage it deals.' } },
-  worldEater: { label: 'World Eater', description: 'The apex organism, able to crack orbital fortresses in a few feeding passes.', cost: pool(860, 630, 410), time: 112, factory: 'space', hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true, ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
+  sporeArk: { label: 'Spore Ark', description: 'A living landing vessel that regenerates even while crossing hostile space.', cost: pool(68, 42, 16), time: 16, factory: 'space', spaceTier: 1, hp: 240, shields: 45, range: 140, moveSpeed: 0, weapon: { label: 'Defensive Spores', damage: .18, cooldown: .3, projectiles: 2, effect: 'drone' }, capacity: 5, ability: { kind: 'livingHold', label: 'Living Hold', description: 'Regenerates 4 hull per second in any orbit or phase lane.' } },
+  clawFrigate: { label: 'Claw Frigate', description: 'An aggressive hunter organism that specializes in gutting troop carriers.', cost: pool(112, 62, 28), time: 23, factory: 'space', spaceTier: 1, hp: 300, shields: 70, range: 220, moveSpeed: 0, weapon: { label: 'Ripper Talons', damage: .7, cooldown: .32, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'transportHunter', label: 'Transport Hunter', description: 'Deals 50% more damage to ships carrying ground units.' } },
+  needleFrigate: { label: 'Needle Frigate', description: 'A brittle sniper whose void spines punch through shields into living hull.', cost: pool(128, 76, 34), time: 27, factory: 'space', spaceTier: 1, hp: 200, shields: 80, range: 470, moveSpeed: 0, weapon: { label: 'Void Needle', damage: 15, cooldown: 2.8, projectiles: 1, effect: 'missile' }, ability: { kind: 'shieldPiercing', label: 'Void Piercing', description: 'Half of each attack bypasses shields and strikes hull directly.' } },
+  broodSporeguard: { label: 'Sporeguard Frigate', description: 'A lean escort organism bred to burst tracking spores among hostile strike craft.', cost: pool(140, 84, 40), time: 29, factory: 'space', spaceTier: 1, hp: 270, shields: 65, range: 290, moveSpeed: 0, weapon: { label: 'Tracking Spore Cysts', damage: .4, cooldown: .4, projectiles: 4, effect: 'drone' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Hunter Spores', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
+  hiveCruiser: { label: 'Hive Cruiser', description: 'A Tier 2 synaptic war organism coordinating every nearby living ship.', cost: pool(235, 152, 88), time: 42, factory: 'space', spaceTier: 2, hp: 560, shields: 170, range: 320, moveSpeed: 0, weapon: { label: 'Bioplasma Nodes', damage: 1.8, cooldown: .85, projectiles: 5, effect: 'plasma' }, requires: 'orbitalEngineering', ability: { kind: 'orbitalSynapse', label: 'Orbital Synapse', description: 'Nearby allied ships deal 25% more damage.' } },
+  voidStalker: { label: 'Void Stalker Cruiser', description: 'A Tier 2 phase-shifting ambush organism that turns aside incoming fire.', cost: pool(310, 198, 112), time: 50, factory: 'space', spaceTier: 2, hp: 650, shields: 280, range: 380, moveSpeed: 0, weapon: { label: 'Phase Spines', damage: 4.3, cooldown: .9, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', ability: { kind: 'phaseCarapace', label: 'Phase Carapace', description: 'Reduces incoming damage by 35%.' } },
+  broodCarrier: { label: 'Brood Mega-Carrier', description: 'A Tier 3 mobile hive that regrows attack spawn and splits them across hostile ships.', cost: pool(590, 410, 250), time: 88, factory: 'space', spaceTier: 3, hp: 1180, shields: 300, range: 330, moveSpeed: 0, weapon: { label: 'Ripper Spawn Wing', damage: 1.4, cooldown: .7, projectiles: 10, effect: 'drone' }, requires: 'carrierOperations', capacity: 12, fighterWing: { label: 'Ripper Spawn', capacity: 10, rebuildTime: 12, attritionTime: 10 }, ability: { kind: 'spawnCloud', label: 'Spawn Cloud', description: 'Every fighter attack also pressures a second nearby hostile ship for 50% damage.' } },
+  leviathan: { label: 'Leviathan', description: 'A Tier 3 capital predator that consumes matter to mend its wounded body.', cost: pool(500, 330, 210), time: 72, factory: 'space', spaceTier: 3, hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Twin Nova Glands', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', ability: { kind: 'devour', label: 'Devour', description: 'Restores hull equal to 20% of the damage it deals.' } },
+  worldEater: { label: 'World Eater', description: 'The Brood’s unique Tier 3 Titan, able to crack orbital fortresses in a few feeding passes.', cost: pool(860, 630, 410), time: 112, factory: 'space', spaceTier: 3, hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
   ...AEGIS_UNITS,
   ...COVENANT_UNITS,
 };
@@ -111,14 +112,14 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   planetaryFortifications: ['+25% defense durability'],
   fleetLogistics: ['Carrier doctrine'],
   phaseMastery: ['25% faster phase travel'],
-  orbitalEngineering: ['Light Cruiser', 'Phase Destroyer'],
+  orbitalEngineering: ['Light Cruiser', 'Phase Cruiser'],
   shieldHarmonics: ['+50% ship shield regeneration'],
   quantumExtraction: ['+25% resource output'],
   deepCoreExtraction: ['Resource output bonus increased to +50%'],
   resourceSynthesis: ['Repeatable · +5% resource output per level'],
   heavyArmor: ['Railgun Tank', 'Plasma Tank', 'Siege Walker'],
-  carrierOperations: ['Assault Carrier'],
-  capitalShips: ['Battlecruiser'],
+  carrierOperations: ['Atlas Mega Carrier'],
+  capitalShips: ['Experimental Space Yard', 'Battlecruiser'],
   weaponsCalibration: ['Flak Frigates', '+15% ship and orbital weapon damage'],
   combatSimulation: ['Repeatable · +3% ship and orbital damage per level'],
   titanEngineering: ['Titan Dreadnought'],
@@ -127,29 +128,29 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
 const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'],
   groundWarfare: ['Synapse Guard'],
-  fleetLogistics: ['Brood Carrier doctrine'],
-  orbitalEngineering: ['Hive Cruiser', 'Void Stalker'],
+  fleetLogistics: ['Brood Mega-Carrier doctrine'],
+  orbitalEngineering: ['Hive Cruiser', 'Void Stalker Cruiser'],
   quantumExtraction: ['+25% planetary biomass'],
   industrialIteration: ['Repeatable · +5% gestation speed per level'],
   resourceSynthesis: ['Repeatable · +5% planetary biomass per level'],
   heavyArmor: ['Crusher Beast', 'Acid Behemoth', 'Siege Crawler'],
-  carrierOperations: ['Brood Carrier'],
-  capitalShips: ['Leviathan'],
+  carrierOperations: ['Brood Mega-Carrier'],
+  capitalShips: ['Experimental Space Yard', 'Leviathan'],
   combatSimulation: ['Repeatable · +3% biofleet damage per level'],
   titanEngineering: ['World Eater'],
 };
 
 const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Paladin Guard'],
-  fleetLogistics: ['Citadel carrier doctrine'], orbitalEngineering: ['Ward Cruiser'], quantumExtraction: ['+25% resource output'],
-  heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Carrier'], capitalShips: ['Sovereign command systems'], titanEngineering: ['Sovereign Dreadnought'],
+  fleetLogistics: ['Citadel Mega-Carrier doctrine'], orbitalEngineering: ['Ward Cruiser'], quantumExtraction: ['+25% resource output'],
+  heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Sovereign command systems'], titanEngineering: ['Sovereign Titan'],
   industrialIteration: ['Repeatable · +5% sentinel production per level'], resourceSynthesis: ['Repeatable · +5% resource output per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
 };
 
 const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Repair Drone'],
-  fleetLogistics: ['Fabricator carrier doctrine'], orbitalEngineering: ['Foundry Cruiser'], quantumExtraction: ['+25% resource output'],
-  heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Carrier'], capitalShips: ['Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
+  fleetLogistics: ['Fabricator Mega-Carrier doctrine'], orbitalEngineering: ['Foundry Cruiser'], quantumExtraction: ['+25% resource output'],
+  heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
   industrialIteration: ['Repeatable · +5% assembly speed per level'], resourceSynthesis: ['Repeatable · +5% matter reclamation per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
 };
 
@@ -241,6 +242,23 @@ export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defen
 export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS];
 export const FLAK_FRIGATE_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['flakFrigate', 'broodSporeguard', 'aegisSentinelFrigate', 'covenantInterdictor']);
 export const isFlakFrigateKind = (kind: UnitKind): kind is SpaceUnitKind => FLAK_FRIGATE_KINDS.has(kind as SpaceUnitKind);
+export const TITAN_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['dreadnought', 'worldEater', 'aegisSovereignDreadnought', 'covenantDreadforge']);
+export const isTitanKind = (kind: UnitKind): kind is SpaceUnitKind => TITAN_KINDS.has(kind as SpaceUnitKind);
+export const SPACE_YARD_KIND_BY_TIER: Record<SpaceShipTier, SpaceYardKind> = {
+  1: 'spaceFactory',
+  2: 'advancedSpaceFactory',
+  3: 'experimentalSpaceFactory',
+};
+export const SPACE_YARD_TIER: Record<SpaceYardKind, SpaceShipTier> = {
+  spaceFactory: 1,
+  advancedSpaceFactory: 2,
+  experimentalSpaceFactory: 3,
+};
+export const spaceTierForUnit = (kind: UnitKind) => UNITS[kind].factory === 'space' ? UNITS[kind].spaceTier : undefined;
+export const requiredSpaceYardKind = (kind: UnitKind) => {
+  const tier = spaceTierForUnit(kind);
+  return tier ? SPACE_YARD_KIND_BY_TIER[tier] : undefined;
+};
 
 const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'broodling', antiVehicle: 'acidSpitter', recon: 'skitterer', lightTank: 'carapaceBeast', artillery: 'sporeLobber',
@@ -272,6 +290,6 @@ export const unitAvailableToCivilization = (kind: UnitKind, civilization: Playab
 export const groundDefenseKindForCivilization = (civilization: PlayableFaction): GroundUnitKind => civilization === 'brood' ? 'spineTower' : civilization === 'covenant' ? 'covenantBulwark' : 'defenseTurret';
 export const BUILDING_KINDS = Object.keys(BUILDINGS) as BuildingKind[];
 export const UNLIMITED_BUILDING_KINDS: ReadonlySet<BuildingKind> = new Set([
-  'groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory',
+  'groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory', 'experimentalSpaceFactory',
 ]);
 export const hasUnlimitedBuildingCapacity = (kind: BuildingKind) => UNLIMITED_BUILDING_KINDS.has(kind);

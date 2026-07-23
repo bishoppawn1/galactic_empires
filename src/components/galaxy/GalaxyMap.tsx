@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards, spaceYardTier,
   type GameState, type Planet,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -262,12 +262,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const yards = spaceYards(p);
           return yards.map((yard, index) => {
             const position = yardMapPosition(p, index, yards.length);
-            const advanced = yard.kind === 'advancedSpaceFactory';
-            const content = <><span>{advanced ? 'A' : 'Y'}{index + 1}</span><small>{p.owner !== 'player' ? `HOSTILE ${advanced ? 'ADV YARD' : 'YARD'}` : advanced ? 'ADV YARD' : 'SPACE YARD'}</small></>;
-            const className = `orbit-yard ${p.owner} ${advanced ? 'advanced' : ''} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`;
+            const tier = spaceYardTier(yard)!;
+            const yardLabel = tier === 1 ? 'Space Yard' : tier === 2 ? 'Advanced Space Yard' : 'Experimental Space Yard';
+            const shortLabel = tier === 1 ? 'SPACE YARD' : tier === 2 ? 'ADV YARD' : 'EXP YARD';
+            const content = <><span>{tier === 1 ? 'Y' : tier === 2 ? 'A' : 'X'}{index + 1}</span><small>{p.owner !== 'player' ? `HOSTILE ${shortLabel}` : shortLabel}</small></>;
+            const className = `orbit-yard ${p.owner} tier-${tier} ${tier === 2 ? 'advanced' : tier === 3 ? 'experimental' : ''} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`;
             return p.owner === 'player'
-              ? <button key={yard.id} aria-label={`${advanced ? 'Advanced Space Yard' : 'Space Yard'} ${index + 1} orbiting ${p.name} — open ship production`} aria-pressed={selectedYardIds.includes(yard.id)} className={className} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); onSelectSpaceYard(p.id, yard.id, event.shiftKey); }}>{content}</button>
-              : <div key={yard.id} role="img" aria-label={`Enemy ${advanced ? 'Advanced Space Yard' : 'Space Yard'} ${index + 1} orbiting ${p.name}`} className={className} style={{ left: position.x, top: position.y }}>{content}</div>;
+              ? <button key={yard.id} aria-label={`${yardLabel} ${index + 1} orbiting ${p.name} — open ship production`} aria-pressed={selectedYardIds.includes(yard.id)} className={className} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); onSelectSpaceYard(p.id, yard.id, event.shiftKey); }}>{content}</button>
+              : <div key={yard.id} role="img" aria-label={`Enemy ${yardLabel} ${index + 1} orbiting ${p.name}`} className={className} style={{ left: position.x, top: position.y }}>{content}</div>;
           });
         })}
         {state.planets.flatMap(p => {

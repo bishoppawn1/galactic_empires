@@ -9,14 +9,15 @@ export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction }
 export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };
 
+export type SpaceShipTier = 1 | 2 | 3;
+export type SpaceYardKind = 'spaceFactory' | 'advancedSpaceFactory' | 'experimentalSpaceFactory';
 export type BuildingKind =
   | 'metalMine'
   | 'crystalMine'
   | 'goldMine'
   | 'groundFactory'
   | 'advancedGroundFactory'
-  | 'spaceFactory'
-  | 'advancedSpaceFactory'
+  | SpaceYardKind
   | 'groundDefense'
   | 'antiSpaceDefense'
   | 'spaceDefense'
@@ -195,6 +196,7 @@ export interface Definition {
 
 export interface UnitDefinition extends Definition {
   factory: 'ground' | 'space';
+  spaceTier?: SpaceShipTier;
   hp: number;
   shields: number;
   range: number;

@@ -1,8 +1,8 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, spaceProductionMultiplier, spaceYards,
+  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, factionHasTitan, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isTitanKind, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
-  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
+  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type SpaceShipTier, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
 import { buildingIcon, factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -102,10 +102,14 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   const lockReason = (kind: UnitKind) => {
     const def = UNITS[kind];
     if (def.requires && !state.completedResearch.includes(def.requires)) return 'RESEARCH REQUIRED';
+    if (isTitanKind(kind) && factionHasTitan(state, 'player')) return 'TITAN ALREADY ACTIVE';
     if (def.factory === 'ground' && def.advancedFactory && !hasAdvancedGroundFactory) return 'ADVANCED FACTORY REQUIRED';
-    if (def.factory === 'space' && def.advancedFactory) {
-      const candidates = groupedYards.length ? groupedYards : yards.filter(yard => yard.kind === 'advancedSpaceFactory');
-      if (!candidates.length || candidates.some(yard => yard.kind !== 'advancedSpaceFactory')) return 'ADVANCED YARD REQUIRED';
+    if (def.factory === 'space') {
+      const tier = spaceTierForUnit(kind)!;
+      const candidates = groupedYards.length ? groupedYards : yards.filter(yard => spaceYardCanProduce(yard, kind));
+      if (!candidates.length || candidates.some(yard => !spaceYardCanProduce(yard, kind))) {
+        return tier === 1 ? 'TIER 1 SPACE YARD REQUIRED' : tier === 2 ? 'TIER 2 ADVANCED YARD REQUIRED' : 'TIER 3 EXPERIMENTAL YARD REQUIRED';
+      }
     }
     return undefined;
   };
@@ -115,9 +119,16 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {spaceSpeed}× speed · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
-    {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically; constructing another yard rebalances waiting hulls'}.</p>}
-    <div className="unit-grid">{spaceKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
-    <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} speed={spaceSpeed} showEmpty /></article>)}</div>
+    {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `grouped orders require every selected yard to match the hull tier` : 'orders rotate across yards of the matching tier; constructing another yard rebalances compatible waiting hulls'}.</p>}
+    {([1, 2, 3] as SpaceShipTier[]).map(tier => <div className={`ship-tier tier-${tier}`} key={tier}>
+      <h4>TIER {tier} · {tier === 1 ? 'FRIGATES & TRANSPORTS' : tier === 2 ? 'CRUISERS' : 'SUPER CAPITALS'}</h4>
+      <div className="unit-grid">{spaceKinds.filter(kind => spaceTierForUnit(kind) === tier).map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={lockReason(kind)} />)}</div>
+    </div>)}
+    <div className="yard-queue-list">{yards.map((yard, index) => {
+      const tier = spaceYardTier(yard)!;
+      const label = tier === 1 ? 'STANDARD' : tier === 2 ? 'ADVANCED' : 'EXPERIMENTAL';
+      return <article className={`yard-queue-card tier-${tier} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>TIER {tier} · {label} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} speed={spaceSpeed} showEmpty /></article>;
+    })}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />
     {planet.owner === 'player' && <>{focus === 'space' ? <>{spaceProduction}{groundProduction}</> : <>{groundProduction}{spaceProduction}</>}</>}
@@ -135,7 +146,7 @@ function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: U
   const definition = UNITS[kind];
   const spaceUnit = isSpaceUnit(kind);
   const details = spaceUnit
-    ? `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
+    ? `TIER ${definition.spaceTier}${isTitanKind(kind) ? ' · UNIQUE TITAN' : ''} · ${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
     : `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
   return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? details}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
 }

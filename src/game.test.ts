@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -36,6 +36,15 @@ describe('unit weapon definitions', () => {
     expect(missile).toMatchObject({ projectiles: 1, effect: 'missile' });
     expect(lasers.cooldown).toBeLessThan(missile.cooldown);
     expect(lasers.damage * lasers.projectiles).toBeLessThan(missile.damage);
+  });
+
+  it('assigns every spaceship to one of three tiers and gives every faction exactly one Titan', () => {
+    expect(SPACE_KINDS.every(kind => [1, 2, 3].includes(UNITS[kind].spaceTier!))).toBe(true);
+    expect([...TITAN_KINDS]).toHaveLength(4);
+    for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
+      expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
+      expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
+    }
   });
 });
 
@@ -162,8 +171,8 @@ describe('economy and construction', () => {
   it('allows unlimited factories and space yards on every planet', () => {
     let state = createInitialState();
     state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
-    state.completedResearch.push('advancedIndustry');
-    const kinds = ['groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory'] as const;
+    state.completedResearch.push('advancedIndustry', 'capitalShips');
+    const kinds = ['groundFactory', 'advancedGroundFactory', 'spaceFactory', 'advancedSpaceFactory', 'experimentalSpaceFactory'] as const;
 
     for (const kind of kinds) {
       const legacyMaximum = state.planets[0].buildingLimits[kind];
@@ -172,6 +181,18 @@ describe('economy and construction', () => {
       }
       expect(state.planets[0].buildings.filter(building => building.kind === kind)).toHaveLength(legacyMaximum + 1);
     }
+  });
+
+  it('unlocks the Experimental Space Yard through Capital Ship Doctrine', () => {
+    const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    expect(constructBuilding(state, 'terra', 'experimentalSpaceFactory')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Capital Ship Doctrine'),
+    });
+    state.completedResearch.push('capitalShips');
+    const built = constructBuilding(state, 'terra', 'experimentalSpaceFactory'); expectOk(built);
+    expect(spaceYards(built.state.planets[0]).some(yard => yard.kind === 'experimentalSpaceFactory')).toBe(true);
   });
 
   it('constructs each defensive building over time before it becomes operational', () => {
@@ -308,7 +329,7 @@ describe('starter faction foundations', () => {
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_GROUND_KINDS.map(kind => UNITS[kind].label)).toEqual(expect.arrayContaining(['Broodling Pack', 'Spore Lobber', 'Siege Crawler']));
-    expect(BROOD_SPACE_KINDS.map(kind => UNITS[kind].label)).toEqual(expect.arrayContaining(['Spore Ark', 'Brood Carrier', 'World Eater']));
+    expect(BROOD_SPACE_KINDS.map(kind => UNITS[kind].label)).toEqual(expect.arrayContaining(['Spore Ark', 'Brood Mega-Carrier', 'World Eater']));
 
     const coalition = createInitialState();
     expect(queueUnit(coalition, 'terra', 'broodling').ok).toBe(false);
@@ -688,22 +709,47 @@ describe('production and research', () => {
     expect(researchProductionMultiplier(state.completedResearch)).toBeCloseTo(1.25 * 1.1);
   });
 
-  it('requires advanced factories for heavy ground units and capital hulls', () => {
-    const state = createInitialState();
+  it('requires the exact shipyard tier for frigates, cruisers, and super capitals', () => {
+    let state = createInitialState();
     state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
-    state.completedResearch.push('advancedIndustry', 'groundWarfare', 'heavyArmor', 'orbitalEngineering', 'capitalShips');
+    state.completedResearch.push('advancedIndustry', 'groundWarfare', 'heavyArmor', 'orbitalEngineering', 'capitalShips', 'titanEngineering');
     expect(queueUnit(state, 'terra', 'plasmaTank').ok).toBe(false);
     state.planets[0].buildings.push({ id: 'advanced-ground', kind: 'advancedGroundFactory' });
     const tank = queueUnit(state, 'terra', 'plasmaTank'); expectOk(tank);
     expect(tank.state.planets[0].groundQueue[0].kind).toBe('plasmaTank');
 
-    expect(queueUnit(state, 'terra', 'battlecruiser').ok).toBe(false);
-    state.planets[0].buildings.push({ id: 'advanced-yard', kind: 'advancedSpaceFactory', spaceQueue: [] });
-    const capital = queueUnit(state, 'terra', 'battlecruiser', ['advanced-yard']); expectOk(capital);
-    expect(spaceYards(capital.state.planets[0]).find(yard => yard.id === 'advanced-yard')!.spaceQueue![0].kind).toBe('battlecruiser');
+    state.planets[0].buildings.push(
+      { id: 'advanced-yard', kind: 'advancedSpaceFactory', spaceQueue: [] },
+      { id: 'experimental-yard-a', kind: 'experimentalSpaceFactory', spaceQueue: [] },
+      { id: 'experimental-yard-b', kind: 'experimentalSpaceFactory', spaceQueue: [] },
+    );
+    const standardYard = spaceYards(state.planets[0]).find(yard => yard.kind === 'spaceFactory')!;
+
+    expect(queueUnit(state, 'terra', 'transport', ['advanced-yard']).ok).toBe(false);
+    expect(queueUnit(state, 'terra', 'transport', [standardYard.id]).ok).toBe(true);
+    expect(queueUnit(state, 'terra', 'lightCruiser', [standardYard.id]).ok).toBe(false);
+    const cruiser = queueUnit(state, 'terra', 'lightCruiser', ['advanced-yard']); expectOk(cruiser);
+    state = cruiser.state;
+    expect(queueUnit(state, 'terra', 'battlecruiser', ['advanced-yard']).ok).toBe(false);
+    const capital = queueUnit(state, 'terra', 'battlecruiser', ['experimental-yard-a']); expectOk(capital);
+    state = capital.state;
+    expect(spaceYards(state.planets[0]).find(yard => yard.id === 'experimental-yard-a')!.spaceQueue![0].kind).toBe('battlecruiser');
+
+    const titan = queueUnit(state, 'terra', 'dreadnought', ['experimental-yard-b']); expectOk(titan);
+    expect(queueUnit(titan.state, 'terra', 'dreadnought', ['experimental-yard-a'])).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('one Titan'),
+    });
+    const rebuilt = titan.state;
+    const titanYard = spaceYards(rebuilt.planets[0]).find(yard => yard.id === 'experimental-yard-b')!;
+    titanYard.spaceQueue = titanYard.spaceQueue!.filter(item => item.kind !== 'dreadnought');
+    rebuilt.planets[0].orbitUnits.push(makeUnit('active-titan', 'dreadnought', 'player'));
+    expect(queueUnit(rebuilt, 'terra', 'dreadnought', ['experimental-yard-b']).ok).toBe(false);
+    rebuilt.planets[0].orbitUnits = rebuilt.planets[0].orbitUnits.filter(unit => unit.id !== 'active-titan');
+    expect(queueUnit(rebuilt, 'terra', 'dreadnought', ['experimental-yard-b']).ok).toBe(true);
   });
 
-  it('lets an Assault Carrier embark eight squads', () => {
+  it('lets an Atlas Mega Carrier embark eight squads', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.completedResearch.push('advancedIndustry', 'fleetLogistics', 'carrierOperations');
     for (let i = 0; i < 8; i += 1) terra.groundUnits.push(makeUnit(`carrier-squad-${i}`, 'infantry', 'player'));
@@ -714,21 +760,22 @@ describe('production and research', () => {
     expect(dispatched.state.planets[0].groundUnits).toHaveLength(0);
   });
 
-  it('gates the new branch units behind their technology and advanced factories', () => {
+  it('gates branch units behind their technology and matching factory tier', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.resources = { metal: 10000, crystal: 10000, gold: 10000 };
     terra.buildings.push(
       { id: 'new-ground-yard', kind: 'advancedGroundFactory' },
       { id: 'new-space-yard', kind: 'advancedSpaceFactory', spaceQueue: [] },
+      { id: 'new-experimental-yard', kind: 'experimentalSpaceFactory', spaceQueue: [] },
     );
     expect(queueUnit(state, 'terra', 'shockTrooper').ok).toBe(false);
     expect(queueUnit(state, 'terra', 'destroyer', ['new-space-yard']).ok).toBe(false);
-    expect(queueUnit(state, 'terra', 'dreadnought', ['new-space-yard']).ok).toBe(false);
+    expect(queueUnit(state, 'terra', 'dreadnought', ['new-experimental-yard']).ok).toBe(false);
 
     state.completedResearch.push('groundWarfare', 'orbitalEngineering', 'titanEngineering');
     expect(queueUnit(state, 'terra', 'shockTrooper').ok).toBe(true);
     expect(queueUnit(state, 'terra', 'destroyer', ['new-space-yard']).ok).toBe(true);
-    expect(queueUnit(state, 'terra', 'dreadnought', ['new-space-yard']).ok).toBe(true);
+    expect(queueUnit(state, 'terra', 'dreadnought', ['new-experimental-yard']).ok).toBe(true);
   });
 
   it('increases permanent mine income by 25 percent with Quantum Extraction', () => {
@@ -861,7 +908,7 @@ describe('production and research', () => {
     expect(third.state.messages[0]).toBe('SPACE YARD NETWORK — 4 waiting hulls reassigned across 3 yards.');
   });
 
-  it('keeps advanced-only hulls in Advanced Space Yards while balancing normal orders', () => {
+  it('keeps each hull tier in matching Space Yards while balancing normal orders', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     state.completedResearch.push('advancedIndustry');
@@ -874,15 +921,24 @@ describe('production and research', () => {
         id: `advanced-${index}`, kind: 'destroyer' as const, remaining: 54, total: 54,
       })),
     });
+    terra.buildings.push({
+      id: 'experimental-yard', kind: 'experimentalSpaceFactory', spaceQueue: [{
+        id: 'experimental-0', kind: 'battlecruiser', remaining: 95, total: 95,
+      }],
+    });
 
     const built = constructBuilding(state, 'terra', 'spaceFactory'); expectOk(built);
     const yards = spaceYards(built.state.planets[0]);
     const standardYards = yards.filter(yard => yard.kind === 'spaceFactory');
     const advancedYard = yards.find(yard => yard.kind === 'advancedSpaceFactory')!;
+    const experimentalYard = yards.find(yard => yard.kind === 'experimentalSpaceFactory')!;
 
     expect(standardYards.flatMap(yard => yard.spaceQueue!).some(item => item.kind === 'destroyer')).toBe(false);
     expect(advancedYard.spaceQueue!.filter(item => item.kind === 'destroyer')).toHaveLength(3);
-    expect(yards.flatMap(yard => yard.spaceQueue!)).toHaveLength(9);
+    expect(experimentalYard.spaceQueue).toEqual([
+      { id: 'experimental-0', kind: 'battlecruiser', remaining: 95, total: 95 },
+    ]);
+    expect(yards.flatMap(yard => yard.spaceQueue!)).toHaveLength(10);
   });
 
   it('migrates a legacy planet ship queue into its individual Space Yards', () => {

@@ -22,7 +22,9 @@ import {
   type ResearchId,
   type Resource,
   type ResourcePool,
+  type SpaceShipTier,
   type SpaceUnitKind,
+  type SpaceYardKind,
   type Unit,
   type UnitDefinition,
   type UnitFaction,
@@ -45,7 +47,8 @@ import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, orbitalDefenseOffset,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  requiredSpaceYardKind, SPACE_YARD_TIER,
   researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
 } from './definitions';
 
@@ -271,7 +274,7 @@ function advanceDefenseConstruction(state: GameState, planet: Planet, seconds: n
 const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, number> => ({
   metalMine: mineMax.metal, crystalMine: mineMax.crystal, goldMine: mineMax.gold,
   groundFactory: industryMax, advancedGroundFactory: Math.max(1, industryMax - 1),
-  spaceFactory: industryMax, advancedSpaceFactory: Math.max(1, industryMax - 1),
+  spaceFactory: industryMax, advancedSpaceFactory: Math.max(1, industryMax - 1), experimentalSpaceFactory: 1,
   groundDefense: 4, antiSpaceDefense: 3, spaceDefense: 3, researchLab: 2,
 });
 
@@ -446,6 +449,7 @@ export function migrateGameState(input: GameState): GameState {
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
   for (const p of state.planets) {
+    p.buildingLimits.experimentalSpaceFactory ??= 1;
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
     p.defenseRebuildCooldowns ??= {};
     for (const kind of Object.keys(p.defenseRebuildCooldowns) as DefenseBuildingKind[]) {
@@ -557,8 +561,16 @@ export const groundProductionMultiplier = (planet: Planet, completed: ResearchId
   capacity + (building.kind === 'groundFactory' ? 1 : building.kind === 'advancedGroundFactory' ? ADVANCED_GROUND_FACTORY_CAPACITY : 0), 0))
   * researchProductionMultiplier(completed);
 export const spaceProductionMultiplier = (completed: ResearchId[] = []) => researchProductionMultiplier(completed);
-export const isSpaceYard = (building: Building) => building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory';
+export const isSpaceYard = (building: Building): building is Building & { kind: SpaceYardKind } =>
+  building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory' || building.kind === 'experimentalSpaceFactory';
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);
+export const spaceYardTier = (yard: Building): SpaceShipTier | undefined => isSpaceYard(yard) ? SPACE_YARD_TIER[yard.kind] : undefined;
+export const spaceYardCanProduce = (yard: Building, kind: UnitKind) => isSpaceYard(yard) && yard.kind === requiredSpaceYardKind(kind);
+export const factionHasTitan = (state: GameState, faction: EmpireFaction) =>
+  state.planets.some(planet =>
+    planet.orbitUnits.some(unit => unit.faction === faction && isTitanKind(unit.kind))
+    || (planet.owner === faction && spaceYards(planet).some(yard => (yard.spaceQueue ?? []).some(item => isTitanKind(item.kind)))))
+  || state.fleets.some(fleet => fleet.faction === faction && isTitanKind(fleet.unit.kind));
 export function rebalanceSpaceYardQueues(planet: Planet) {
   const yards = spaceYards(planet);
   if (yards.length < 2) return 0;
@@ -571,7 +583,7 @@ export function rebalanceSpaceYardQueues(planet: Planet) {
   }
   let moved = 0;
   for (const queued of waiting) {
-    const compatible = UNITS[queued.item.kind].advancedFactory ? yards.filter(yard => yard.kind === 'advancedSpaceFactory') : yards;
+    const compatible = yards.filter(yard => spaceYardCanProduce(yard, queued.item.kind));
     const eligible = compatible.length ? compatible : yards.filter(yard => yard.id === queued.sourceId);
     const target = eligible.reduce((best, yard) => yard.spaceQueue!.length < best.spaceQueue!.length ? yard : best);
     target.spaceQueue!.push(queued.item);
@@ -644,8 +656,7 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   if (!unitAvailableToCivilization(kind, civilization)) return fail(input, civilization === 'brood'
     ? 'That organism is not part of the Brood genome.'
     : 'That unit is unavailable to this civilization.');
-  const needed = def.factory === 'ground' ? 'groundFactory' : 'spaceFactory';
-  if (!p.buildings.some(b => b.kind === needed || b.kind === `advanced${needed[0].toUpperCase()}${needed.slice(1)}`)) return fail(input, `Requires a ${def.factory === 'ground' ? 'Ground Factory' : 'Space Yard'}.`);
+  if (def.factory === 'ground' && !p.buildings.some(b => b.kind === 'groundFactory' || b.kind === 'advancedGroundFactory')) return fail(input, 'Requires a Ground Factory.');
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
   if (def.factory === 'ground') {
     if (def.advancedFactory && !p.buildings.some(building => building.kind === 'advancedGroundFactory')) return fail(input, 'Requires an Advanced Ground Factory.');
@@ -657,13 +668,17 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   }
 
   const yards = spaceYards(p);
-  const eligibleYards = def.advancedFactory ? yards.filter(yard => yard.kind === 'advancedSpaceFactory') : yards;
-  if (!eligibleYards.length) return fail(input, def.advancedFactory ? 'Advanced hulls require an Advanced Space Yard.' : 'Requires a Space Yard.');
+  const requiredYard = requiredSpaceYardKind(kind)!;
+  const tier = def.spaceTier!;
+  const eligibleYards = yards.filter(yard => yard.kind === requiredYard);
+  const yardLabel = tier === 1 ? 'Space Yard' : tier === 2 ? 'Advanced Space Yard' : 'Experimental Space Yard';
+  if (!eligibleYards.length) return fail(input, `Tier ${tier} hulls require a ${yardLabel}.`);
   const automaticYard = eligibleYards.reduce((best, yard) => (yard.spaceQueue?.length ?? 0) < (best.spaceQueue?.length ?? 0) ? yard : best);
   const requestedIds = yardIds?.length ? [...new Set(yardIds)] : [automaticYard.id];
   const targets = requestedIds.map(id => yards.find(yard => yard.id === id));
   if (targets.some(yard => !yard)) return fail(input, 'Select a friendly Space Yard at this colony.');
-  if (def.advancedFactory && targets.some(yard => yard?.kind !== 'advancedSpaceFactory')) return fail(input, 'Advanced hulls require an Advanced Space Yard.');
+  if (targets.some(yard => yard?.kind !== requiredYard)) return fail(input, `Tier ${tier} hulls require a ${yardLabel}.`);
+  if (isTitanKind(kind) && (targets.length > 1 || factionHasTitan(input, 'player'))) return fail(input, 'Only one Titan may be active or under construction for each faction.');
   const totalCost = pool(def.cost.metal * targets.length, def.cost.crystal * targets.length, def.cost.gold * targets.length);
   if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
   spendPlayerResources(state, totalCost);
@@ -1772,7 +1787,7 @@ function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Buil
     p.groundQueue.push({ id: `eq${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
     return true;
   }
-  if (!yard || !isSpaceYard(yard) || (def.advancedFactory && yard.kind !== 'advancedSpaceFactory')) return false;
+  if (!yard || !spaceYardCanProduce(yard, kind) || (isTitanKind(kind) && factionHasTitan(state, 'enemy'))) return false;
   spendEnemyResources(state, def.cost);
   yard.spaceQueue ??= [];
   yard.spaceQueue.push({ id: `eq${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
@@ -1806,7 +1821,7 @@ function runEnemyStrategicAction(state: GameState) {
     const priorities: Array<[BuildingKind, number]> = [
       ['metalMine', 2], ['crystalMine', 2], ['goldMine', 2], ['groundFactory', 2], ['spaceFactory', 2],
       ['groundDefense', 1], ['spaceDefense', 1], ['antiSpaceDefense', 1], ['researchLab', 1],
-      ['advancedGroundFactory', 1], ['advancedSpaceFactory', 1],
+      ['advancedGroundFactory', 1], ['advancedSpaceFactory', 1], ['experimentalSpaceFactory', 1],
       ['metalMine', p.buildingLimits.metalMine], ['crystalMine', p.buildingLimits.crystalMine], ['goldMine', p.buildingLimits.goldMine],
     ];
     priorities.some(([kind, target]) => enemyBuild(state, p, kind, target));
@@ -1827,12 +1842,21 @@ function runEnemyStrategicAction(state: GameState) {
       const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
       const needsCarrier = carrierCount < transportTarget;
       const hasFlakFrigate = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlakFrigateKind);
-      let desired: SpaceUnitKind = needsCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
-      if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
-      else if (state.enemyCompletedResearch.includes('weaponsCalibration') && !needsCarrier && !hasFlakFrigate) desired = spaceKind('flakFrigate');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && !needsCarrier) desired = spaceKind('dreadnought');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && !needsCarrier) desired = spaceKind('battlecruiser');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = spaceKind('destroyer');
+      let desired: SpaceUnitKind;
+      if (yard.kind === 'spaceFactory') {
+        desired = needsCarrier ? spaceKind('transport')
+          : state.enemyCompletedResearch.includes('weaponsCalibration') && !hasFlakFrigate ? spaceKind('flakFrigate')
+            : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
+      } else if (yard.kind === 'advancedSpaceFactory') {
+        desired = spaceKind(state.nextId % 2 ? 'destroyer' : 'lightCruiser');
+      } else {
+        const titan = spaceKind('dreadnought');
+        const capital = spaceKind('battlecruiser');
+        if (state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
+        else if (state.enemyCompletedResearch.includes('titanEngineering') && !factionHasTitan(state, 'enemy')) desired = titan;
+        else if (isTitanKind(capital)) desired = spaceKind('assaultCarrier');
+        else desired = capital;
+      }
       enemyQueueUnit(state, p, desired, yard);
     }
   }

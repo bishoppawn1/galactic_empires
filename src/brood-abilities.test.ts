@@ -75,7 +75,7 @@ describe('Brood organism abilities', () => {
     expect(reflected.battles[0].attackers[0].hp).toBeLessThan(attacker.hp);
   });
 
-  it('lets Needle Frigates bypass shields and Brood Carriers attack two ships', () => {
+  it('lets Needle Frigates bypass shields and Brood Mega-Carriers attack two ships', () => {
     const needleState = quietState();
     const needleWorld = needleState.planets[0];
     needleWorld.orbitUnits = [makeUnit('needle', 'needleFrigate', 'player', 0, 0), makeUnit('target', 'destroyer', 'enemy', 150, 0)];

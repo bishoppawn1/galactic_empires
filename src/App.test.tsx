@@ -246,11 +246,14 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Siege Walker', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Shock Troopers', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Railgun Tank', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Phase Destroyer', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Assault Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Phase Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Atlas Mega Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Titan Dreadnought', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'TIER 1 · FRIGATES & TRANSPORTS' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'TIER 2 · CRUISERS' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'TIER 3 · SUPER CAPITALS' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
     const infantryOrder = screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button');
@@ -264,14 +267,14 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
 
-    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Ward Cruiser', 'Citadel Carrier', 'Sovereign Dreadnought']) {
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Ward Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
       expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
-    expect(screen.getByText('Sovereign Dreadnought')).toBeInTheDocument();
+    expect(screen.getByText('Sovereign Titan')).toBeInTheDocument();
     expect(screen.queryByText('Titan Dreadnought')).not.toBeInTheDocument();
   });
 
@@ -386,11 +389,14 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'construction' }));
     const groundFactoryCard = screen.getByText('Ground Factory', { selector: '.card-copy b' }).closest('article')!;
     const spaceYardCard = screen.getByText('Space Yard', { selector: '.card-copy b' }).closest('article')!;
+    const experimentalYardCard = screen.getByText('Experimental Space Yard', { selector: '.card-copy b' }).closest('article')!;
 
     expect(groundFactoryCard).toHaveTextContent('1 / ∞ BUILT');
     expect(spaceYardCard).toHaveTextContent('1 / ∞ BUILT');
+    expect(experimentalYardCard).toHaveTextContent('0 / ∞ BUILT');
     expect(within(groundFactoryCard).getByRole('button', { name: 'BUILD +1' })).toBeEnabled();
     expect(within(spaceYardCard).getByRole('button', { name: 'BUILD +1' })).toBeEnabled();
+    expect(within(experimentalYardCard).getByRole('button', { name: 'LOCKED' })).toBeDisabled();
   });
 
   it('renders every Space Yard in orbit and opens ship production from the yard', () => {
@@ -398,7 +404,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Space Yard 1 orbiting Terra Nova — open ship production' }));
     expect(screen.getByRole('button', { name: 'forces' })).toHaveClass('active');
     expect(screen.getByText(/ORBITAL NETWORK ACTIVE/)).toBeInTheDocument();
-    expect(screen.getByText(/constructing another yard rebalances waiting hulls/)).toBeInTheDocument();
+    expect(screen.getByText(/constructing another yard rebalances compatible waiting hulls/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'construction' }));
     const spaceYardCard = screen.getByText('Space Yard', { selector: '.card-copy b' }).closest('article');
@@ -762,7 +768,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.carrier-fighter-wing')).toHaveAttribute('data-orbit-radius', '92');
     expect(document.querySelector('.fighter-orbit-ring')).toHaveAttribute('r', '100');
     expect(document.querySelector('.fighter-sortie animateTransform')).toHaveAttribute('repeatCount', 'indefinite');
-    expect(screen.getByLabelText('Ripper Spawn 6 of 6')).toHaveTextContent('FTR 6/6');
+    expect(screen.getByLabelText('Ripper Spawn 6 of 10')).toHaveTextContent('FTR 6/10');
   });
 
   it('batches dense hostile fleets into one canvas layer', () => {

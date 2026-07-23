@@ -231,7 +231,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               return !firingShip || (!UNITS[firingShip.kind].fighterWing && (typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0));
             });
             return [
-              ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} elapsed={state.elapsed} source={source} target={target} underFire={combatShots.some(incoming => incoming.targetType === 'fighter' && incoming.targetId === carrier.id)} />),
+              ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} source={source} target={target} underFire={combatShots.some(incoming => incoming.targetType === 'fighter' && incoming.targetId === carrier.id)} />),
               ...firingShots.flatMap((shot, index) => {
                 const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
                 const source = mapPosition(shot.attackerId, shot.attackerType);

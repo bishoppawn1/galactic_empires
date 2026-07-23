@@ -37,7 +37,7 @@ const flightDurations: Record<WeaponEffect, number> = {
 // much smaller than its firing unit while leaving the transparent source art
 // enough room to render cleanly.
 export const GROUND_PROJECTILE_SIZE = .6;
-export const ORBITAL_PROJECTILE_SIZE = 5;
+export const ORBITAL_PROJECTILE_SIZE = 12;
 
 export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, className = '' }: {
   id: string;
@@ -68,11 +68,20 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   return <g className={`weapon-fire weapon-${effect} ${faction} ${className}`} data-weapon-effect={effect} data-projectiles={projectiles} data-projectile-size={size}>
     <title>{effect} weapon fire</title>
     <g transform={`translate(${x1} ${y1}) rotate(${angle})`}>
-      {offsets.map((offset, index) => <image key={`${id}-projectile-${index}`} className="weapon-projectile" href={weaponImages[effect]} x="0" y={-imageHeight / 2 + offset} width={imageWidth} height={imageHeight} preserveAspectRatio="none">
-        {beam
-          ? <animate attributeName="opacity" values=".35;1;.55" dur={`${duration}s`} begin={`${index * .035}s`} repeatCount="indefinite" />
-          : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
-      </image>)}
+      {beam && <line className="weapon-beam-core" x1="0" y1="0" x2={distance} y2="0">
+        <animate attributeName="opacity" values=".3;1;.45" dur={`${duration}s`} repeatCount="indefinite" />
+      </line>}
+      {offsets.map((offset, index) => <g key={`${id}-projectile-${index}`}>
+        <image className="weapon-projectile" href={weaponImages[effect]} x="0" y={-imageHeight / 2 + offset} width={imageWidth} height={imageHeight} preserveAspectRatio="none">
+          {beam
+            ? <animate attributeName="opacity" values=".35;1;.55" dur={`${duration}s`} begin={`${index * .035}s`} repeatCount="indefinite" />
+            : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
+        </image>
+        {!beam && <circle className="weapon-projectile-core" cx={imageWidth / 2} cy={offset} r={Math.max(1.5, size * .2)}>
+          <animate attributeName="cx" from={imageWidth / 2} to={travel + imageWidth / 2} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
+        </circle>}
+      </g>)}
     </g>
   </g>;
 }

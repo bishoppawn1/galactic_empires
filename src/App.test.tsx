@@ -652,6 +652,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbital-fire .weapon-fire.ship-fire')).toHaveLength(2);
     expect(document.querySelectorAll('.orbital-fire .weapon-fire.weapon-laser')).toHaveLength(2);
     expect(document.querySelectorAll('.orbital-fire .weapon-laser .weapon-projectile')).toHaveLength(6);
+    expect(document.querySelectorAll('.orbital-fire .weapon-laser .weapon-beam-core')).toHaveLength(2);
     expect(document.querySelector('.orbital-fire .weapon-laser .weapon-projectile')?.getAttribute('href')).toContain('laser');
     expect(document.querySelectorAll('img.ship-image')).toHaveLength(1);
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
@@ -669,12 +670,13 @@ describe('Galactic Empires interface', () => {
     const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
     expect(missile).not.toBeNull();
     expect(missile).toHaveAttribute('data-projectiles', '1');
-    expect(missile).toHaveAttribute('data-projectile-size', '5');
+    expect(missile).toHaveAttribute('data-projectile-size', '12');
     expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
+    expect(missile!.querySelectorAll('.weapon-projectile-core')).toHaveLength(1);
     const projectile = missile!.querySelector('.weapon-projectile')!;
     expect(projectile.getAttribute('href')).toContain('missile');
-    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(16);
-    expect(Number(projectile.getAttribute('height'))).toBe(15);
+    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(38.4);
+    expect(Number(projectile.getAttribute('height'))).toBe(36);
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
   });
 
@@ -752,7 +754,10 @@ describe('Galactic Empires interface', () => {
     render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={['carrier-ui']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
 
     expect(document.querySelectorAll('.carrier-fighter')).toHaveLength(6);
-    expect(document.querySelector('.carrier-fighter')).toHaveAttribute('data-fighter-size', '5');
+    expect(document.querySelector('.carrier-fighter')).toHaveAttribute('data-fighter-size', '10');
+    expect(document.querySelector('.carrier-fighter-wing')).toHaveAttribute('data-orbit-radius', '92');
+    expect(document.querySelector('.fighter-orbit-ring')).toHaveAttribute('r', '100');
+    expect(document.querySelector('.fighter-sortie animateTransform')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByLabelText('Ripper Spawn 6 of 6')).toHaveTextContent('FTR 6/6');
   });
 

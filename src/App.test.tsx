@@ -6,7 +6,8 @@ import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { GalaxyMap } from './components/galaxy/GalaxyMap';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { GroundUnitImage } from './components/shared/GroundUnitImage';
-import { BROOD_GROUND_KINDS, createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { ShipImage } from './components/shared/ShipImage';
+import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -80,6 +81,14 @@ describe('Galactic Empires interface', () => {
     expect(broodGroundArt).toHaveLength(10);
     expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(10);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
+  });
+
+  it('uses dedicated artwork for every Brood spaceship', () => {
+    const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
+    const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
+    expect(broodShipArt).toHaveLength(8);
+    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(8);
+    broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
   });
 
   it('starts an Iron Covenant campaign with its exclusive mechanical roster and artwork', () => {

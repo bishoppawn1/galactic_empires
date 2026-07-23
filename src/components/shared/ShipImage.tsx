@@ -19,6 +19,14 @@ import covenantFabricatorCarrier from '../../assets/covenant/ships/fabricator-ca
 import covenantFoundryCruiser from '../../assets/covenant/ships/foundry-cruiser.png';
 import covenantIronclad from '../../assets/covenant/ships/ironclad-battleship.png';
 import covenantSalvageFrigate from '../../assets/covenant/ships/salvage-frigate.png';
+import broodCarrier from '../../assets/brood/ships/brood-carrier.png';
+import clawFrigate from '../../assets/brood/ships/claw-frigate.png';
+import hiveCruiser from '../../assets/brood/ships/hive-cruiser.png';
+import leviathan from '../../assets/brood/ships/leviathan.png';
+import needleFrigate from '../../assets/brood/ships/needle-frigate.png';
+import sporeArk from '../../assets/brood/ships/spore-ark.png';
+import voidStalker from '../../assets/brood/ships/void-stalker.png';
+import worldEater from '../../assets/brood/ships/world-eater.png';
 import { BROOD_SPACE_KINDS, SPACE_KINDS, type SpaceUnitKind, type UnitKind } from '../../game';
 
 const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
@@ -30,14 +38,14 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   assaultCarrier,
   battlecruiser,
   dreadnought,
-  sporeArk: transport,
-  clawFrigate: escortFrigate,
-  needleFrigate: missileFrigate,
-  hiveCruiser: lightCruiser,
-  voidStalker: destroyer,
-  broodCarrier: assaultCarrier,
-  leviathan: battlecruiser,
-  worldEater: dreadnought,
+  sporeArk,
+  clawFrigate,
+  needleFrigate,
+  hiveCruiser,
+  voidStalker,
+  broodCarrier,
+  leviathan,
+  worldEater,
   aegisBastionLander,
   aegisShieldMonitor,
   aegisLanceFrigate,

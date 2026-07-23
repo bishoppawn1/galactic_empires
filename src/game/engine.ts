@@ -149,16 +149,44 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
   ship.heading = headingForVector(position.orbitX - (ship.orbitX ?? 0), position.orbitY - (ship.orbitY ?? 0), ship.heading);
 }
 
+function phaseEntryFormationPositions(origin: Planet, destination: Planet) {
+  const dx = origin.x - destination.x, dy = origin.y - destination.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const normalX = dx / distance, normalY = dy / distance;
+  const tangentX = -normalY, tangentY = normalX;
+  const spacing = MIN_SHIP_ORBIT_SEPARATION + 2;
+  const positions: Array<{ x: number; y: number }> = [];
+  const rows = Math.floor(2 * MAX_SHIP_ORBIT_RADIUS / spacing);
+  for (let row = 0; row <= rows; row += 1) {
+    const radial = MAX_SHIP_ORBIT_RADIUS - row * spacing;
+    const tangentLimit = Math.sqrt(Math.max(0, MAX_SHIP_ORBIT_RADIUS ** 2 - radial ** 2));
+    const columns = Math.floor(tangentLimit / spacing);
+    const addColumn = (column: number) => {
+      const tangent = column * spacing;
+      positions.push({
+        x: normalX * radial + tangentX * tangent,
+        y: normalY * radial + tangentY * tangent,
+      });
+    };
+    addColumn(0);
+    for (let column = 1; column <= columns; column += 1) {
+      addColumn(-column);
+      addColumn(column);
+    }
+  }
+  return positions;
+}
+
 function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   delete ship.docked;
-  const baseAngle = Math.atan2(origin.y - destination.y, origin.x - destination.x);
-  const formationIndex = destination.orbitUnits.filter(unit => Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) >= MAX_SHIP_ORBIT_RADIUS - 24).length;
-  const formationStep = 2 * Math.asin(MIN_SHIP_ORBIT_SEPARATION / (2 * MAX_SHIP_ORBIT_RADIUS));
-  const formationOffset = formationIndex === 0 ? 0 : Math.ceil(formationIndex / 2) * (formationIndex % 2 ? formationStep : -formationStep);
-  const angle = baseAngle + formationOffset;
-  const radius = MAX_SHIP_ORBIT_RADIUS;
-  ship.orbitX = Math.cos(angle) * radius;
-  ship.orbitY = Math.sin(angle) * radius;
+  const occupied = destination.orbitUnits.filter(unit => unit.id !== ship.id && Number.isFinite(unit.orbitX) && Number.isFinite(unit.orbitY))
+    .map(unit => ({ orbitX: unit.orbitX!, orbitY: unit.orbitY! }));
+  const open = (position: { x: number; y: number }) => occupied.every(point =>
+    Math.hypot(point.orbitX - position.x, point.orbitY - position.y) >= MIN_SHIP_ORBIT_SEPARATION);
+  const preferred = phaseEntryFormationPositions(origin, destination).find(open);
+  const fallback = preferred ?? nearestOpenOrbitPosition(origin.x - destination.x, origin.y - destination.y, occupied);
+  ship.orbitX = fallback.x;
+  ship.orbitY = fallback.y;
   ship.heading = headingForVector(destination.x - origin.x, destination.y - origin.y, ship.heading);
   delete ship.phaseArrival;
   delete ship.orbitTargetX;

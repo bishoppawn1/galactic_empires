@@ -1210,13 +1210,32 @@ describe('transport and colonization', () => {
     expect(orbitalCombatShots(engaging.planets.find(planet => planet.id === 'halcyon')!).some(shot => shot.attackerId === 'ai-frigate')).toBe(true);
   });
 
-  it('fans arriving fleets apart along the destination system edge', () => {
+  it('forms arriving fleets beside their phase-lane entry point', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = ['arrival-a', 'arrival-b', 'arrival-c'].map(id => makeUnit(id, 'escortFrigate', 'player'));
     const order = dispatchSpaceUnits(state, 'terra', terra.orbitUnits.map(ship => ship.id), 'halcyon'); expectOk(order);
     const arrived = advanceFleetToArrival(order.state, 'arrival-a');
     const ships = arrived.planets.find(planet => planet.id === 'halcyon')!.orbitUnits;
     expect(ships).toHaveLength(3);
+    ships.forEach((ship, index) => ships.slice(index + 1).forEach(other => {
+      expect(Math.hypot(ship.orbitX! - other.orbitX!, ship.orbitY! - other.orbitY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION - 1e-9);
+    }));
+  });
+
+  it('keeps a 96-ship arrival formation on the incoming side instead of wrapping around the planet', () => {
+    const state = createInitialState(); const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const halcyon = state.planets.find(planet => planet.id === 'halcyon')!;
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    terra.orbitUnits = Array.from({ length: 96 }, (_, index) => makeUnit(`large-arrival-${index}`, 'escortFrigate', 'player'));
+    const order = dispatchSpaceUnits(state, terra.id, terra.orbitUnits.map(ship => ship.id), halcyon.id); expectOk(order);
+    const arrived = advanceFleetToArrival(order.state, 'large-arrival-0');
+    const ships = arrived.planets.find(planet => planet.id === halcyon.id)!.orbitUnits.filter(ship => ship.faction === 'player');
+    const incomingDistance = Math.hypot(terra.x - halcyon.x, terra.y - halcyon.y);
+    const incomingX = (terra.x - halcyon.x) / incomingDistance, incomingY = (terra.y - halcyon.y) / incomingDistance;
+
+    expect(ships).toHaveLength(96);
+    expect(ships.every(ship => ship.orbitX! * incomingX + ship.orbitY! * incomingY > 0)).toBe(true);
+    expect(ships.every(ship => Math.hypot(ship.orbitX!, ship.orbitY!) <= MAX_SHIP_ORBIT_RADIUS + 1e-9)).toBe(true);
     ships.forEach((ship, index) => ships.slice(index + 1).forEach(other => {
       expect(Math.hypot(ship.orbitX! - other.orbitX!, ship.orbitY! - other.orbitY!)).toBeGreaterThanOrEqual(MIN_SHIP_ORBIT_SEPARATION - 1e-9);
     }));

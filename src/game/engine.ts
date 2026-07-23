@@ -1389,6 +1389,40 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   }
 }
 
+function directAiOrbitalShips(state: GameState, p: Planet) {
+  const aiFactions = new Set<EmpireFaction>(state.mode === 'competitive' ? state.aiFactions ?? [] : ['enemy']);
+  for (const ship of p.orbitUnits) {
+    if (ship.faction === 'neutral' || !aiFactions.has(ship.faction) || ship.pendingLanding || ship.pendingEmbark
+      || typeof ship.orbitTargetX === 'number' || typeof ship.orbitTargetY === 'number') continue;
+    const hostileShips = p.orbitUnits.filter(target => target.faction !== 'neutral' && target.faction !== ship.faction);
+    const hostileInstallations = p.owner && p.owner !== ship.faction
+      ? [
+          ...p.buildings.filter(building => building.kind === 'spaceDefense').map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length)),
+          ...p.buildings.filter(building => building.kind === 'antiSpaceDefense').map(() => ({ x: 0, y: 0 })),
+        ]
+      : [];
+    const targets = [
+      ...hostileShips.map(target => ({ x: target.orbitX ?? 0, y: target.orbitY ?? 0 })),
+      ...hostileInstallations,
+    ].sort((a, b) => orbitDistance(ship.orbitX ?? 0, ship.orbitY ?? 0, a.x, a.y) - orbitDistance(ship.orbitX ?? 0, ship.orbitY ?? 0, b.x, b.y));
+    if (targets.some(target => orbitDistance(ship.orbitX ?? 0, ship.orbitY ?? 0, target.x, target.y) <= UNITS[ship.kind].range)) continue;
+    if (!targets.length) {
+      if (Math.hypot(ship.orbitX ?? 0, ship.orbitY ?? 0) >= MAX_SHIP_ORBIT_RADIUS - 24) targetOpenOrbit(p, ship);
+      continue;
+    }
+    const occupied = p.orbitUnits.filter(other => other.id !== ship.id && !other.docked).flatMap(other => {
+      const x = other.orbitTargetX ?? other.orbitX, y = other.orbitTargetY ?? other.orbitY;
+      return typeof x === 'number' && typeof y === 'number' ? [{ orbitX: x, orbitY: y }] : [];
+    });
+    occupied.push(...hostileInstallations.map(position => ({ orbitX: position.x, orbitY: position.y })));
+    const position = nearestOpenOrbitPosition(targets[0].x, targets[0].y, occupied);
+    delete ship.docked;
+    ship.orbitTargetX = position.x;
+    ship.orbitTargetY = position.y;
+    ship.heading = headingForVector(position.x - (ship.orbitX ?? 0), position.y - (ship.orbitY ?? 0), ship.heading);
+  }
+}
+
 function tickOrbitMovement(p: Planet, seconds: number) {
   for (const ship of p.orbitUnits) tickOrbitUnitMovement(ship, seconds);
 }
@@ -1630,6 +1664,7 @@ export function tick(input: GameState, seconds: number): GameState {
   state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(empireEconomy(state, fleet.faction).completedResearch)), seconds) }));
   for (const p of state.planets) {
     ensureOrbitPositions(p);
+    directAiOrbitalShips(state, p);
     if (p.owner) {
       const economy = empireEconomy(state, p.owner);
       const aiScale = state.aiFactions?.includes(p.owner) && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) * .62 : .7;
@@ -1716,6 +1751,7 @@ export function tick(input: GameState, seconds: number): GameState {
   state.fleets = traveling;
   for (const [planetId, landedFleets] of arrivals) {
     const p = getPlanet(state, planetId)!;
+    directAiOrbitalShips(state, p);
     for (const arrival of landedFleets) tickOrbitUnitMovement(arrival.unit, arrival.seconds);
     const combatSeconds = Math.max(0, ...landedFleets.map(arrival => arrival.seconds));
     if (combatSeconds) tickOrbitCombat(state, p, combatSeconds);

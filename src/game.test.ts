@@ -1048,6 +1048,34 @@ describe('transport and colonization', () => {
     expect(returnOrder.state.fleets[0]).toMatchObject({ originId: 'halcyon', finalDestinationId: 'terra' });
   });
 
+  it('moves AI combat arrivals off the system edge toward hostile ships', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    state.planets[0].orbitUnits.push(makeUnit('ai-frigate', 'escortFrigate', 'player'));
+    const order = dispatchSpaceUnit(state, 'terra', 'ai-frigate', 'halcyon'); expectOk(order);
+    order.state.fleets[0].faction = 'enemy';
+    order.state.fleets[0].unit.faction = 'enemy';
+    const halcyon = order.state.planets.find(planet => planet.id === 'halcyon')!;
+    halcyon.owner = 'player';
+    halcyon.orbitUnits = [{ ...makeUnit('orbital-defender', 'escortFrigate', 'player'), orbitX: 190, orbitY: 0 }];
+
+    const arrived = advanceFleetToArrival(order.state, 'ai-frigate');
+    const frigate = arrived.planets.find(planet => planet.id === 'halcyon')!.orbitUnits.find(unit => unit.id === 'ai-frigate')!;
+    expect(Math.hypot(frigate.orbitX!, frigate.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
+    expect(typeof frigate.orbitTargetX).toBe('number');
+    expect(typeof frigate.orbitTargetY).toBe('number');
+    const distanceToTarget = Math.hypot(frigate.orbitTargetX! - frigate.orbitX!, frigate.orbitTargetY! - frigate.orbitY!);
+
+    const advancing = tick(arrived, 1).planets.find(planet => planet.id === 'halcyon')!.orbitUnits.find(unit => unit.id === 'ai-frigate')!;
+    expect(Math.hypot(advancing.orbitTargetX! - advancing.orbitX!, advancing.orbitTargetY! - advancing.orbitY!)).toBeLessThan(distanceToTarget);
+
+    let engaging = arrived;
+    for (let second = 0; second < 40 && !orbitalCombatShots(engaging.planets.find(planet => planet.id === 'halcyon')!).some(shot => shot.attackerId === 'ai-frigate'); second += 1) {
+      engaging = tick(engaging, 1);
+    }
+    expect(orbitalCombatShots(engaging.planets.find(planet => planet.id === 'halcyon')!).some(shot => shot.attackerId === 'ai-frigate')).toBe(true);
+  });
+
   it('fans arriving fleets apart along the destination system edge', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = ['arrival-a', 'arrival-b', 'arrival-c'].map(id => makeUnit(id, 'escortFrigate', 'player'));

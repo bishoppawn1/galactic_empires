@@ -45,7 +45,7 @@ import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlagshipKind, isRepeatableResearch, orbitalDefenseOffset,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, orbitalDefenseOffset,
   researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
 } from './definitions';
 
@@ -367,6 +367,14 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
 
 const clone = (state: GameState): GameState => structuredClone(state);
 
+const LEGACY_FLAK_KINDS: Record<string, SpaceUnitKind> = {
+  commandFlagship: 'flakFrigate',
+  broodRazorQueen: 'broodSporeguard',
+  aegisArbiterFlagship: 'aegisSentinelFrigate',
+  covenantNullFlagship: 'covenantInterdictor',
+};
+const migrateLegacyFlakKind = (kind: UnitKind) => LEGACY_FLAK_KINDS[kind] ?? kind;
+
 export function migrateGameState(input: GameState): GameState {
   const state = clone(input);
   if (!state || typeof state !== 'object' || !Array.isArray(state.planets) || !state.planets.length) throw new Error('Invalid saved campaign.');
@@ -412,9 +420,12 @@ export function migrateGameState(input: GameState): GameState {
     if (!records || typeof records !== 'object' || Array.isArray(records)) state.planetIntel[faction] = {};
   }
   const migrateUnitRoster = (savedUnit: Unit) => {
+    const originalKind = savedUnit.kind;
+    savedUnit.kind = migrateLegacyFlakKind(savedUnit.kind);
+    const convertedLegacyFlak = savedUnit.kind !== originalKind;
     if (savedUnit.faction !== 'neutral') {
       const migratedKind = civilizationUnitKind(empireCivilization(state, savedUnit.faction), savedUnit.kind);
-      if (migratedKind !== savedUnit.kind) {
+      if (convertedLegacyFlak || migratedKind !== savedUnit.kind) {
         const definition = UNITS[migratedKind];
         const hullRatio = savedUnit.maxHp > 0 ? savedUnit.hp / savedUnit.maxHp : 1;
         const shieldRatio = savedUnit.maxShields > 0 ? savedUnit.shields / savedUnit.maxShields : 1;
@@ -447,9 +458,18 @@ export function migrateGameState(input: GameState): GameState {
     p.spaceQueue = Array.isArray(p.spaceQueue) ? p.spaceQueue : [];
     if (p.owner) {
       const civilization = empireCivilization(state, p.owner);
-      p.groundQueue.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); });
-      p.spaceQueue.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); });
-      p.buildings.forEach(building => building.spaceQueue?.forEach(item => { item.kind = civilizationUnitKind(civilization, item.kind); }));
+      const migrateQueueItem = (item: QueueItem) => {
+        const originalKind = item.kind;
+        const migratedKind = civilizationUnitKind(civilization, migrateLegacyFlakKind(item.kind));
+        item.kind = migratedKind;
+        if (migratedKind === originalKind) return;
+        const progressRatio = item.total > 0 ? item.remaining / item.total : 1;
+        item.total = UNITS[migratedKind].time ?? item.total;
+        item.remaining = Math.max(0, item.total * progressRatio);
+      };
+      p.groundQueue.forEach(migrateQueueItem);
+      p.spaceQueue.forEach(migrateQueueItem);
+      p.buildings.forEach(building => building.spaceQueue?.forEach(migrateQueueItem));
     }
     p.groundUnits.forEach(migrateUnitRoster);
     p.orbitUnits.forEach(migrateUnitRoster);
@@ -1411,20 +1431,20 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const fighterScale = fighterWing ? carrierFighterCount(attacker) / fighterWing.capacity : 1;
     if (fighterWing && fighterScale <= 0) continue;
     const salvoDamage = weapon.damage * weapon.projectiles * fighterScale;
-    const fighterTargets = ability === 'antiFighterBarrage'
-      ? hostileShips.filter(target => carrierFighterCount(target) > 0 && shipInRange(attacker, target))
-      : [];
-    if (fighterTargets.length) {
-      fighterTargets.forEach(target => shots.push({
+    const fighterTarget = ability === 'antiFighterCannons'
+      ? hostileShips.find(target => carrierFighterCount(target) > 0 && shipInRange(attacker, target))
+      : undefined;
+    if (fighterTarget) {
+      shots.push({
         attackerId: attacker.id,
         attackerType: 'ship',
-        targetId: target.id,
+        targetId: fighterTarget.id,
         targetType: 'fighter',
         faction,
         damage: salvoDamage,
         weaponEffect: weapon.effect,
         damageMultiplier: ANTI_FIGHTER_DAMAGE_MULTIPLIER,
-      }));
+      });
       continue;
     }
     if (shipTarget) {
@@ -1806,10 +1826,10 @@ function runEnemyStrategicAction(state: GameState) {
       const localShips = [...p.orbitUnits, ...state.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.originId === p.id).map(fleet => fleet.unit)];
       const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
       const needsCarrier = carrierCount < transportTarget;
-      const hasFlagship = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlagshipKind);
+      const hasFlakFrigate = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlakFrigateKind);
       let desired: SpaceUnitKind = needsCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
       if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
-      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('weaponsCalibration') && !needsCarrier && !hasFlagship) desired = spaceKind('commandFlagship');
+      else if (state.enemyCompletedResearch.includes('weaponsCalibration') && !needsCarrier && !hasFlakFrigate) desired = spaceKind('flakFrigate');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && !needsCarrier) desired = spaceKind('dreadnought');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && !needsCarrier) desired = spaceKind('battlecruiser');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = spaceKind('destroyer');

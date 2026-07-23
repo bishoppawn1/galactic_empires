@@ -37,6 +37,7 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   transport: { label: 'Transport', description: 'Carries four squads and mounts a light point-defense laser.', cost: pool(70, 48, 20), time: 18, factory: 'space', hp: 180, shields: 90, range: 160, moveSpeed: 0, weapon: { label: 'Point-Defense Laser', damage: .14, cooldown: .25, projectiles: 1, effect: 'laser' }, capacity: 4 },
   escortFrigate: { label: 'Escort Frigate', description: 'Close escort with three low-damage continuous laser emitters.', cost: pool(120, 70, 35), time: 26, factory: 'space', hp: 260, shields: 130, range: 280, moveSpeed: 0, weapon: { label: 'Triple Laser Array', damage: .5, cooldown: .4, projectiles: 3, effect: 'laser' } },
   missileFrigate: { label: 'Missile Frigate', description: 'Long-range frigate with one slow, devastating missile launcher.', cost: pool(135, 82, 42), time: 30, factory: 'space', hp: 230, shields: 115, range: 440, moveSpeed: 0, weapon: { label: 'Heavy Siege Missile', damage: 17, cooldown: 3.5, projectiles: 1, effect: 'missile' } },
+  flakFrigate: { label: 'Flak Frigate', description: 'A compact escort mounting rapid tracking cannons for screening hostile strike craft.', cost: pool(145, 90, 45), time: 32, factory: 'space', hp: 245, shields: 125, range: 300, moveSpeed: 0, weapon: { label: 'Quad Flak Cannons', damage: .35, cooldown: .42, projectiles: 4, effect: 'kinetic' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Fighter Screen', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
   shockTrooper: { label: 'Shock Troopers', description: 'Shielded assault infantry firing paired arc carbines.', cost: pool(88, 55, 30), time: 28, factory: 'ground', hp: 180, shields: 85, range: 17, moveSpeed: 7.5, weapon: { label: 'Dual Arc Carbines', damage: 3, cooldown: .8, projectiles: 2, effect: 'pulse' }, requires: 'groundWarfare', advancedFactory: true },
   railgunTank: { label: 'Railgun Tank', description: 'Fast heavy armor with a deliberate hypervelocity rail shot.', cost: pool(175, 110, 58), time: 42, factory: 'ground', hp: 430, shields: 75, range: 25, moveSpeed: 5.2, weapon: { label: 'Hypervelocity Railgun', damage: 24, cooldown: 1.9, projectiles: 1, effect: 'railgun' }, requires: 'heavyArmor', advancedFactory: true },
   lightCruiser: { label: 'Light Cruiser', description: 'Powerful warship firing four synchronized pulse cannons.', cost: pool(250, 170, 105), time: 46, factory: 'space', hp: 480, shields: 240, range: 340, moveSpeed: 0, weapon: { label: 'Quad Pulse Cannons', damage: 1.9, cooldown: 1, projectiles: 4, effect: 'pulse' }, requires: 'orbitalEngineering' },
@@ -46,7 +47,6 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   defenseTurret: { label: 'Defense Turret', description: 'Fortified emplacement with a dual repeater cannon.', cost: pool(), factory: 'ground', hp: 320, shields: 70, range: 32, moveSpeed: 0, weapon: { label: 'Dual Repeater Cannon', damage: 4, cooldown: 1, projectiles: 2, effect: 'kinetic' } },
   assaultCarrier: { label: 'Assault Carrier', description: 'Eight-squad carrier launching replaceable strike fighters that circle hostile hulls.', cost: pool(360, 250, 145), time: 58, factory: 'space', hp: 650, shields: 330, range: 320, moveSpeed: 0, weapon: { label: 'Falcon Strike Wing', damage: 1.5, cooldown: .92, projectiles: 4, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 8, fighterWing: { label: 'Falcon Fighters', capacity: 4, rebuildTime: 18, attritionTime: 15 } },
   battlecruiser: { label: 'Battlecruiser', description: 'Capital hull armed with two heavy rail batteries.', cost: pool(520, 360, 240), time: 78, factory: 'space', hp: 980, shields: 520, range: 400, moveSpeed: 0, weapon: { label: 'Twin Capital Railguns', damage: 8, cooldown: 1, projectiles: 2, effect: 'railgun' }, requires: 'capitalShips', advancedFactory: true },
-  commandFlagship: { label: 'Vanguard Flagship', description: 'A Coalition command ship whose overlapping flak grid shreds deployed fighter wings.', cost: pool(680, 520, 330), time: 105, factory: 'space', hp: 1320, shields: 720, range: 430, moveSpeed: 0, weapon: { label: 'Aegis Flak Grid', damage: 1, cooldown: .85, projectiles: 8, effect: 'laser' }, requires: 'weaponsCalibration', advancedFactory: true, ability: { kind: 'antiFighterBarrage', label: 'Fleet Flak Screen', description: 'Prioritizes every hostile fighter wing in range and deals triple damage to fighters.' } },
   dreadnought: { label: 'Titan Dreadnought', description: 'Ultimate capital ship firing three colossal siege beams.', cost: pool(900, 680, 460), time: 120, factory: 'space', hp: 1900, shields: 1050, range: 460, moveSpeed: 0, weapon: { label: 'Tri-Core Siege Beams', damage: 10, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true },
   broodling: { label: 'Broodling Pack', description: 'A cheap, fast clutch that becomes deadlier when several packs attack together.', cost: pool(20, 5, 2), time: 7, factory: 'ground', hp: 68, shields: 0, range: 7, moveSpeed: 11, weapon: { label: 'Rending Claws', damage: 1, cooldown: .55, projectiles: 2, effect: 'kinetic' }, ability: { kind: 'swarmInstinct', label: 'Swarm Instinct', description: '+20% damage for each nearby Broodling Pack, up to +60%.' } },
   acidSpitter: { label: 'Acid Spitter', description: 'A fragile hunter whose bile strips protection from priority targets.', cost: pool(39, 12, 5), time: 12, factory: 'ground', hp: 82, shields: 0, range: 21, moveSpeed: 6, weapon: { label: 'Caustic Glob', damage: 8, cooldown: 1.8, projectiles: 1, effect: 'plasma' }, ability: { kind: 'corrosiveBile', label: 'Corrosive Bile', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
@@ -61,11 +61,11 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   sporeArk: { label: 'Spore Ark', description: 'A living landing vessel that regenerates even while crossing hostile space.', cost: pool(68, 42, 16), time: 16, factory: 'space', hp: 240, shields: 45, range: 140, moveSpeed: 0, weapon: { label: 'Defensive Spores', damage: .18, cooldown: .3, projectiles: 2, effect: 'drone' }, capacity: 5, ability: { kind: 'livingHold', label: 'Living Hold', description: 'Regenerates 4 hull per second in any orbit or phase lane.' } },
   clawFrigate: { label: 'Claw Frigate', description: 'An aggressive hunter organism that specializes in gutting troop carriers.', cost: pool(112, 62, 28), time: 23, factory: 'space', hp: 300, shields: 70, range: 220, moveSpeed: 0, weapon: { label: 'Ripper Talons', damage: .7, cooldown: .32, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'transportHunter', label: 'Transport Hunter', description: 'Deals 50% more damage to ships carrying ground units.' } },
   needleFrigate: { label: 'Needle Frigate', description: 'A brittle sniper whose void spines punch through shields into living hull.', cost: pool(128, 76, 34), time: 27, factory: 'space', hp: 200, shields: 80, range: 470, moveSpeed: 0, weapon: { label: 'Void Needle', damage: 15, cooldown: 2.8, projectiles: 1, effect: 'missile' }, ability: { kind: 'shieldPiercing', label: 'Void Piercing', description: 'Half of each attack bypasses shields and strikes hull directly.' } },
+  broodSporeguard: { label: 'Sporeguard Frigate', description: 'A lean escort organism bred to burst tracking spores among hostile strike craft.', cost: pool(140, 84, 40), time: 29, factory: 'space', hp: 270, shields: 65, range: 290, moveSpeed: 0, weapon: { label: 'Tracking Spore Cysts', damage: .4, cooldown: .4, projectiles: 4, effect: 'drone' }, requires: 'weaponsCalibration', ability: { kind: 'antiFighterCannons', label: 'Hunter Spores', description: 'Prioritizes one hostile fighter wing and deals 50% more damage to fighters.' } },
   hiveCruiser: { label: 'Hive Cruiser', description: 'A synaptic war organism coordinating every nearby living ship.', cost: pool(235, 152, 88), time: 42, factory: 'space', hp: 560, shields: 170, range: 320, moveSpeed: 0, weapon: { label: 'Bioplasma Nodes', damage: 1.8, cooldown: .85, projectiles: 5, effect: 'plasma' }, requires: 'orbitalEngineering', ability: { kind: 'orbitalSynapse', label: 'Orbital Synapse', description: 'Nearby allied ships deal 25% more damage.' } },
   voidStalker: { label: 'Void Stalker', description: 'A phase-shifting ambush organism that turns aside incoming fire.', cost: pool(310, 198, 112), time: 50, factory: 'space', hp: 650, shields: 280, range: 380, moveSpeed: 0, weapon: { label: 'Phase Spines', damage: 4.3, cooldown: .9, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', advancedFactory: true, ability: { kind: 'phaseCarapace', label: 'Phase Carapace', description: 'Reduces incoming damage by 35%.' } },
   broodCarrier: { label: 'Brood Carrier', description: 'A mobile hive that regrows attack spawn and splits them across hostile ships.', cost: pool(350, 232, 130), time: 54, factory: 'space', hp: 720, shields: 220, range: 300, moveSpeed: 0, weapon: { label: 'Ripper Spawn Wing', damage: 1.4, cooldown: .7, projectiles: 6, effect: 'drone' }, requires: 'carrierOperations', advancedFactory: true, capacity: 10, fighterWing: { label: 'Ripper Spawn', capacity: 6, rebuildTime: 12, attritionTime: 10 }, ability: { kind: 'spawnCloud', label: 'Spawn Cloud', description: 'Every fighter attack also pressures a second nearby hostile ship for 50% damage.' } },
   leviathan: { label: 'Leviathan', description: 'A capital predator that consumes matter to mend its wounded body.', cost: pool(500, 330, 210), time: 72, factory: 'space', hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Twin Nova Glands', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', advancedFactory: true, ability: { kind: 'devour', label: 'Devour', description: 'Restores hull equal to 20% of the damage it deals.' } },
-  broodRazorQueen: { label: 'Razor Queen Flagship', description: 'A brood-command organism surrounded by a living halo bred to hunt strike craft.', cost: pool(650, 490, 310), time: 100, factory: 'space', hp: 1480, shields: 190, range: 410, moveSpeed: 0, weapon: { label: 'Hunter-Spore Halo', damage: 1.2, cooldown: .9, projectiles: 8, effect: 'drone' }, requires: 'weaponsCalibration', advancedFactory: true, ability: { kind: 'antiFighterBarrage', label: 'Predator Halo', description: 'Prioritizes every hostile fighter wing in range and deals triple damage to fighters.' } },
   worldEater: { label: 'World Eater', description: 'The apex organism, able to crack orbital fortresses in a few feeding passes.', cost: pool(860, 630, 410), time: 112, factory: 'space', hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', advancedFactory: true, ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
   ...AEGIS_UNITS,
   ...COVENANT_UNITS,
@@ -119,7 +119,7 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   heavyArmor: ['Railgun Tank', 'Plasma Tank', 'Siege Walker'],
   carrierOperations: ['Assault Carrier'],
   capitalShips: ['Battlecruiser'],
-  weaponsCalibration: ['+15% ship and orbital weapon damage'],
+  weaponsCalibration: ['Flak Frigates', '+15% ship and orbital weapon damage'],
   combatSimulation: ['Repeatable · +3% ship and orbital damage per level'],
   titanEngineering: ['Titan Dreadnought'],
 };
@@ -220,7 +220,7 @@ export const ORBITAL_DEFENSE_HULL_REGEN = 2;
 export const ORBITAL_DEFENSE_SHIELD_REGEN = 16;
 export const SPACE_COMBAT_DAMAGE_MULTIPLIER = 4;
 export const FIGHTER_HIT_POINTS = 40;
-export const ANTI_FIGHTER_DAMAGE_MULTIPLIER = 3;
+export const ANTI_FIGHTER_DAMAGE_MULTIPLIER = 1.5;
 export const ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP = 1;
 export const RESOURCE_COLLECTION_MULTIPLIER = 4;
 export const GRAVITY_WELL_RADIUS = 780;
@@ -233,32 +233,32 @@ export const PHASE_GATE_CHARGE_SECONDS = 2;
 
 export const COALITION_GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
 export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter', 'skitterer', 'carapaceBeast', 'sporeLobber', 'synapseGuard', 'crusherBeast', 'acidBehemoth', 'siegeCrawler'];
-export const COALITION_SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'commandFlagship', 'dreadnought'];
-export const BROOD_SPACE_KINDS: SpaceUnitKind[] = ['sporeArk', 'clawFrigate', 'needleFrigate', 'hiveCruiser', 'voidStalker', 'broodCarrier', 'leviathan', 'broodRazorQueen', 'worldEater'];
+export const COALITION_SPACE_KINDS: SpaceUnitKind[] = ['transport', 'escortFrigate', 'missileFrigate', 'flakFrigate', 'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought'];
+export const BROOD_SPACE_KINDS: SpaceUnitKind[] = ['sporeArk', 'clawFrigate', 'needleFrigate', 'broodSporeguard', 'hiveCruiser', 'voidStalker', 'broodCarrier', 'leviathan', 'worldEater'];
 export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS, ...COVENANT_GROUND_KINDS, 'covenantBulwark'];
 export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS];
-export const FLAGSHIP_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['commandFlagship', 'broodRazorQueen', 'aegisArbiterFlagship', 'covenantNullFlagship']);
-export const isFlagshipKind = (kind: UnitKind): kind is SpaceUnitKind => FLAGSHIP_KINDS.has(kind as SpaceUnitKind);
+export const FLAK_FRIGATE_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['flakFrigate', 'broodSporeguard', 'aegisSentinelFrigate', 'covenantInterdictor']);
+export const isFlakFrigateKind = (kind: UnitKind): kind is SpaceUnitKind => FLAK_FRIGATE_KINDS.has(kind as SpaceUnitKind);
 
 const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'broodling', antiVehicle: 'acidSpitter', recon: 'skitterer', lightTank: 'carapaceBeast', artillery: 'sporeLobber',
   shockTrooper: 'synapseGuard', railgunTank: 'crusherBeast', plasmaTank: 'acidBehemoth', siegeWalker: 'siegeCrawler', defenseTurret: 'spineTower',
   transport: 'sporeArk', escortFrigate: 'clawFrigate', missileFrigate: 'needleFrigate', lightCruiser: 'hiveCruiser', destroyer: 'voidStalker',
-  assaultCarrier: 'broodCarrier', battlecruiser: 'leviathan', commandFlagship: 'broodRazorQueen', dreadnought: 'worldEater',
+  flakFrigate: 'broodSporeguard', assaultCarrier: 'broodCarrier', battlecruiser: 'leviathan', dreadnought: 'worldEater',
 };
 const BROOD_UNIT_KINDS = new Set<UnitKind>([...BROOD_GROUND_KINDS, 'spineTower', ...BROOD_SPACE_KINDS]);
 const AEGIS_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'aegisWarden', antiVehicle: 'aegisWarden', recon: 'aegisWarden', lightTank: 'aegisBastionTank', artillery: 'aegisRampartArtillery',
   shockTrooper: 'aegisPaladinGuard', railgunTank: 'aegisFortressWalker', plasmaTank: 'aegisFortressWalker', siegeWalker: 'aegisFortressWalker',
   transport: 'aegisBastionLander', escortFrigate: 'aegisShieldMonitor', missileFrigate: 'aegisLanceFrigate', lightCruiser: 'aegisWardCruiser', destroyer: 'aegisWardCruiser',
-  assaultCarrier: 'aegisCitadelCarrier', battlecruiser: 'aegisSovereignDreadnought', commandFlagship: 'aegisArbiterFlagship', dreadnought: 'aegisSovereignDreadnought',
+  flakFrigate: 'aegisSentinelFrigate', assaultCarrier: 'aegisCitadelCarrier', battlecruiser: 'aegisSovereignDreadnought', dreadnought: 'aegisSovereignDreadnought',
 };
 const AEGIS_UNIT_KINDS = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
 const COVENANT_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'covenantCohort', antiVehicle: 'covenantCohort', recon: 'covenantRepairDrone', lightTank: 'covenantBastionStrider', artillery: 'covenantFurnaceArtillery',
   shockTrooper: 'covenantRepairDrone', railgunTank: 'covenantJuggernaut', plasmaTank: 'covenantJuggernaut', siegeWalker: 'covenantJuggernaut', defenseTurret: 'covenantBulwark',
   transport: 'covenantAssemblyArk', escortFrigate: 'covenantSalvageFrigate', missileFrigate: 'covenantChainFrigate', lightCruiser: 'covenantFoundryCruiser', destroyer: 'covenantFoundryCruiser',
-  assaultCarrier: 'covenantFabricatorCarrier', battlecruiser: 'covenantIronclad', commandFlagship: 'covenantNullFlagship', dreadnought: 'covenantDreadforge',
+  flakFrigate: 'covenantInterdictor', assaultCarrier: 'covenantFabricatorCarrier', battlecruiser: 'covenantIronclad', dreadnought: 'covenantDreadforge',
 };
 const COVENANT_UNIT_KINDS = new Set<UnitKind>([...COVENANT_GROUND_KINDS, 'covenantBulwark', ...COVENANT_SPACE_KINDS]);
 const SPECIALIZED_UNIT_KINDS = new Set<UnitKind>([...BROOD_UNIT_KINDS, ...AEGIS_UNIT_KINDS, ...COVENANT_UNIT_KINDS]);

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FIGHTER_HIT_POINTS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, carrierFighterCount, civilizationUnitKind, createInitialState,
-  isFlagshipKind, migrateGameState, orbitalCombatShots, recoverCarrierFighters, spaceUnitKindsForCivilization, tick,
+  ANTI_FIGHTER_DAMAGE_MULTIPLIER, FIGHTER_HIT_POINTS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, carrierFighterCount, civilizationUnitKind, createInitialState,
+  isFlakFrigateKind, migrateGameState, orbitalCombatShots, recoverCarrierFighters, spaceUnitKindsForCivilization, tick,
   type PlayableFaction, type SpaceUnitKind, type Unit,
 } from './game';
 
 const CARRIERS: SpaceUnitKind[] = ['assaultCarrier', 'broodCarrier', 'aegisCitadelCarrier', 'covenantFabricatorCarrier'];
-const FLAGSHIPS: SpaceUnitKind[] = ['commandFlagship', 'broodRazorQueen', 'aegisArbiterFlagship', 'covenantNullFlagship'];
+const FLAK_FRIGATES: SpaceUnitKind[] = ['flakFrigate', 'broodSporeguard', 'aegisSentinelFrigate', 'covenantInterdictor'];
 
 const makeShip = (id: string, kind: SpaceUnitKind, faction: 'player' | 'enemy', x = 0): Unit => ({
   id, kind, faction,
@@ -71,33 +71,35 @@ describe('carrier fighter wings', () => {
     expect(carrier.fighterBuildProgress).toBe(0);
   });
 
-  it('gives every civilization a weapons-calibration flagship specialized against fighters', () => {
+  it('gives every civilization a weapons-calibration flak frigate specialized against fighters', () => {
     (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach((civilization, index) => {
-      const kind = civilizationUnitKind(civilization, 'commandFlagship') as SpaceUnitKind;
-      expect(kind).toBe(FLAGSHIPS[index]);
+      const kind = civilizationUnitKind(civilization, 'flakFrigate') as SpaceUnitKind;
+      expect(kind).toBe(FLAK_FRIGATES[index]);
       expect(spaceUnitKindsForCivilization(civilization)).toContain(kind);
-      expect(isFlagshipKind(kind)).toBe(true);
+      expect(isFlakFrigateKind(kind)).toBe(true);
       expect(UNITS[kind]).toMatchObject({
         requires: 'weaponsCalibration',
-        advancedFactory: true,
-        ability: { kind: 'antiFighterBarrage' },
+        ability: { kind: 'antiFighterCannons' },
       });
+      expect(UNITS[kind].advancedFactory).not.toBe(true);
     });
   });
 
-  it('lets flagships attack and destroy deployed fighters before damaging their carrier', () => {
+  it('lets flak frigates attack and destroy deployed fighters before damaging their carrier', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander' });
     state.enemyActionClock = 9999;
     state.enemyAttackClock = 9999;
-    const flagship = makeShip('flagship', 'commandFlagship', 'player');
-    const carrier = { ...makeShip('hostile-carrier', 'broodCarrier', 'enemy', 120), fighterCount: 6, fighterDamage: 0, weaponCooldown: 999 };
-    state.planets[0].orbitUnits = [flagship, carrier];
+    const flakFrigate = makeShip('flak-frigate', 'flakFrigate', 'player');
+    const carrier = { ...makeShip('hostile-carrier', 'broodCarrier', 'enemy', 120), fighterCount: 6, fighterDamage: FIGHTER_HIT_POINTS - 2, weaponCooldown: 999 };
+    state.planets[0].orbitUnits = [flakFrigate, carrier];
 
-    expect(orbitalCombatShots(state.planets[0])).toContainEqual(expect.objectContaining({
-      attackerId: flagship.id,
+    const shot = orbitalCombatShots(state.planets[0]).find(candidate => candidate.attackerId === flakFrigate.id);
+    expect(shot).toEqual(expect.objectContaining({
       targetId: carrier.id,
       targetType: 'fighter',
+      damageMultiplier: ANTI_FIGHTER_DAMAGE_MULTIPLIER,
     }));
+    expect(ANTI_FIGHTER_DAMAGE_MULTIPLIER).toBe(1.5);
     const result = tick(state, .1);
     const survivingCarrier = result.planets[0].orbitUnits.find(unit => unit.id === carrier.id)!;
     expect(survivingCarrier.fighterCount).toBeLessThan(carrier.fighterCount);
@@ -105,15 +107,31 @@ describe('carrier fighter wings', () => {
     expect(survivingCarrier.fighterDamage).toBeLessThan(FIGHTER_HIT_POINTS);
   });
 
-  it('engages every hostile fighter wing in range with one flagship barrage', () => {
+  it('engages one hostile fighter wing at a time instead of clearing every wing at once', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander' });
-    const flagship = makeShip('flagship', 'aegisArbiterFlagship', 'player');
+    const flakFrigate = makeShip('flak-frigate', 'aegisSentinelFrigate', 'player');
     const first = { ...makeShip('carrier-a', 'assaultCarrier', 'enemy', 100), fighterCount: 4 };
     const second = { ...makeShip('carrier-b', 'broodCarrier', 'enemy', 180), fighterCount: 6 };
-    state.planets[0].orbitUnits = [flagship, first, second];
+    state.planets[0].orbitUnits = [flakFrigate, first, second];
     const targets = orbitalCombatShots(state.planets[0])
-      .filter(shot => shot.attackerId === flagship.id && shot.targetType === 'fighter')
+      .filter(shot => shot.attackerId === flakFrigate.id && shot.targetType === 'fighter')
       .map(shot => shot.targetId);
-    expect(targets).toEqual([first.id, second.id]);
+    expect(targets).toEqual([first.id]);
+  });
+
+  it('migrates legacy flagship hulls into the corresponding flak frigates', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander' });
+    state.planets[0].orbitUnits = [{
+      ...makeShip('legacy', 'flakFrigate', 'player'),
+      kind: 'commandFlagship' as SpaceUnitKind,
+      hp: 660,
+      maxHp: 1320,
+      shields: 360,
+      maxShields: 720,
+    }];
+    const migrated = migrateGameState(state).planets[0].orbitUnits[0];
+    expect(migrated.kind).toBe('flakFrigate');
+    expect(migrated.maxHp).toBe(UNITS.flakFrigate.hp);
+    expect(migrated.hp).toBeCloseTo(UNITS.flakFrigate.hp / 2);
   });
 });

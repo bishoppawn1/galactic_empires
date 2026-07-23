@@ -6,11 +6,11 @@ import escortFrigate from '../../assets/ships/escort-frigate.png';
 import lightCruiser from '../../assets/ships/light-cruiser.png';
 import missileFrigate from '../../assets/ships/missile-frigate.png';
 import transport from '../../assets/ships/transport.png';
-import commandFlagship from '../../assets/ships/vanguard-flagship.png';
-import aegisArbiterFlagship from '../../assets/aegis/ships/arbiter-flagship.png';
+import flakFrigate from '../../assets/ships/flak-frigate.png';
 import aegisBastionLander from '../../assets/aegis/ships/bastion-lander.png';
 import aegisCitadelCarrier from '../../assets/aegis/ships/citadel-carrier.png';
 import aegisLanceFrigate from '../../assets/aegis/ships/lance-frigate.png';
+import aegisSentinelFrigate from '../../assets/aegis/ships/sentinel-flak-frigate.png';
 import aegisShieldMonitor from '../../assets/aegis/ships/shield-monitor.png';
 import aegisSovereignDreadnought from '../../assets/aegis/ships/sovereign-dreadnought.png';
 import aegisWardCruiser from '../../assets/aegis/ships/ward-cruiser.png';
@@ -20,10 +20,10 @@ import covenantDreadforge from '../../assets/covenant/ships/dreadforge-titan.png
 import covenantFabricatorCarrier from '../../assets/covenant/ships/fabricator-carrier.png';
 import covenantFoundryCruiser from '../../assets/covenant/ships/foundry-cruiser.png';
 import covenantIronclad from '../../assets/covenant/ships/ironclad-battleship.png';
-import covenantNullFlagship from '../../assets/covenant/ships/null-foundry-flagship.png';
+import covenantInterdictor from '../../assets/covenant/ships/interdictor-frigate.png';
 import covenantSalvageFrigate from '../../assets/covenant/ships/salvage-frigate.png';
 import broodCarrier from '../../assets/brood/ships/brood-carrier.png';
-import broodRazorQueen from '../../assets/brood/ships/razor-queen-flagship.png';
+import broodSporeguard from '../../assets/brood/ships/sporeguard-frigate.png';
 import clawFrigate from '../../assets/brood/ships/claw-frigate.png';
 import hiveCruiser from '../../assets/brood/ships/hive-cruiser.png';
 import leviathan from '../../assets/brood/ships/leviathan.png';
@@ -37,35 +37,35 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   transport,
   escortFrigate,
   missileFrigate,
+  flakFrigate,
   lightCruiser,
   destroyer,
   assaultCarrier,
   battlecruiser,
-  commandFlagship,
   dreadnought,
   sporeArk,
   clawFrigate,
   needleFrigate,
+  broodSporeguard,
   hiveCruiser,
   voidStalker,
   broodCarrier,
   leviathan,
-  broodRazorQueen,
   worldEater,
   aegisBastionLander,
   aegisShieldMonitor,
   aegisLanceFrigate,
+  aegisSentinelFrigate,
   aegisWardCruiser,
   aegisCitadelCarrier,
-  aegisArbiterFlagship,
   aegisSovereignDreadnought,
   covenantAssemblyArk,
   covenantSalvageFrigate,
   covenantChainFrigate,
+  covenantInterdictor,
   covenantFoundryCruiser,
   covenantFabricatorCarrier,
   covenantIronclad,
-  covenantNullFlagship,
   covenantDreadforge,
 };
 
@@ -77,35 +77,35 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   transport: 68,
   escortFrigate: 78,
   missileFrigate: 82,
+  flakFrigate: 80,
   lightCruiser: 94,
   destroyer: 104,
   assaultCarrier: 116,
   battlecruiser: 126,
-  commandFlagship: 136,
   dreadnought: 140,
   sporeArk: 72,
   clawFrigate: 82,
   needleFrigate: 86,
+  broodSporeguard: 84,
   hiveCruiser: 100,
   voidStalker: 108,
   broodCarrier: 120,
   leviathan: 132,
-  broodRazorQueen: 142,
   worldEater: 148,
   aegisBastionLander: 78,
   aegisShieldMonitor: 84,
   aegisLanceFrigate: 88,
+  aegisSentinelFrigate: 86,
   aegisWardCruiser: 104,
   aegisCitadelCarrier: 128,
-  aegisArbiterFlagship: 140,
   aegisSovereignDreadnought: 148,
   covenantAssemblyArk: 78,
   covenantSalvageFrigate: 84,
   covenantChainFrigate: 88,
+  covenantInterdictor: 86,
   covenantFoundryCruiser: 106,
   covenantFabricatorCarrier: 126,
   covenantIronclad: 138,
-  covenantNullFlagship: 146,
   covenantDreadforge: 154,
 };
 

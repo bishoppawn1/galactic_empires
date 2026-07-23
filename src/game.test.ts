@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
+  beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
   applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
@@ -723,6 +723,17 @@ describe('galaxy routes', () => {
 });
 
 describe('production and research', () => {
+  it('allows every civilization to queue its Tier 1 flak frigate without research', () => {
+    (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach(playerFaction => {
+      const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction });
+      const kind = civilizationUnitKind(playerFaction, 'flakFrigate');
+      expect(state.completedResearch).toHaveLength(0);
+      const queued = queueUnit(state, 'terra', kind);
+      expectOk(queued);
+      expect(spaceYards(queued.state.planets[0])[0].spaceQueue).toContainEqual(expect.objectContaining({ kind }));
+    });
+  });
+
   it('defines a connected research lattice with three repeatable capstones', () => {
     expect(Object.keys(RESEARCH)).toHaveLength(18);
     expect(REPEATABLE_RESEARCH).toEqual(['industrialIteration', 'resourceSynthesis', 'combatSimulation']);

@@ -255,6 +255,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('heading', { name: 'TIER 2 · CRUISERS' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'TIER 3 · SUPER CAPITALS' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
+    expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' }).closest('button')).not.toHaveTextContent('RESEARCH REQUIRED');
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
     const infantryOrder = screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button');
     expect(infantryOrder).toHaveTextContent('RNG 14');

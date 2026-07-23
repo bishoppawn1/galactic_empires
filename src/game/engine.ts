@@ -1845,7 +1845,7 @@ function runEnemyStrategicAction(state: GameState) {
       let desired: SpaceUnitKind;
       if (yard.kind === 'spaceFactory') {
         desired = needsCarrier ? spaceKind('transport')
-          : state.enemyCompletedResearch.includes('weaponsCalibration') && !hasFlakFrigate ? spaceKind('flakFrigate')
+          : !hasFlakFrigate ? spaceKind('flakFrigate')
             : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
       } else if (yard.kind === 'advancedSpaceFactory') {
         desired = spaceKind(state.nextId % 2 ? 'destroyer' : 'lightCruiser');

@@ -71,16 +71,14 @@ describe('carrier fighter wings', () => {
     expect(carrier.fighterBuildProgress).toBe(0);
   });
 
-  it('gives every civilization a weapons-calibration flak frigate specialized against fighters', () => {
+  it('gives every civilization a research-free Tier 1 flak frigate specialized against fighters', () => {
     (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach((civilization, index) => {
       const kind = civilizationUnitKind(civilization, 'flakFrigate') as SpaceUnitKind;
       expect(kind).toBe(FLAK_FRIGATES[index]);
       expect(spaceUnitKindsForCivilization(civilization)).toContain(kind);
       expect(isFlakFrigateKind(kind)).toBe(true);
-      expect(UNITS[kind]).toMatchObject({
-        requires: 'weaponsCalibration',
-        ability: { kind: 'antiFighterCannons' },
-      });
+      expect(UNITS[kind]).toMatchObject({ spaceTier: 1, ability: { kind: 'antiFighterCannons' } });
+      expect(UNITS[kind].requires).toBeUndefined();
       expect(UNITS[kind].advancedFactory).not.toBe(true);
     });
   });

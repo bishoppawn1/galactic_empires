@@ -8,6 +8,16 @@ export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.h
   ? fallback
   : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
 
+export const shortestHeadingDelta = (current: number, target: number) => {
+  const delta = (target - current + 540) % 360 - 180;
+  return delta < -180 ? delta + 360 : delta;
+};
+
+export const turnTowardHeading = (current: number, target: number, maximumTurn: number) => {
+  const delta = shortestHeadingDelta(current, target);
+  return current + Math.sign(delta) * Math.min(Math.abs(delta), Math.max(0, maximumTurn));
+};
+
 export function localPlanetConnections(planets: Planet[], maxDistance = 42): PlanetConnection[] {
   const connections: PlanetConnection[] = [];
   for (let i = 0; i < planets.length; i += 1) {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, turnTowardHeading, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_UPGRADES, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_UPGRADES, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -596,6 +596,13 @@ describe('competitive multiplayer', () => {
 });
 
 describe('galaxy routes', () => {
+  it('turns along the shortest arc without exceeding the time-scaled turn rate', () => {
+    expect(turnTowardHeading(350, 10, SHIP_TURN_RATE * .1)).toBe(359);
+    expect(turnTowardHeading(359, 10, SHIP_TURN_RATE * .1)).toBe(368);
+    expect(shortestHeadingDelta(368, 10)).toBe(2);
+    expect(turnTowardHeading(368, 10, SHIP_TURN_RATE)).toBe(370);
+  });
+
   it('only connects nearby planets', () => {
     const connections = localPlanetConnections(createInitialState().planets);
     expect(connections.length).toBeGreaterThan(0);
@@ -1179,12 +1186,19 @@ describe('transport and colonization', () => {
 
   it('automatically routes distant movement through connected phase lanes over time', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    transport.heading = 270;
     const result = dispatchSpaceUnit(state, 'terra', transport.id, 'vesta');
     expectOk(result);
     expect(result.state.fleets[0].finalDestinationId).toBe('vesta');
     expect(result.state.fleets[0].destinationId).not.toBe('vesta');
     expect(result.state.fleets[0].route!.length).toBeGreaterThan(0);
-    const underway = tick(result.state, 1);
+    expect(result.state.fleets[0].unit.heading).toBe(270);
+    const firstDestination = result.state.planets.find(planet => planet.id === result.state.fleets[0].destinationId)!;
+    const routeHeading = headingForVector(firstDestination.x - state.planets[0].x, firstDestination.y - state.planets[0].y);
+    const initialTurn = Math.abs(shortestHeadingDelta(270, routeHeading));
+    const underway = tick(result.state, .5);
+    expect(Math.abs(underway.fleets[0].unit.heading! - 270)).toBeCloseTo(Math.min(initialTurn, SHIP_TURN_RATE * .5));
+    expect(Math.abs(shortestHeadingDelta(underway.fleets[0].unit.heading!, routeHeading))).toBeLessThan(initialTurn);
     expect(underway.fleets).toHaveLength(1);
     expect(underway.planets.find(p => p.id === 'vesta')!.orbitUnits.some(unit => unit.id === transport.id)).toBe(false);
     const arrived = advanceFleetToArrival(underway, transport.id);
@@ -1194,12 +1208,14 @@ describe('transport and colonization', () => {
 
   it('maneuvers and docks ships gradually within a gravity well', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    transport.heading = 270;
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 40, 25); expectOk(moved);
     expect(moved.state.planets[0].orbitUnits[0]).toMatchObject({ orbitTargetX: 40, orbitTargetY: 25 });
-    expect(moved.state.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
+    expect(moved.state.planets[0].orbitUnits[0].heading).toBe(270);
     expect(moved.state.planets[0].orbitUnits[0].orbitY).toBe(-180);
     const underway = tick(moved.state, 1);
+    expect(underway.planets[0].orbitUnits[0].heading).toBe(180);
     expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeCloseTo(ORBIT_MANEUVER_SPEED);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeGreaterThan(-180);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeLessThan(25);

@@ -29,7 +29,7 @@ import {
   type UnitKind,
   type WeaponEffect,
 } from './types';
-import { findPlanetPath, headingForVector } from './navigation';
+import { findPlanetPath, headingForVector, turnTowardHeading } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
@@ -53,6 +53,8 @@ export * from './navigation';
 export * from './definitions';
 export * from './factions';
 export * from './ground/collision';
+
+export const SHIP_TURN_RATE = 90;
 
 export const carrierFighterCount = (ship: Unit) => {
   const wing = UNITS[ship.kind].fighterWing;
@@ -146,7 +148,7 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
   const position = nextOpenOrbitPosition(otherShips.filter(other => other.id !== ship.id));
   ship.orbitTargetX = position.orbitX;
   ship.orbitTargetY = position.orbitY;
-  ship.heading = headingForVector(position.orbitX - (ship.orbitX ?? 0), position.orbitY - (ship.orbitY ?? 0), ship.heading);
+  ship.heading ??= 0;
 }
 
 function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
@@ -159,7 +161,7 @@ function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   const radius = MAX_SHIP_ORBIT_RADIUS;
   ship.orbitX = Math.cos(angle) * radius;
   ship.orbitY = Math.sin(angle) * radius;
-  ship.heading = headingForVector(destination.x - origin.x, destination.y - origin.y, ship.heading);
+  ship.heading ??= headingForVector(destination.x - origin.x, destination.y - origin.y);
   delete ship.phaseArrival;
   delete ship.orbitTargetX;
   delete ship.orbitTargetY;
@@ -646,7 +648,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     const target = nearestOpenOrbitPosition(targetX, targetY, occupied);
     ship.orbitTargetX = target.x; ship.orbitTargetY = target.y;
     occupied.push({ orbitX: target.x, orbitY: target.y });
-    ship.heading = headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading);
+    ship.heading ??= 0;
   });
   addMessage(state, `${interruptedFleets.length ? 'Jump canceled — ' : ''}${ships.length} ship${ships.length === 1 ? '' : 's'} maneuvering inside ${p.name} gravity well.`);
   return pass(state);
@@ -701,6 +703,7 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
   for (const ship of ships) {
     embarkAvailableSquads(state, origin, ship, faction);
     const departureX = ship.orbitX ?? 0, departureY = ship.orbitY ?? 0;
+    ship.heading ??= 0;
     delete ship.docked;
     delete ship.phaseArrival;
     delete ship.pendingLanding;
@@ -1423,7 +1426,7 @@ function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
-  ship.heading = headingForVector(dx, dy, ship.heading);
+  ship.heading = turnTowardHeading(ship.heading ?? 0, headingForVector(dx, dy, ship.heading), SHIP_TURN_RATE * seconds);
   const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
@@ -1704,6 +1707,11 @@ export function tick(input: GameState, seconds: number): GameState {
   const traveling: Fleet[] = [];
   const arrivals = new Map<string, Array<{ unit: Unit; seconds: number }>>();
   for (const fleet of state.fleets) {
+    const headingOrigin = getPlanet(state, fleet.originId), headingDestination = getPlanet(state, fleet.destinationId);
+    if (headingOrigin && headingDestination) {
+      const targetHeading = headingForVector(headingDestination.x - headingOrigin.x, headingDestination.y - headingOrigin.y, fleet.unit.heading);
+      fleet.unit.heading = turnTowardHeading(fleet.unit.heading ?? 0, targetHeading, SHIP_TURN_RATE * seconds);
+    }
     let timeLeft = seconds, arrived = false;
     while (timeLeft > 0 && !arrived) {
       const remainingPhaseTime = Math.max(0, fleet.travelTime - fleet.progress);

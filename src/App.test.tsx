@@ -735,15 +735,16 @@ describe('Galactic Empires interface', () => {
   });
 
 
-  it('turns an orbiting ship toward its maneuver target', () => {
+  it('renders a ship turning over time instead of snapping toward its maneuver target', () => {
     const state = stateWithPlayerForces();
     const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;
+    transport.heading = 15;
     transport.orbitTargetX = 180;
     transport.orbitTargetY = -180;
     saveState(state);
     render(<App />);
 
-    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' })).toHaveStyle({ '--ship-heading': '90deg' });
+    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' })).toHaveStyle({ '--ship-heading': '15deg' });
   });
 
   it('starts non-instant movement toward an open point inside its gravity well', () => {

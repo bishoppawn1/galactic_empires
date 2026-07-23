@@ -56,14 +56,12 @@ export const shipMapPosition = (planet: Planet, ship: Unit, index: number) => {
   };
 };
 
-export const orbitShipHeading = (ship: Unit) => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number'
-  ? headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading)
-  : ship.heading ?? 0;
+export const orbitShipHeading = (ship: Unit) => ship.heading ?? 0;
 
 export const fleetHeading = (fleet: Fleet, planets: Planet[]) => {
   const from = planets.find(planet => planet.id === fleet.originId)!;
   const to = planets.find(planet => planet.id === fleet.destinationId)!;
-  return headingForVector(to.x - from.x, to.y - from.y, fleet.unit.heading);
+  return fleet.unit.heading ?? headingForVector(to.x - from.x, to.y - from.y);
 };
 
 export const yardMapPosition = (planet: Planet, index: number, count: number) => {

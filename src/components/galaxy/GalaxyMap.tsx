@@ -187,7 +187,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
             const shipIndexes = new Map(p.orbitUnits.map((ship, index) => [ship.id, index]));
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
-            const mapPosition = (id: string, type: 'ship' | 'defense' | 'battery') => {
+            const combatShots = orbitalCombatShots(p);
+            function mapPosition(id: string, type: 'ship' | 'defense' | 'battery' | 'fighter'): { x: number; y: number } | undefined {
               if (type === 'battery') return { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 };
               if (type === 'defense') {
                 const index = defenses.findIndex(defense => defense.id === id);
@@ -197,9 +198,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
                   : undefined;
               }
               const ship = shipsById.get(id);
-              return ship ? shipMapPosition(p, ship, shipIndexes.get(id) ?? 0) : undefined;
-            };
-            const combatShots = orbitalCombatShots(p);
+              if (!ship) return undefined;
+              const carrierPosition = shipMapPosition(p, ship, shipIndexes.get(id) ?? 0);
+              if (type !== 'fighter') return carrierPosition;
+              const sortie = combatShots.find(shot => shot.attackerId === id && shot.targetType !== 'fighter');
+              const center = sortie ? mapPosition(sortie.targetId, sortie.targetType) ?? carrierPosition : carrierPosition;
+              const phase = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * .071 + state.elapsed * 1.65;
+              return { x: center.x + Math.cos(phase) * 24, y: center.y + Math.sin(phase) * 24 };
+            }
             const carrierShotTotals = new Map<string, number>();
             combatShots.forEach(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
@@ -225,7 +231,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               return !firingShip || (!UNITS[firingShip.kind].fighterWing && (typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0));
             });
             return [
-              ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} elapsed={state.elapsed} source={source} target={target} />),
+              ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={allocated} elapsed={state.elapsed} source={source} target={target} underFire={combatShots.some(incoming => incoming.targetType === 'fighter' && incoming.targetId === carrier.id)} />),
               ...firingShots.flatMap((shot, index) => {
                 const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
                 const source = mapPosition(shot.attackerId, shot.attackerType);

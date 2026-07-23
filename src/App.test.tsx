@@ -66,6 +66,7 @@ describe('Galactic Empires interface', () => {
     expect(broodlingOrder).not.toHaveTextContent('Rending Claws');
     expect(broodlingOrder).toHaveTextContent('SWARM INSTINCT');
     expect(screen.getByRole('button', { name: /Spore Ark/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Razor Queen Flagship/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
@@ -86,8 +87,8 @@ describe('Galactic Empires interface', () => {
   it('uses dedicated artwork for every Brood spaceship', () => {
     const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
     const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
-    expect(broodShipArt).toHaveLength(8);
-    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(8);
+    expect(broodShipArt).toHaveLength(9);
+    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(9);
     broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
   });
 
@@ -103,10 +104,11 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: /Iron Cohort/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Assembly Ark/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Dreadforge Titan/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Null Foundry Flagship/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
-    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(7);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(8);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {
@@ -247,6 +249,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Phase Destroyer', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Assault Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Vanguard Flagship', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Titan Dreadnought', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
@@ -261,7 +264,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
 
-    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Ward Cruiser', 'Citadel Carrier', 'Sovereign Dreadnought']) {
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Ward Cruiser', 'Citadel Carrier', 'Arbiter Flagship', 'Sovereign Dreadnought']) {
       expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();

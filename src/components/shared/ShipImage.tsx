@@ -6,6 +6,8 @@ import escortFrigate from '../../assets/ships/escort-frigate.png';
 import lightCruiser from '../../assets/ships/light-cruiser.png';
 import missileFrigate from '../../assets/ships/missile-frigate.png';
 import transport from '../../assets/ships/transport.png';
+import commandFlagship from '../../assets/ships/vanguard-flagship.png';
+import aegisArbiterFlagship from '../../assets/aegis/ships/arbiter-flagship.png';
 import aegisBastionLander from '../../assets/aegis/ships/bastion-lander.png';
 import aegisCitadelCarrier from '../../assets/aegis/ships/citadel-carrier.png';
 import aegisLanceFrigate from '../../assets/aegis/ships/lance-frigate.png';
@@ -18,8 +20,10 @@ import covenantDreadforge from '../../assets/covenant/ships/dreadforge-titan.png
 import covenantFabricatorCarrier from '../../assets/covenant/ships/fabricator-carrier.png';
 import covenantFoundryCruiser from '../../assets/covenant/ships/foundry-cruiser.png';
 import covenantIronclad from '../../assets/covenant/ships/ironclad-battleship.png';
+import covenantNullFlagship from '../../assets/covenant/ships/null-foundry-flagship.png';
 import covenantSalvageFrigate from '../../assets/covenant/ships/salvage-frigate.png';
 import broodCarrier from '../../assets/brood/ships/brood-carrier.png';
+import broodRazorQueen from '../../assets/brood/ships/razor-queen-flagship.png';
 import clawFrigate from '../../assets/brood/ships/claw-frigate.png';
 import hiveCruiser from '../../assets/brood/ships/hive-cruiser.png';
 import leviathan from '../../assets/brood/ships/leviathan.png';
@@ -37,6 +41,7 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   destroyer,
   assaultCarrier,
   battlecruiser,
+  commandFlagship,
   dreadnought,
   sporeArk,
   clawFrigate,
@@ -45,12 +50,14 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   voidStalker,
   broodCarrier,
   leviathan,
+  broodRazorQueen,
   worldEater,
   aegisBastionLander,
   aegisShieldMonitor,
   aegisLanceFrigate,
   aegisWardCruiser,
   aegisCitadelCarrier,
+  aegisArbiterFlagship,
   aegisSovereignDreadnought,
   covenantAssemblyArk,
   covenantSalvageFrigate,
@@ -58,6 +65,7 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   covenantFoundryCruiser,
   covenantFabricatorCarrier,
   covenantIronclad,
+  covenantNullFlagship,
   covenantDreadforge,
 };
 
@@ -73,6 +81,7 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   destroyer: 104,
   assaultCarrier: 116,
   battlecruiser: 126,
+  commandFlagship: 136,
   dreadnought: 140,
   sporeArk: 72,
   clawFrigate: 82,
@@ -81,12 +90,14 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   voidStalker: 108,
   broodCarrier: 120,
   leviathan: 132,
+  broodRazorQueen: 142,
   worldEater: 148,
   aegisBastionLander: 78,
   aegisShieldMonitor: 84,
   aegisLanceFrigate: 88,
   aegisWardCruiser: 104,
   aegisCitadelCarrier: 128,
+  aegisArbiterFlagship: 140,
   aegisSovereignDreadnought: 148,
   covenantAssemblyArk: 78,
   covenantSalvageFrigate: 84,
@@ -94,6 +105,7 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   covenantFoundryCruiser: 106,
   covenantFabricatorCarrier: 126,
   covenantIronclad: 138,
+  covenantNullFlagship: 146,
   covenantDreadforge: 154,
 };
 

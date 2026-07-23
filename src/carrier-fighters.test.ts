@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, carrierFighterCount, createInitialState, migrateGameState, recoverCarrierFighters, tick,
-  type SpaceUnitKind, type Unit,
+  FIGHTER_HIT_POINTS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, carrierFighterCount, civilizationUnitKind, createInitialState,
+  isFlagshipKind, migrateGameState, orbitalCombatShots, recoverCarrierFighters, spaceUnitKindsForCivilization, tick,
+  type PlayableFaction, type SpaceUnitKind, type Unit,
 } from './game';
 
 const CARRIERS: SpaceUnitKind[] = ['assaultCarrier', 'broodCarrier', 'aegisCitadelCarrier', 'covenantFabricatorCarrier'];
+const FLAGSHIPS: SpaceUnitKind[] = ['commandFlagship', 'broodRazorQueen', 'aegisArbiterFlagship', 'covenantNullFlagship'];
 
 const makeShip = (id: string, kind: SpaceUnitKind, faction: 'player' | 'enemy', x = 0): Unit => ({
   id, kind, faction,
@@ -39,6 +41,7 @@ describe('carrier fighter wings', () => {
     const carrier = migrateGameState(state).planets[0].orbitUnits[0];
     expect(carrier.fighterCount).toBe(UNITS.assaultCarrier.fighterWing!.capacity);
     expect(carrier.fighterBuildProgress).toBe(0);
+    expect(carrier.fighterDamage).toBe(0);
   });
 
   it('slowly rebuilds destroyed fighters without exceeding wing capacity', () => {
@@ -66,5 +69,51 @@ describe('carrier fighter wings', () => {
     const carrier = result.planets[0].orbitUnits.find(unit => unit.id === 'carrier')!;
     expect(carrier.fighterCount).toBe(wing.capacity - 1);
     expect(carrier.fighterBuildProgress).toBe(0);
+  });
+
+  it('gives every civilization a weapons-calibration flagship specialized against fighters', () => {
+    (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach((civilization, index) => {
+      const kind = civilizationUnitKind(civilization, 'commandFlagship') as SpaceUnitKind;
+      expect(kind).toBe(FLAGSHIPS[index]);
+      expect(spaceUnitKindsForCivilization(civilization)).toContain(kind);
+      expect(isFlagshipKind(kind)).toBe(true);
+      expect(UNITS[kind]).toMatchObject({
+        requires: 'weaponsCalibration',
+        advancedFactory: true,
+        ability: { kind: 'antiFighterBarrage' },
+      });
+    });
+  });
+
+  it('lets flagships attack and destroy deployed fighters before damaging their carrier', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander' });
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 9999;
+    const flagship = makeShip('flagship', 'commandFlagship', 'player');
+    const carrier = { ...makeShip('hostile-carrier', 'broodCarrier', 'enemy', 120), fighterCount: 6, fighterDamage: 0, weaponCooldown: 999 };
+    state.planets[0].orbitUnits = [flagship, carrier];
+
+    expect(orbitalCombatShots(state.planets[0])).toContainEqual(expect.objectContaining({
+      attackerId: flagship.id,
+      targetId: carrier.id,
+      targetType: 'fighter',
+    }));
+    const result = tick(state, .1);
+    const survivingCarrier = result.planets[0].orbitUnits.find(unit => unit.id === carrier.id)!;
+    expect(survivingCarrier.fighterCount).toBeLessThan(carrier.fighterCount);
+    expect(survivingCarrier.shields).toBe(carrier.shields);
+    expect(survivingCarrier.fighterDamage).toBeLessThan(FIGHTER_HIT_POINTS);
+  });
+
+  it('engages every hostile fighter wing in range with one flagship barrage', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander' });
+    const flagship = makeShip('flagship', 'aegisArbiterFlagship', 'player');
+    const first = { ...makeShip('carrier-a', 'assaultCarrier', 'enemy', 100), fighterCount: 4 };
+    const second = { ...makeShip('carrier-b', 'broodCarrier', 'enemy', 180), fighterCount: 6 };
+    state.planets[0].orbitUnits = [flagship, first, second];
+    const targets = orbitalCombatShots(state.planets[0])
+      .filter(shot => shot.attackerId === flagship.id && shot.targetType === 'fighter')
+      .map(shot => shot.targetId);
+    expect(targets).toEqual([first.id, second.id]);
   });
 });

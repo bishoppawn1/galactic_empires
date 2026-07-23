@@ -42,10 +42,10 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isRepeatableResearch, orbitalDefenseOffset,
+  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlagshipKind, isRepeatableResearch, orbitalDefenseOffset,
   researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
 } from './definitions';
 
@@ -64,7 +64,7 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp,
   shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
   ...(UNITS[kind].capacity || kind === 'transport' ? { loadedUnitIds: [] } : {}),
-  ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0 } : {}),
+  ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0, fighterDamage: 0 } : {}),
 });
 
 const orbitSlot = (index: number) => {
@@ -418,6 +418,7 @@ export function migrateGameState(input: GameState): GameState {
       savedUnit.fighterCount = carrierFighterCount(savedUnit);
       savedUnit.fighterBuildProgress = Math.max(0, Math.min(fighterWing.rebuildTime, savedUnit.fighterBuildProgress ?? 0));
       savedUnit.fighterLossProgress = Math.max(0, Math.min(fighterWing.attritionTime, savedUnit.fighterLossProgress ?? 0));
+      savedUnit.fighterDamage = Math.max(0, Math.min(FIGHTER_HIT_POINTS - Number.EPSILON, savedUnit.fighterDamage ?? 0));
     }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
@@ -994,8 +995,8 @@ export function recoverCarrierFighters(input: Unit, seconds: number): Unit {
   const wing = UNITS[input.kind].fighterWing;
   if (!wing) return input;
   const fighterCount = carrierFighterCount(input);
-  if (seconds <= 0) return { ...input, fighterCount, fighterBuildProgress: input.fighterBuildProgress ?? 0, fighterLossProgress: input.fighterLossProgress ?? 0 };
-  if (fighterCount >= wing.capacity) return { ...input, fighterCount, fighterBuildProgress: 0, fighterLossProgress: input.fighterLossProgress ?? 0 };
+  if (seconds <= 0) return { ...input, fighterCount, fighterBuildProgress: input.fighterBuildProgress ?? 0, fighterLossProgress: input.fighterLossProgress ?? 0, fighterDamage: input.fighterDamage ?? 0 };
+  if (fighterCount >= wing.capacity) return { ...input, fighterCount, fighterBuildProgress: 0, fighterLossProgress: input.fighterLossProgress ?? 0, fighterDamage: input.fighterDamage ?? 0 };
   const progress = (input.fighterBuildProgress ?? 0) + seconds;
   const completed = Math.min(wing.capacity - fighterCount, Math.floor(progress / wing.rebuildTime));
   return {
@@ -1003,6 +1004,7 @@ export function recoverCarrierFighters(input: Unit, seconds: number): Unit {
     fighterCount: fighterCount + completed,
     fighterBuildProgress: completed ? progress - completed * wing.rebuildTime : progress,
     fighterLossProgress: input.fighterLossProgress ?? 0,
+    fighterDamage: input.fighterDamage ?? 0,
   };
 }
 
@@ -1014,6 +1016,7 @@ function applyCarrierFighterAttrition(ship: Unit, seconds: number) {
   const losses = Math.min(fighterCount, Math.floor(progress / wing.attritionTime));
   ship.fighterCount = fighterCount - losses;
   ship.fighterLossProgress = losses ? progress - losses * wing.attritionTime : progress;
+  if (losses) ship.fighterDamage = 0;
 }
 
 export function recoverOrbitalDefense(input: Building, seconds: number): Building {
@@ -1335,7 +1338,7 @@ export interface OrbitalCombatShot {
   attackerId: string;
   attackerType: 'ship' | 'defense' | 'battery';
   targetId: string;
-  targetType: 'ship' | 'defense';
+  targetType: 'ship' | 'defense' | 'fighter';
   faction: EmpireFaction;
   damage: number;
   weaponEffect: WeaponEffect;
@@ -1393,6 +1396,22 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const fighterScale = fighterWing ? carrierFighterCount(attacker) / fighterWing.capacity : 1;
     if (fighterWing && fighterScale <= 0) continue;
     const salvoDamage = weapon.damage * weapon.projectiles * fighterScale;
+    const fighterTargets = ability === 'antiFighterBarrage'
+      ? hostileShips.filter(target => carrierFighterCount(target) > 0 && shipInRange(attacker, target))
+      : [];
+    if (fighterTargets.length) {
+      fighterTargets.forEach(target => shots.push({
+        attackerId: attacker.id,
+        attackerType: 'ship',
+        targetId: target.id,
+        targetType: 'fighter',
+        faction,
+        damage: salvoDamage,
+        weaponEffect: weapon.effect,
+        damageMultiplier: ANTI_FIGHTER_DAMAGE_MULTIPLIER,
+      }));
+      continue;
+    }
     if (shipTarget) {
       const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
       const targetPosition = shipPosition(shipTarget);
@@ -1450,6 +1469,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const installationScale = seconds * 0.18 * SPACE_COMBAT_DAMAGE_MULTIPLIER;
   const enemyPower = enemyDifficultyMultiplier(state.config.difficulty);
   const shipDamage = new Map<string, { damage: number; piercingDamage: number }>();
+  const fighterDamage = new Map<string, number>();
   const defenseDamage = new Map<string, number>();
   const shipShots = new Map<string, OrbitalCombatShot[]>();
   shots.filter(shot => shot.attackerType === 'ship').forEach(shot => shipShots.set(shot.attackerId, [...(shipShots.get(shot.attackerId) ?? []), shot]));
@@ -1472,8 +1492,10 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
         current.damage += damage;
         current.piercingDamage += damage * (shot.piercingFraction ?? 0);
         shipDamage.set(shot.targetId, current);
-      } else {
+      } else if (shot.targetType === 'defense') {
         defenseDamage.set(shot.targetId, (defenseDamage.get(shot.targetId) ?? 0) + damage);
+      } else {
+        fighterDamage.set(shot.targetId, (fighterDamage.get(shot.targetId) ?? 0) + damage);
       }
       if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
     });
@@ -1487,6 +1509,18 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   });
   p.orbitUnits = p.orbitUnits.map(unit => {
     const incoming = shipDamage.get(unit.id);
+    const incomingFighterDamage = fighterDamage.get(unit.id) ?? 0;
+    const wing = UNITS[unit.kind].fighterWing;
+    const fighterCount = carrierFighterCount(unit);
+    const totalFighterDamage = (unit.fighterDamage ?? 0) + incomingFighterDamage;
+    const fighterLosses = wing && fighterCount ? Math.min(fighterCount, Math.floor(totalFighterDamage / FIGHTER_HIT_POINTS)) : 0;
+    const survivingFighters = fighterCount - fighterLosses;
+    const fighterDamaged = wing ? {
+      ...unit,
+      fighterCount: survivingFighters,
+      fighterDamage: survivingFighters ? totalFighterDamage - fighterLosses * FIGHTER_HIT_POINTS : 0,
+      fighterBuildProgress: fighterLosses ? 0 : unit.fighterBuildProgress ?? 0,
+    } : unit;
     const projected = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
       && UNITS[ally.kind].ability?.kind === 'shieldProjection'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= AEGIS_SHIELD_PROJECTION_RANGE);
@@ -1499,7 +1533,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     const foundryRepair = p.orbitUnits.some(ally => ally.id !== unit.id && ally.faction === unit.faction
       && UNITS[ally.kind].ability?.kind === 'foundryAura'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= COVENANT_FOUNDRY_REPAIR_RANGE);
-    const regenerated = projected ? { ...unit, shields: Math.min(unit.maxShields, unit.shields + seconds * 10) } : unit;
+    const regenerated = projected ? { ...fighterDamaged, shields: Math.min(fighterDamaged.maxShields, fighterDamaged.shields + seconds * 10) } : fighterDamaged;
     const approachScale = UNITS[unit.kind].ability?.kind === 'armoredApproach' && (unit.pendingLanding || unit.pendingEmbark) ? .55 : 1;
     const protectionScale = (projected ? .7 : 1) * approachScale;
     const damaged = incoming ? damageUnitPiercing(regenerated, incoming.damage * protectionScale, incoming.damage > 0 ? incoming.piercingDamage / incoming.damage : 0) : regenerated;
@@ -1757,8 +1791,10 @@ function runEnemyStrategicAction(state: GameState) {
       const localShips = [...p.orbitUnits, ...state.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.originId === p.id).map(fleet => fleet.unit)];
       const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
       const needsCarrier = carrierCount < transportTarget;
+      const hasFlagship = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlagshipKind);
       let desired: SpaceUnitKind = needsCarrier ? spaceKind('transport') : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
       if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('carrierOperations') && needsCarrier) desired = spaceKind('assaultCarrier');
+      else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('weaponsCalibration') && !needsCarrier && !hasFlagship) desired = spaceKind('commandFlagship');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('titanEngineering') && !needsCarrier) desired = spaceKind('dreadnought');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('capitalShips') && !needsCarrier) desired = spaceKind('battlecruiser');
       else if (yard.kind === 'advancedSpaceFactory' && state.enemyCompletedResearch.includes('orbitalEngineering')) desired = spaceKind('destroyer');

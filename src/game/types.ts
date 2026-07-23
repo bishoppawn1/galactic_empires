@@ -29,10 +29,10 @@ export type GroundUnitKind =
   | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
   | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
-  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
-  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
-  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
-  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
+  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'commandFlagship' | 'dreadnought'
+  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'broodRazorQueen' | 'worldEater'
+  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisArbiterFlagship' | 'aegisSovereignDreadnought'
+  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantNullFlagship' | 'covenantDreadforge';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 export type UnitAbilityKind =
@@ -42,7 +42,8 @@ export type UnitAbilityKind =
   | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
   | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
   | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
-  | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam';
+  | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam'
+  | 'antiFighterBarrage';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {
@@ -87,6 +88,7 @@ export interface Unit {
   fighterCount?: number;
   fighterBuildProgress?: number;
   fighterLossProgress?: number;
+  fighterDamage?: number;
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {

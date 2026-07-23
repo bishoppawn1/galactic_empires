@@ -2,13 +2,14 @@ import type { UnitFaction } from '../../game';
 
 const idPhase = (id: string) => [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * .071;
 
-export function CarrierFighterWing({ id, faction, count, elapsed, source, target }: {
+export function CarrierFighterWing({ id, faction, count, elapsed, source, target, underFire = false }: {
   id: string;
   faction: UnitFaction;
   count: number;
   elapsed: number;
   source: { x: number; y: number };
   target: { x: number; y: number };
+  underFire?: boolean;
 }) {
   if (count <= 0) return null;
   const fighters = Array.from({ length: count }, (_, index) => {
@@ -21,7 +22,7 @@ export function CarrierFighterWing({ id, faction, count, elapsed, source, target
     };
   });
 
-  return <g className={`carrier-fighter-wing ${faction}`} data-fighter-count={count}>
+  return <g className={`carrier-fighter-wing ${faction} ${underFire ? 'under-fire' : ''}`} data-fighter-count={count} data-attackable="true">
     <line className="fighter-launch-trail" x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
     {fighters.map((fighter, index) => <g key={`${id}-fighter-${index}`}>
       <line className="fighter-attack" x1={fighter.x} y1={fighter.y} x2={target.x} y2={target.y} style={{ animationDelay: `${index * -.13}s` }} />

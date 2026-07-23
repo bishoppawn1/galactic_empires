@@ -801,6 +801,50 @@ describe('production and research', () => {
     expect(third.state.messages[0]).toBe('Missile Frigate auto-routed to Space Yard 1 at Terra Nova.');
   });
 
+  it('rebalances waiting hulls when additional Space Yards are constructed', () => {
+    let state = createInitialState(); const terra = state.planets[0];
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    const originalYard = spaceYards(terra)[0];
+    originalYard.spaceQueue = Array.from({ length: 8 }, (_, index) => ({
+      id: `backlog-${index}`, kind: 'escortFrigate' as const, remaining: 26 - index, total: 26,
+    }));
+
+    const second = constructBuilding(state, 'terra', 'spaceFactory'); expectOk(second); state = second.state;
+    const third = constructBuilding(state, 'terra', 'spaceFactory'); expectOk(third);
+    const yards = spaceYards(third.state.planets[0]);
+
+    expect(yards.map(yard => yard.spaceQueue!.length)).toEqual([3, 3, 2]);
+    expect(yards[0].spaceQueue![0]).toMatchObject({ id: 'backlog-0', remaining: 26 });
+    expect(yards.flatMap(yard => yard.spaceQueue!).map(item => item.id).sort()).toEqual(
+      Array.from({ length: 8 }, (_, index) => `backlog-${index}`).sort(),
+    );
+    expect(third.state.messages[0]).toBe('SPACE YARD NETWORK — 4 waiting hulls reassigned across 3 yards.');
+  });
+
+  it('keeps advanced-only hulls in Advanced Space Yards while balancing normal orders', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.completedResearch.push('advancedIndustry');
+    const standard = spaceYards(terra)[0];
+    standard.spaceQueue = Array.from({ length: 6 }, (_, index) => ({
+      id: `standard-${index}`, kind: 'transport' as const, remaining: 18, total: 18,
+    }));
+    terra.buildings.push({
+      id: 'advanced-yard', kind: 'advancedSpaceFactory', spaceQueue: Array.from({ length: 3 }, (_, index) => ({
+        id: `advanced-${index}`, kind: 'destroyer' as const, remaining: 54, total: 54,
+      })),
+    });
+
+    const built = constructBuilding(state, 'terra', 'spaceFactory'); expectOk(built);
+    const yards = spaceYards(built.state.planets[0]);
+    const standardYards = yards.filter(yard => yard.kind === 'spaceFactory');
+    const advancedYard = yards.find(yard => yard.kind === 'advancedSpaceFactory')!;
+
+    expect(standardYards.flatMap(yard => yard.spaceQueue!).some(item => item.kind === 'destroyer')).toBe(false);
+    expect(advancedYard.spaceQueue!.filter(item => item.kind === 'destroyer')).toHaveLength(3);
+    expect(yards.flatMap(yard => yard.spaceQueue!)).toHaveLength(9);
+  });
+
   it('migrates a legacy planet ship queue into its individual Space Yards', () => {
     const state = createInitialState();
     state.planets[0].spaceQueue.push({ id: 'legacy-q', kind: 'transport', remaining: 9, total: 18 });

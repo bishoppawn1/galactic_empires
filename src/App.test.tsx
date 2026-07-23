@@ -391,6 +391,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Space Yard 1 orbiting Terra Nova — open ship production' }));
     expect(screen.getByRole('button', { name: 'forces' })).toHaveClass('active');
     expect(screen.getByText(/ORBITAL NETWORK ACTIVE/)).toBeInTheDocument();
+    expect(screen.getByText(/constructing another yard rebalances waiting hulls/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'construction' }));
     const spaceYardCard = screen.getByText('Space Yard', { selector: '.card-copy b' }).closest('article');

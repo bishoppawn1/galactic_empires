@@ -480,6 +480,26 @@ export const groundProductionMultiplier = (planet: Planet, completed: ResearchId
 export const spaceProductionMultiplier = (completed: ResearchId[] = []) => researchProductionMultiplier(completed);
 export const isSpaceYard = (building: Building) => building.kind === 'spaceFactory' || building.kind === 'advancedSpaceFactory';
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);
+export function rebalanceSpaceYardQueues(planet: Planet) {
+  const yards = spaceYards(planet);
+  if (yards.length < 2) return 0;
+  const waiting: Array<{ item: QueueItem; sourceId: string }> = [];
+  for (const yard of yards) {
+    yard.spaceQueue ??= [];
+    const [active, ...queued] = yard.spaceQueue;
+    yard.spaceQueue = active ? [active] : [];
+    waiting.push(...queued.map(item => ({ item, sourceId: yard.id })));
+  }
+  let moved = 0;
+  for (const queued of waiting) {
+    const compatible = UNITS[queued.item.kind].advancedFactory ? yards.filter(yard => yard.kind === 'advancedSpaceFactory') : yards;
+    const eligible = compatible.length ? compatible : yards.filter(yard => yard.id === queued.sourceId);
+    const target = eligible.reduce((best, yard) => yard.spaceQueue!.length < best.spaceQueue!.length ? yard : best);
+    target.spaceQueue!.push(queued.item);
+    if (target.id !== queued.sourceId) moved += 1;
+  }
+  return moved;
+}
 const spend = (resources: ResourcePool, cost: ResourcePool) => {
   resources.metal -= cost.metal; resources.crystal -= cost.crystal; resources.gold -= cost.gold;
 };
@@ -529,9 +549,11 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
   p.buildings.push(building);
+  const rebalanced = isSpaceYard(building) ? rebalanceSpaceYardQueues(p) : 0;
   addMessage(state, isDefenseBuildingKind(kind)
     ? `${def.label} construction started on ${p.name} — ${def.time}s.`
     : `${def.label} ${count + 1}/${unlimited ? '∞' : p.buildingLimits[kind]} constructed on ${p.name}.`);
+  if (rebalanced) addMessage(state, `SPACE YARD NETWORK — ${rebalanced} waiting hull${rebalanced === 1 ? '' : 's'} reassigned across ${spaceYards(p).length} yards.`);
   return pass(state);
 }
 
@@ -1589,6 +1611,7 @@ function enemyBuild(state: GameState, p: Planet, kind: BuildingKind, targetCount
   if (isSpaceYard(building)) building.spaceQueue = [];
   ensureOrbitalDefenseHealth(building);
   p.buildings.push(building);
+  if (isSpaceYard(building)) rebalanceSpaceYardQueues(p);
   return true;
 }
 

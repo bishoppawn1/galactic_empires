@@ -115,7 +115,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {spaceSpeed}× speed · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
-    {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically'}.</p>}
+    {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `each order builds once at all ${groupedYards.length} grouped yards` : 'orders rotate across all compatible yards automatically; constructing another yard rebalances waiting hulls'}.</p>}
     <div className="unit-grid">{spaceKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={!yards.length ? 'SPACE YARD REQUIRED' : lockReason(kind)} />)}</div>
     <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} speed={spaceSpeed} showEmpty /></article>)}</div>
   </div>;

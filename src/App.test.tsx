@@ -249,6 +249,7 @@ describe('Galactic Empires interface', () => {
     const toggle = screen.getByRole('button', { name: 'Toggle 3D view' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
     expect(toggle).toHaveTextContent('3D VIEW');
+    expect(toggle.closest('.camera-controls')).toHaveClass('camera-controls-left');
     expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();
 

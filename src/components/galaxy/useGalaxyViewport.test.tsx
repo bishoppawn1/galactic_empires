@@ -10,7 +10,7 @@ function ViewportHarness({ target }: { target: number }) {
     scrollRef.current.scrollLeft = target;
     scheduleViewportMeasure();
   }, [scheduleViewportMeasure, scrollRef, target]);
-  return <div ref={scrollRef}><output data-testid="viewport-left">{viewportBounds?.left ?? 'unset'}</output></div>;
+  return <div ref={scrollRef} data-testid="viewport"><output data-testid="viewport-left">{viewportBounds?.left ?? 'unset'}</output></div>;
 }
 
 describe('galaxy viewport tracking', () => {
@@ -33,5 +33,14 @@ describe('galaxy viewport tracking', () => {
     });
 
     expect(screen.getByTestId('viewport-left')).toHaveTextContent('4320');
+  });
+
+  it('prevents the mouse wheel from moving the galaxy camera', () => {
+    render(<ViewportHarness target={1_000} />);
+    const viewport = screen.getByTestId('viewport');
+    const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 });
+
+    expect(viewport.dispatchEvent(wheel)).toBe(false);
+    expect(wheel.defaultPrevented).toBe(true);
   });
 });

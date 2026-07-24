@@ -32,13 +32,16 @@ export function useGalaxyViewport(zoom: number) {
   useEffect(() => {
     const viewport = scrollRef.current;
     if (!viewport) return;
+    const preventWheelNavigation = (event: WheelEvent) => event.preventDefault();
     measure();
     viewport.addEventListener('scroll', scheduleMeasure, { passive: true });
+    viewport.addEventListener('wheel', preventWheelNavigation, { passive: false });
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(scheduleMeasure);
     observer?.observe(viewport);
     window.addEventListener('resize', scheduleMeasure);
     return () => {
       viewport.removeEventListener('scroll', scheduleMeasure);
+      viewport.removeEventListener('wheel', preventWheelNavigation);
       observer?.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
       if (frameRef.current !== undefined) {

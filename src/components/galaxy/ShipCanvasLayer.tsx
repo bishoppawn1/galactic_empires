@@ -3,14 +3,6 @@ import type { GameState, UnitFaction } from '../../game';
 import { isSpaceUnit, shipDisplaySize, shipImageSource } from '../shared/ShipImage';
 import { fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, type GalaxyViewportBounds } from './geometry';
 
-const FACTION_COLORS: Record<UnitFaction, string> = {
-  player: '#55d6be',
-  enemy: '#e86a92',
-  rival2: '#ffc857',
-  rival3: '#a98bff',
-  neutral: '#d5ba82',
-};
-
 interface CanvasShip {
   id: string;
   kind: Parameters<typeof shipImageSource>[0];
@@ -101,9 +93,14 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
         context.globalAlpha = ship.charging ? .72 : .9;
         context.drawImage(image, -size / 2, -size / 2, size, size);
         const selected = selectedShipIds.includes(ship.id);
-        context.strokeStyle = selected ? '#ffffff' : ship.charging ? '#ffc857' : FACTION_COLORS[ship.faction];
-        context.lineWidth = selected ? 4 : ship.charging ? 3 : 2;
-        context.strokeRect(-size / 2 - 3, -size / 2 - 3, size + 6, size + 6);
+        if (selected) {
+          context.globalAlpha = 1;
+          context.strokeStyle = '#ffffff';
+          context.lineWidth = 3;
+          context.beginPath();
+          context.arc(0, 0, size / 2 + 5, 0, Math.PI * 2);
+          context.stroke();
+        }
         context.restore();
       }
     };

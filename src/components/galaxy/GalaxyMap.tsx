@@ -348,7 +348,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     </div>
     <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button></div>
     <div className={`camera-controls ${camera3D ? 'active' : ''}`} aria-label="Camera view controls">
-      <button className="camera-mode-toggle" aria-label="Toggle 3D view" aria-pressed={camera3D} onClick={() => setCamera3D(active => !active)}>{camera3D ? '3D' : '2D'}</button>
+      <button className="camera-mode-toggle" aria-label="Toggle 3D view" aria-pressed={camera3D} title={camera3D ? 'Switch to top-down 2D view' : 'Switch to 3D view'} onClick={() => setCamera3D(active => !active)}>{camera3D ? '2D VIEW' : '3D VIEW'}</button>
       {camera3D && <div className="camera-orbit-controls">
         <button aria-label="Rotate camera left" onClick={() => setCamera(current => ({ ...current, yaw: current.yaw - 10 }))}>↶</button>
         <label>PITCH <input aria-label="Camera pitch" type="range" min="20" max="70" value={camera.pitch} onChange={event => setCamera(current => ({ ...current, pitch: Number(event.target.value) }))} /></label>

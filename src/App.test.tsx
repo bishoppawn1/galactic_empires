@@ -248,11 +248,13 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     const toggle = screen.getByRole('button', { name: 'Toggle 3D view' });
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveTextContent('3D VIEW');
     expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toHaveTextContent('2D VIEW');
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-3d');
     expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('50');
     expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(50deg)');
@@ -269,6 +271,7 @@ describe('Galactic Empires interface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset camera to top view' }));
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-2d');
+    expect(toggle).toHaveTextContent('3D VIEW');
     expect(screen.queryByRole('slider', { name: 'Camera pitch' })).not.toBeInTheDocument();
     expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();

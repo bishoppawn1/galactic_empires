@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards,
-  unitRange, type GameState, type Planet, type TitanUpgradeId,
+  systemKind, unitRange, visibleOrbitUnits, type GameState, type Planet, type TitanUpgradeId,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
@@ -122,7 +122,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   }));
   const selectedOriginId = selectedOriginIds.size === 1 ? [...selectedOriginIds][0] : undefined;
   const selectedOrigin = selectedShipIds.length ? state.planets.find(planet => planet.id === selectedOriginId) : undefined;
-  const orbitShips = state.planets.flatMap(planet => planet.orbitUnits);
+  const orbitShips = state.planets.flatMap(planet => visibleOrbitUnits(planet));
   const selectedShips = selectedShipIds.flatMap(id => {
     const ship = orbitShips.find(unit => unit.id === id) ?? state.fleets.find(fleet => fleet.unit.id === id)?.unit;
     return ship ? [ship] : [];
@@ -222,6 +222,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} />}
         <svg className="orbital-fire" viewBox={`0 0 ${GALAXY_CANVAS_WIDTH} ${GALAXY_CANVAS_HEIGHT}`} preserveAspectRatio="none" aria-hidden="true">
           {state.planets.flatMap(p => {
+            if (systemKind(p) === 'nebula' && !p.orbitUnits.some(ship => ship.faction === 'player')) return [];
             const defenses = p.buildings.filter(building => building.kind === 'spaceDefense');
             const shipIndexes = new Map(p.orbitUnits.map((ship, index) => [ship.id, index]));
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
@@ -280,10 +281,13 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
-          const hostileOrbit = new Set(p.orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.faction)).size > 1;
-          return <button key={p.id} aria-label={`${p.name} ${ownerLabel(p.owner)}`} className={`planet-node ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': planetDisplayColor(p), '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
-            {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" /><span className="planet-sphere" />
-            <span className="faction-badge">{planetFactionBadge(p.owner)}</span><span className="planet-name">{p.name}</span><span className="planet-status">{factionName(p.owner)}</span>{!!p.orbitUnits.length && <span className="orbit-count">◈ {p.orbitUnits.length}</span>}
+          const hostileOrbit = new Set(visibleOrbitUnits(p).map(unit => unit.faction)).size > 1;
+          const kind = systemKind(p);
+          const visibleShips = visibleOrbitUnits(p);
+          const kindLabel = kind === 'planet' ? factionName(p.owner) : kind === 'nebula' ? 'SENSOR-DARK NEBULA' : kind === 'star' ? 'LETHAL STELLAR HAZARD' : kind === 'pirateBase' ? 'PIRATE STRONGHOLD' : p.owner ? `${factionName(p.owner)} · RELIC ACTIVE` : 'ANCIENT RELIC';
+          return <button key={p.id} aria-label={`${p.name} ${kind === 'planet' ? ownerLabel(p.owner) : kindLabel}`} className={`planet-node system-${kind} ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': planetDisplayColor(p), '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
+            {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" />{kind === 'planet' ? <span className="planet-sphere" /> : <span className={`system-object ${kind}`} aria-hidden="true"><i /></span>}
+            <span className="faction-badge">{kind === 'planet' || kind === 'ancientTemple' ? planetFactionBadge(p.owner) : kind === 'pirateBase' ? 'PIRATES' : 'ANOMALY'}</span><span className="planet-name">{p.name}</span><span className="planet-status">{kindLabel}</span>{kind === 'nebula' && p.orbitUnits.length !== visibleShips.length ? <span className="orbit-count jammed">SIGNALS JAMMED</span> : !!visibleShips.length && <span className="orbit-count">◈ {visibleShips.length}</span>}
           </button>;
         })}
         {state.planets.flatMap(p => {
@@ -313,9 +317,9 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               : <div key={defense.id} role="img" aria-label={`Orbital Defense Platform ${index + 1} at ${p.name}`} className={className} style={style}>{content}</div>;
           });
         })}
-        {state.planets.flatMap(p => p.orbitUnits.flatMap((ship, index) => {
+        {state.planets.flatMap(p => visibleOrbitUnits(p).flatMap((ship, index) => {
           const selectable = ship.faction === 'player';
-          if (!camera3D && !selectable && !ship.pendingLanding && !ship.pendingEmbark) return [];
+          if (!camera3D && !selectable && ship.faction !== 'neutral' && !ship.pendingLanding && !ship.pendingEmbark) return [];
           const position = shipMapPosition(p, ship, index);
           if (!selectable && !selectedShipIds.includes(ship.id) && !pointInViewport(renderBounds, position.x, position.y, shipDisplaySize(ship.kind))) return [];
           const capacity = UNITS[ship.kind].capacity;

@@ -439,7 +439,7 @@ describe('campaign configuration', () => {
     delete (legacy as Partial<typeof legacy>).config;
     delete (legacy as Partial<typeof legacy>).enemyMissionCount;
     const migrated = migrateGameState(legacy);
-    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander', playerFaction: 'human' });
+    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander', playerFaction: 'human', mapSeed: 0 });
     expect(migrated.enemyMissionCount).toBe(0);
   });
 

@@ -41,7 +41,8 @@ export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
     const targets = state.planets.flatMap(target => {
       if (target.id === origin.id) return [];
       const reinforce = target.owner === 'enemy' && hasHostileShips(target);
-      const strike = target.owner !== null && target.owner !== 'enemy';
+      const strike = (target.owner !== null && target.owner !== 'enemy')
+        || ((target.systemKind ?? 'planet') === 'ancientTemple' && target.owner !== 'enemy');
       if (!reinforce && !strike) return [];
       const path = findPlanetPath(state.planets, origin.id, target.id);
       if (!path) return [];

@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, spaceProductionMultiplier, spaceYards, unitRange,
+  ANCIENT_RELIC_DAMAGE_MULTIPLIER, ANCIENT_RELIC_ECONOMY_MULTIPLIER, BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, carrierFighterCount, empireCivilization, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isColonizableWorld, spaceProductionMultiplier, spaceYards, systemKind, unitRange, visibleOrbitUnits,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type Unit, type UnitKind,
 } from '../../game';
@@ -12,14 +12,21 @@ import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle }: {
   state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void;
 }) {
+  const kind = systemKind(planet);
+  const world = isColonizableWorld(planet);
+  const classification = kind === 'planet' ? (planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world')
+    : kind === 'nebula' ? 'Empty sensor-dark nebula'
+      : kind === 'star' ? 'Unstable lethal star'
+        : kind === 'pirateBase' ? 'Independent pirate stronghold'
+          : planet.owner ? `${factionName(planet.owner)} controls the relic` : 'Uncontrolled ancient relic';
   return <aside className="panel">
     <header className="planet-header">
-      <div className="mini-planet" style={{ '--planet': planetDisplayColor(planet) } as React.CSSProperties} />
-      <div><small>{factionName(planet.owner)} // {planet.id.toUpperCase()}</small><h1>{planet.name}</h1><p>{planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world'}</p></div>
+      <div className={`mini-planet mini-${kind}`} style={{ '--planet': planetDisplayColor(planet) } as React.CSSProperties} />
+      <div><small>{kind === 'planet' ? `${factionName(planet.owner)} // ${planet.id.toUpperCase()}` : `${kind.replace(/([A-Z])/g, ' $1').toUpperCase()} // DEEP SPACE`}</small><h1>{planet.name}</h1><p>{classification}</p></div>
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}
     <nav className="tabs" aria-label="Planet sections">
-      {(['command', 'construction', 'forces'] as PlanetTab[]).map(section => <button key={section} className={tab === section ? 'active' : ''} onClick={() => setTab(section)}>{section}</button>)}
+      {(['command', ...(world ? ['construction'] : []), 'forces'] as PlanetTab[]).map(section => <button key={section} className={tab === section ? 'active' : ''} onClick={() => setTab(section)}>{section}</button>)}
     </nav>
     <div className="panel-scroll">
       {tab === 'command' && <Command state={state} planet={planet} />}
@@ -30,6 +37,17 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
 }
 
 function Command({ state, planet }: { state: GameState; planet: Planet }) {
+  const kind = systemKind(planet);
+  if (kind !== 'planet') {
+    const data = kind === 'nebula'
+      ? { kicker: 'NEBULA', title: 'Blind-space phenomenon', icon: '◌', text: 'There is no planet here and nothing can be built or landed. Long-range scans cannot reveal hostile ships inside; entering the cloud restores close-range contact.' }
+      : kind === 'star'
+        ? { kicker: 'STELLAR HAZARD', title: 'Unstable stellar furnace', icon: '☀', text: `There is no planet here. Radiation inflicts ${STELLAR_HAZARD_DAMAGE_PER_SECOND} damage per second on every ship in the system until it leaves or is destroyed.` }
+        : kind === 'pirateBase'
+          ? { kicker: 'PIRATE BASE', title: 'Black-market anchorage', icon: '☠', text: planet.orbitUnits.some(ship => ship.faction === 'neutral') ? 'There is no planet here. The neutral pirate flotilla attacks every empire that enters its weapon range.' : 'The pirate flotilla has been destroyed. The abandoned anchorage cannot be colonized or used for construction.' }
+          : { kicker: 'ANCIENT TEMPLE', title: 'Relic control site', icon: '◇', text: `There is no planet here. Hold this system uncontested to claim its relic: +${Math.round((ANCIENT_RELIC_ECONOMY_MULTIPLIER - 1) * 100)}% empire income and +${Math.round((ANCIENT_RELIC_DAMAGE_MULTIPLIER - 1) * 100)}% fleet damage while controlled.` };
+    return <section className={`special-system-brief ${kind}`}><SectionTitle kicker={data.kicker} title={data.title} /><div className="special-system-icon">{data.icon}</div><p>{data.text}</p>{kind === 'ancientTemple' && <div className={`relic-control ${planet.owner ?? 'neutral'}`}><b>{planet.owner ? `${factionName(planet.owner)} CONTROLS THE RELIC` : 'RELIC UNCONTROLLED'}</b><small>{visibleOrbitUnits(planet).length} visible ship{visibleOrbitUnits(planet).length === 1 ? '' : 's'} in system</small></div>}</section>;
+  }
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);
   const brood = empireCivilization(state) === 'brood';
   return <section>
@@ -50,6 +68,7 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
 }
 
 function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (command: GameCommand) => void }) {
+  if (!isColonizableWorld(planet)) return <Locked text="This system contains no planet to build on." />;
   if (planet.owner !== 'player') return <Locked text="Construction is only available on your colonies." />;
   const civilization = empireCivilization(state);
   const availableBuildings = civilization === 'brood' ? BUILDING_KINDS.filter(kind => !['metalMine', 'crystalMine', 'goldMine'].includes(kind)) : BUILDING_KINDS;
@@ -86,6 +105,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   const selectedYards = yards.filter(yard => selectedYardIds.includes(yard.id));
   const groupedYards = selectedYards.length > 1 ? selectedYards : [];
   const hasAdvancedGroundFactory = planet.buildings.some(building => building.kind === 'advancedGroundFactory');
+  const visibleUnits = visibleOrbitUnits(planet);
   const lockReason = (kind: UnitKind) => {
     const def = UNITS[kind];
     if (def.requires && !state.completedResearch.includes(def.requires)) return 'RESEARCH REQUIRED';
@@ -107,11 +127,12 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     <div className="yard-queue-list">{yards.map((yard, index) => <article className={`yard-queue-card ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`} key={yard.id}><header><b>SPACE YARD {index + 1}</b><span>{yard.kind === 'advancedSpaceFactory' ? 'ADVANCED' : 'STANDARD'} · {(yard.spaceQueue?.length ?? 0) ? `${yard.spaceQueue!.length} QUEUED` : 'IDLE'}</span></header><Queue items={yard.spaceQueue ?? []} speed={spaceSpeed} showEmpty /></article>)}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />
-    {planet.owner === 'player' && <>{focus === 'space' ? <>{spaceProduction}{groundProduction}</> : <>{groundProduction}{spaceProduction}</>}</>}
+    {planet.owner === 'player' && isColonizableWorld(planet) && <>{focus === 'space' ? <>{spaceProduction}{groundProduction}</> : <>{groundProduction}{spaceProduction}</>}</>}
     <h3>Deployed forces</h3>
-    <div className="force-summary"><span>GROUND <b>{planet.groundUnits.length}</b></span><span>ORBIT <b>{planet.orbitUnits.length}</b></span></div>
-    {planet.groundUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}{planet.orbitUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}
-    {planet.orbitUnits.some(unit => unit.faction === 'player') && <div className="transport-order"><b>GRAVITY WELL CONTROL</b><small>Select a ship marker, then right-click inside this gravity well to maneuver over time. Right-click the planet center to dock and automatically embark squads, or right-click any reachable system to plot the shortest phase-lane route.</small></div>}
+    <div className="force-summary"><span>GROUND <b>{planet.groundUnits.length}</b></span><span>VISIBLE ORBIT <b>{visibleUnits.length}</b></span></div>
+    {planet.groundUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}{visibleUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}
+    {systemKind(planet) === 'nebula' && visibleUnits.length !== planet.orbitUnits.length && <div className="intel"><b>SENSOR CONTACT LOST</b><p>Hostile ships inside this nebula are hidden until one of your ships enters the system.</p></div>}
+    {planet.orbitUnits.some(unit => unit.faction === 'player') && <div className="transport-order"><b>GRAVITY WELL CONTROL</b><small>{isColonizableWorld(planet) ? 'Select a ship marker, then right-click inside this gravity well to maneuver over time. Right-click the planet center to dock and automatically embark squads, or right-click any reachable system to plot the shortest phase-lane route.' : 'Select a ship marker, then right-click inside this system to maneuver. This location has no planetary surface, but any reachable system can still be right-clicked to plot the shortest phase-lane route.'}</small></div>}
     {state.fleets.filter(fleet => (fleet.finalDestinationId ?? fleet.destinationId) === planet.id).map(fleet => <div className={`incoming ${fleet.phase ?? 'tunnel'}`} key={fleet.id}>{fleetPhaseLabel(fleet)} · {UNITS[fleet.unit.kind].label.toUpperCase()} <b>{Math.ceil(fleet.travelTime - fleet.progress)}s</b></div>)}
     {planet.orbitUnits.filter(unit => unit.pendingLanding).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`landing-${unit.id}`}>{unit.faction === 'player' ? 'FRIENDLY' : 'HOSTILE'} {UNITS[unit.kind].label.toUpperCase()} LANDING APPROACH <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}
     {planet.orbitUnits.filter(unit => unit.pendingEmbark).map(unit => <div className={`incoming landing-warning ${unit.faction}`} key={`embark-${unit.id}`}>{unit.faction === 'player' ? 'FRIENDLY' : 'HOSTILE'} {UNITS[unit.kind].label.toUpperCase()} EMBARKING <b>{Math.ceil(Math.hypot(unit.orbitX ?? 0, unit.orbitY ?? 0) / LANDING_APPROACH_SPEED)}s TO PLANET</b></div>)}

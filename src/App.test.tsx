@@ -39,9 +39,12 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /Expansive/ }));
     fireEvent.click(screen.getByRole('button', { name: /Admiral/ }));
     fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
-    expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
     const saved = JSON.parse(localStorage.getItem('galactic-empires-save-v5')!);
-    expect(saved.config).toEqual({ mapSize: 'large', difficulty: 'admiral', playerFaction: 'human' });
+    const playerHome = saved.planets.find((planet: { owner: string | null }) => planet.owner === 'player');
+    expect(screen.getAllByText(playerHome.name).length).toBeGreaterThan(0);
+    expect(saved.config).toMatchObject({ mapSize: 'large', difficulty: 'admiral', playerFaction: 'human' });
+    expect(saved.config.mapSeed).toEqual(expect.any(Number));
+    expect(saved.config.mapSeed).not.toBe(0);
     expect(saved.planets).toHaveLength(15);
   });
 

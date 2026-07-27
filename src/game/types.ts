@@ -6,8 +6,9 @@ export type MapSize = 'small' | 'medium' | 'large' | 'huge';
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
+export type SystemKind = 'planet' | 'nebula' | 'star' | 'pirateBase' | 'ancientTemple';
 
-export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction }
+export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction; mapSeed?: number }
 export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };
 
 export type BuildingKind =
@@ -92,6 +93,7 @@ export interface QueueItem { id: string; kind: UnitKind; remaining: number; tota
 export interface Planet {
   id: string;
   name: string;
+  systemKind?: SystemKind;
   x: number;
   y: number;
   color: string;
@@ -169,6 +171,7 @@ export interface GameState {
   elapsed: number;
   nextId: number;
   neutralGarrisonsInitialized: boolean;
+  homeSystemIds?: string[];
   messages: string[];
 }
 

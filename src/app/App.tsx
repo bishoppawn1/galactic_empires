@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  applyGameCommand, createCompetitiveState, createInitialState, spaceYards, viewStateForFaction, tick,
+  applyGameCommand, createCompetitiveState, createInitialState, randomMapSeed, spaceYards, viewStateForFaction, tick, visibleOrbitUnits,
   type EmpireFaction, type GameCommand, type GameConfig, type GameState, type PlayableFaction,
 } from '../game';
 import { GroundBattleView } from '../components/battle/GroundBattleView';
@@ -76,7 +76,7 @@ export default function App() {
   useEffect(() => {
     if (!state) return;
     const selectableIds = new Set([
-      ...state.planets.flatMap(planet => planet.orbitUnits.filter(unit => unit.faction !== 'neutral').map(unit => unit.id)),
+      ...state.planets.flatMap(planet => visibleOrbitUnits(planet).map(unit => unit.id)),
       ...state.fleets.filter(fleet => fleet.faction !== 'player' || fleet.phase === 'exiting' || fleet.phase === 'charging').map(fleet => fleet.unit.id),
     ]);
     setSelectedShipIds(current => {
@@ -116,7 +116,7 @@ export default function App() {
   const beginHost = async (config: GameConfig) => {
     setConnecting(true); setConnectionError(undefined);
     try {
-      const controller = await hostMultiplayer(config, {
+      const controller = await hostMultiplayer({ ...config, mapSeed: config.mapSeed ?? randomMapSeed() }, {
         onLobby: nextLobby => setLobby(nextLobby),
         onStart: () => {},
         onState: () => {},
@@ -184,11 +184,11 @@ export default function App() {
     }
   };
   const changeTab = (nextTab: PlanetTab) => { setTab(nextTab); setProductionFocus(undefined); };
-  const alerts = useMemo(() => state ? state.battles.length + state.planets.filter(planet => planet.orbitUnits.some(unit => unit.faction === 'player') && planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral')).length : 0, [state]);
+  const alerts = useMemo(() => state ? state.battles.length + state.planets.filter(planet => planet.orbitUnits.some(unit => unit.faction === 'player') && planet.orbitUnits.some(unit => unit.faction !== 'player')).length : 0, [state]);
 
   if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} onAddAi={() => controllerRef.current?.addAi()} onRemoveAi={() => controllerRef.current?.removeAi()} />;
   if (!state) return <CampaignSetup
-    onStart={config => { const next = createInitialState(config); installState(next); resetInterface(); }}
+    onStart={config => { const next = createInitialState({ ...config, mapSeed: config.mapSeed ?? randomMapSeed() }); installState(next); resetInterface(next); }}
     onHost={beginHost}
     onJoin={beginJoin}
     connecting={connecting}

@@ -151,7 +151,15 @@ export type ResearchId =
   | 'fleetLogistics' | 'phaseMastery' | 'carrierOperations'
   | 'orbitalEngineering' | 'shieldHarmonics' | 'capitalShips' | 'weaponsCalibration' | 'titanEngineering'
   | 'quantumExtraction' | 'deepCoreExtraction'
-  | 'industrialIteration' | 'resourceSynthesis' | 'combatSimulation';
+  | 'industrialIteration' | 'resourceSynthesis' | 'combatSimulation'
+  | 'humanStandardization' | 'humanColonialCharters' | 'humanJointOperations'
+  | 'humanPhaseCouriers' | 'humanFieldEngineering' | 'humanTargetingGrid'
+  | 'broodHypermetabolism' | 'broodSpawningPools' | 'broodSynapticDominion'
+  | 'broodVoidSenses' | 'broodWorldCarapace' | 'broodApexInstinct'
+  | 'aegisResonanceCore' | 'aegisPatientAssembly' | 'aegisSanctuaryField'
+  | 'aegisFarcastBeacons' | 'aegisBastionLattice' | 'aegisLanceResonance'
+  | 'covenantMachineAwakening' | 'covenantOverclockedForges' | 'covenantSalvageAlgorithms'
+  | 'covenantPhaseCalculation' | 'covenantRedundantCores' | 'covenantSelfRepairMatrices';
 export interface ResearchProject { id: ResearchId; remaining: number; total: number }
 export interface EmpireEconomy {
   resources: ResourcePool;

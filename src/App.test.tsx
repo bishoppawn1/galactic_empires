@@ -325,6 +325,11 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
     expect(screen.getByText('Sovereign Titan')).toBeInTheDocument();
     expect(screen.queryByText('Titan Dreadnought')).not.toBeInTheDocument();
+    expect(screen.getByText('First Resonance')).toBeInTheDocument();
+    expect(screen.getByText('Sanctuary Field')).toBeInTheDocument();
+    expect(screen.queryByText('Interstellar Standardization')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(24);
+    expect(document.querySelectorAll('.tech-tier')).toHaveLength(6);
   });
 
   it('renders known hostile shipyards on the galaxy map', () => {
@@ -646,7 +651,9 @@ describe('Galactic Empires interface', () => {
   });
 
   it('uses left-click to inspect and right-click to route a selected ship', () => {
-    saveState(stateWithPlayerForces());
+    const state = stateWithPlayerForces();
+    const path = findPlanetPath(state.planets, 'terra', 'nyx')!;
+    saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
 
@@ -656,7 +663,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
     fireEvent.contextMenu(destination);
 
-    expect(screen.getByText('1 ship routed across 1 phase lane to Nyx.')).toBeInTheDocument();
+    expect(screen.getByText(`1 ship routed across ${path.length - 1} phase lane${path.length === 2 ? '' : 's'} to Nyx.`)).toBeInTheDocument();
     const transitLayer = document.querySelector('.ship-canvas-layer');
     expect(transitLayer).toHaveAttribute('data-transit-count', '1');
     expect(transitLayer?.querySelector('small')).toBeNull();
@@ -664,7 +671,8 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
 
-    const cancellable = screen.getByRole('button', { name: 'Transport clearing well from Terra Nova toward Nyx — jump can be canceled' });
+    const firstWaypoint = state.planets.find(planet => planet.id === path[1])!;
+    const cancellable = screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${firstWaypoint.name} — jump can be canceled` });
     fireEvent.click(cancellable);
     expect(cancellable).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
@@ -676,24 +684,25 @@ describe('Galactic Empires interface', () => {
   });
 
   it('routes orbiting and already-departing ships together through the selected phase gate', () => {
-    const state = stateWithPlayerForces(); const terra = state.planets[0], nyx = state.planets[1];
+    const state = stateWithPlayerForces(); const terra = state.planets[0];
+    const destination = state.planets.find(planet => planet.id === findPlanetPath(state.planets, terra.id, 'nyx')![1])!;
     const transport = terra.orbitUnits.find(unit => unit.kind === 'transport')!;
     terra.orbitUnits = terra.orbitUnits.filter(unit => unit.id !== transport.id);
     state.fleets = [{
-      id: 'partially-departing-group', faction: 'player', originId: terra.id, destinationId: nyx.id,
-      finalDestinationId: nyx.id, unit: transport, phase: 'exiting', departureX: transport.orbitX,
+      id: 'partially-departing-group', faction: 'player', originId: terra.id, destinationId: destination.id,
+      finalDestinationId: destination.id, unit: transport, phase: 'exiting', departureX: transport.orbitX,
       departureY: transport.orbitY, progress: 1, travelTime: 10,
     }];
     saveState(state);
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Transport clearing well from Terra Nova toward Nyx — jump can be canceled' }));
+    fireEvent.click(screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${destination.name} — jump can be canceled` }));
     fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }), { shiftKey: true });
     expect(screen.getByText('2 SHIPS SELECTED')).toBeInTheDocument();
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Cross phase lane from Terra Nova to Nyx' }));
+    fireEvent.contextMenu(screen.getByRole('button', { name: `Cross phase lane from Terra Nova to ${destination.name}` }));
 
-    expect(screen.getByText('2 ships routed across 1 phase lane to Nyx.')).toBeInTheDocument();
+    expect(screen.getByText(`2 ships routed across 1 phase lane to ${destination.name}.`)).toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '2');
     expect(screen.queryByText('2 SHIPS SELECTED')).not.toBeInTheDocument();
   });
@@ -719,16 +728,17 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByRole('main', { name: 'Research tech tree' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Human Coalition technology lattice' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(18);
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(24);
     expect(document.querySelectorAll('.tech-tier')).toHaveLength(5);
-    expect(document.querySelectorAll('.research-connections path')).toHaveLength(17);
-    expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'groundWarfare');
+    expect(document.querySelectorAll('.research-connections path')).toHaveLength(23);
+    expect(document.querySelector('[data-tech-id="humanStandardization"]')).toHaveAttribute('data-requires', 'rapidFabrication');
+    expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'humanJointOperations');
     expect(document.querySelector('[data-tech-id="carrierOperations"]')).toHaveAttribute('data-requires', 'fleetLogistics');
-    expect(document.querySelector('[data-tech-id="phaseMastery"]')).toHaveAttribute('data-requires', 'fleetLogistics');
-    expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'quantumExtraction');
-    expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'capitalShips');
+    expect(document.querySelector('[data-tech-id="phaseMastery"]')).toHaveAttribute('data-requires', 'humanPhaseCouriers');
+    expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'humanColonialCharters');
+    expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'humanTargetingGrid');
     expect(document.querySelector('[data-tech-id="titanEngineering"]')).toHaveAttribute('data-requires', 'capitalShips');
-    expect(document.querySelector('[data-tech-id="industrialIteration"]')).toHaveAttribute('data-requires', 'rapidFabrication');
+    expect(document.querySelector('[data-tech-id="industrialIteration"]')).toHaveAttribute('data-requires', 'humanStandardization');
     expect(document.querySelector('[data-tech-id="resourceSynthesis"]')).toHaveAttribute('data-requires', 'deepCoreExtraction');
     expect(document.querySelector('[data-tech-id="combatSimulation"]')).toHaveAttribute('data-requires', 'weaponsCalibration');
     expect(document.querySelector('.expanded-tech-tree')).not.toBeNull();

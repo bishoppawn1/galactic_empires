@@ -91,6 +91,30 @@ export const RESEARCH: Record<ResearchId, Definition> = {
   weaponsCalibration: { label: 'Weapons Calibration', description: 'Increase damage from all ships and orbital installations by 15 percent.', cost: pool(650, 520, 400), time: 105, requires: 'capitalShips' },
   titanEngineering: { label: 'Titan Engineering', description: 'Unlock each civilization’s colossal apex warship.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
   combatSimulation: { label: 'Combat Simulation', description: 'Repeatably improve ship and orbital weapon damage by another three percent.', cost: pool(760, 640, 500), time: 135, requires: 'weaponsCalibration' },
+  humanStandardization: { label: 'Interstellar Standardization', description: 'Common components let Coalition factories exchange work and finish every unit ten percent faster.', cost: pool(300, 235, 165), time: 58 },
+  humanColonialCharters: { label: 'Colonial Charters', description: 'Autonomous colonial administrations increase resource output across the Coalition by ten percent.', cost: pool(360, 285, 210), time: 66 },
+  humanJointOperations: { label: 'Joint Operations Command', description: 'Shared targeting and logistics doctrine increases Coalition ship and orbital damage by eight percent.', cost: pool(410, 330, 250), time: 76 },
+  humanPhaseCouriers: { label: 'Phase Courier Network', description: 'A chain of navigation relays shortens Coalition phase travel by another ten percent.', cost: pool(430, 360, 270), time: 78 },
+  humanFieldEngineering: { label: 'Combat Engineering Corps', description: 'Mobile engineering battalions increase the durability of planetary and orbital defenses by fifteen percent.', cost: pool(470, 370, 280), time: 84 },
+  humanTargetingGrid: { label: 'Distributed Targeting Grid', description: 'Fleetwide fire-control coordination adds another ten percent ship and orbital weapon damage.', cost: pool(610, 490, 370), time: 98 },
+  broodHypermetabolism: { label: 'Hypermetabolic Genesis', description: 'The first imperial organism consumes each world more efficiently, increasing all Brood biomass income by fifteen percent.', cost: pool(190, 150, 110), time: 40 },
+  broodSpawningPools: { label: 'World-Spanning Spawning Pools', description: 'Linked birthing seas accelerate the gestation of every Brood organism by twenty percent.', cost: pool(340, 270, 190), time: 64 },
+  broodSynapticDominion: { label: 'Synaptic Dominion', description: 'Overlapping command impulses increase all biofleet and orbital damage by ten percent.', cost: pool(430, 340, 250), time: 78 },
+  broodVoidSenses: { label: 'Void-Sense Organs', description: 'Living navigators taste phase currents and shorten phase travel by fifteen percent.', cost: pool(390, 330, 245), time: 72 },
+  broodWorldCarapace: { label: 'Planetary Carapace', description: 'Colonies grow continent-scale armor, increasing ground and orbital defense durability by twenty percent.', cost: pool(460, 355, 265), time: 82 },
+  broodApexInstinct: { label: 'Apex Regeneration', description: 'Brood warships regenerate hull twice as quickly, even beyond friendly worlds.', cost: pool(570, 455, 345), time: 94 },
+  aegisResonanceCore: { label: 'First Resonance', description: 'Awaken the harmonic core that all Directorate wards, sentinels, and structures synchronize through.', cost: pool(205, 185, 145), time: 42 },
+  aegisPatientAssembly: { label: 'Patient Assembly', description: 'Perfected fabrication sequences increase sentinel production speed by ten percent.', cost: pool(305, 270, 215), time: 60 },
+  aegisSanctuaryField: { label: 'Sanctuary Field', description: 'A fleetwide sanctuary frequency increases ship shield regeneration by seventy-five percent.', cost: pool(520, 480, 390), time: 92 },
+  aegisFarcastBeacons: { label: 'Farcast Beacon Choir', description: 'Synchronized beacons shorten every Directorate phase crossing by fifteen percent.', cost: pool(420, 390, 300), time: 78 },
+  aegisBastionLattice: { label: 'Bastion Lattice', description: 'Interlocked ward geometry increases planetary and orbital defense durability by forty percent.', cost: pool(540, 470, 360), time: 94 },
+  aegisLanceResonance: { label: 'Lance Resonance', description: 'Weapons fire on a shared harmonic interval, increasing ship and orbital damage by ten percent.', cost: pool(600, 520, 410), time: 102 },
+  covenantMachineAwakening: { label: 'Machine Awakening', description: 'Activate the prime logic that governs every Covenant foundry and war engine.', cost: pool(200, 165, 130), time: 40 },
+  covenantOverclockedForges: { label: 'Overclocked Forges', description: 'Foundries run beyond their safety limits, increasing all unit production speed by twenty percent.', cost: pool(335, 260, 190), time: 62 },
+  covenantSalvageAlgorithms: { label: 'Total Reclamation', description: 'Combat salvage protocols reclaim fifty percent more metal from destroyed machinery.', cost: pool(400, 315, 235), time: 72 },
+  covenantPhaseCalculation: { label: 'Deterministic Phase Calculation', description: 'Predictive navigation shortens Covenant phase travel by ten percent.', cost: pool(390, 340, 260), time: 74 },
+  covenantRedundantCores: { label: 'Redundant Command Cores', description: 'Distributed control systems increase planetary and orbital defense durability by twenty percent.', cost: pool(470, 375, 285), time: 84 },
+  covenantSelfRepairMatrices: { label: 'Self-Repair Matrices', description: 'All Covenant ships repair hull twice as quickly in friendly and hostile space.', cost: pool(555, 445, 335), time: 92 },
 };
 
 export const REPEATABLE_RESEARCH: ResearchId[] = ['industrialIteration', 'resourceSynthesis', 'combatSimulation'];
@@ -123,6 +147,12 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   weaponsCalibration: ['+15% ship and orbital weapon damage'],
   combatSimulation: ['Repeatable · +3% ship and orbital damage per level'],
   titanEngineering: ['Titan Dreadnought'],
+  humanStandardization: ['+10% unit production speed'],
+  humanColonialCharters: ['+10% resource output'],
+  humanJointOperations: ['+8% ship and orbital damage'],
+  humanPhaseCouriers: ['10% faster phase travel'],
+  humanFieldEngineering: ['+15% defense durability'],
+  humanTargetingGrid: ['+10% ship and orbital damage'],
 };
 
 const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
@@ -138,6 +168,12 @@ const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   capitalShips: ['Experimental Space Yard', 'Leviathan'],
   combatSimulation: ['Repeatable · +3% biofleet damage per level'],
   titanEngineering: ['World Eater'],
+  broodHypermetabolism: ['+15% planetary biomass'],
+  broodSpawningPools: ['+20% gestation speed'],
+  broodSynapticDominion: ['+10% biofleet damage'],
+  broodVoidSenses: ['15% faster phase travel'],
+  broodWorldCarapace: ['+20% defense durability'],
+  broodApexInstinct: ['2× biofleet hull regeneration'],
 };
 
 const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
@@ -145,6 +181,12 @@ const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   fleetLogistics: ['Citadel Mega-Carrier doctrine'], orbitalEngineering: ['Ward Cruiser'], quantumExtraction: ['+25% resource output'],
   heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Sovereign command systems'], titanEngineering: ['Sovereign Titan'],
   industrialIteration: ['Repeatable · +5% sentinel production per level'], resourceSynthesis: ['Repeatable · +5% resource output per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
+  aegisResonanceCore: ['Harmonic technology lattice'],
+  aegisPatientAssembly: ['+10% sentinel production speed'],
+  aegisSanctuaryField: ['+75% ship shield regeneration'],
+  aegisFarcastBeacons: ['15% faster phase travel'],
+  aegisBastionLattice: ['+40% defense durability'],
+  aegisLanceResonance: ['+10% ship and orbital damage'],
 };
 
 const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
@@ -152,9 +194,15 @@ const COVENANT_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   fleetLogistics: ['Fabricator Mega-Carrier doctrine'], orbitalEngineering: ['Foundry Cruiser'], quantumExtraction: ['+25% resource output'],
   heavyArmor: ['Juggernaut Engine'], carrierOperations: ['Fabricator Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Ironclad Battleship'], titanEngineering: ['Dreadforge Titan'],
   industrialIteration: ['Repeatable · +5% assembly speed per level'], resourceSynthesis: ['Repeatable · +5% matter reclamation per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
+  covenantMachineAwakening: ['Prime foundry protocols'],
+  covenantOverclockedForges: ['+20% unit production speed'],
+  covenantSalvageAlgorithms: ['+50% battlefield salvage'],
+  covenantPhaseCalculation: ['10% faster phase travel'],
+  covenantRedundantCores: ['+20% defense durability'],
+  covenantSelfRepairMatrices: ['2× ship hull repair'],
 };
 
-const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Record<ResearchId, string>> = {
+const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Partial<Record<ResearchId, string>>> = {
   human: {
     advancedIndustry: 'Coalition Engineering', rapidFabrication: 'Modular Assembly', industrialIteration: 'Autonomous Fabrication',
     groundWarfare: 'Combined Arms Doctrine', planetaryFortifications: 'Fortress Worlds', heavyArmor: 'Siege Corps',
@@ -193,9 +241,201 @@ const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Record<ResearchId, string
   },
 };
 
+export interface ResearchTreeNode {
+  id: ResearchId;
+  x: number;
+  y: number;
+  branch: string;
+}
+
+export interface ResearchTreeBranch {
+  id: string;
+  label: string;
+  subtitle: string;
+  y: number;
+}
+
+export interface FactionResearchTree {
+  width: number;
+  height: number;
+  rootLabel: string;
+  nodes: ResearchTreeNode[];
+  branches: ResearchTreeBranch[];
+  requires: Partial<Record<ResearchId, ResearchId>>;
+}
+
+const researchNode = (id: ResearchId, branch: string, column: number, y: number): ResearchTreeNode => ({
+  id, branch, x: 36 + column * 346, y,
+});
+
+const HUMAN_RESEARCH_TREE: FactionResearchTree = {
+  width: 2100,
+  height: 2110,
+  rootLabel: 'COALITION SCIENCE DIRECTORATE',
+  branches: [
+    { id: 'industry', label: 'INTERSTELLAR INDUSTRY', subtitle: 'Standards and automation', y: 60 },
+    { id: 'colonies', label: 'COLONIAL DEVELOPMENT', subtitle: 'Charters and extraction', y: 350 },
+    { id: 'army', label: 'COMBINED ARMS COMMAND', subtitle: 'Flexible planetary warfare', y: 640 },
+    { id: 'expedition', label: 'EXPEDITIONARY NETWORK', subtitle: 'Carriers and navigation', y: 1120 },
+    { id: 'navy', label: 'COALITION NAVAL COMMAND', subtitle: 'Capital fleets and coordinated fire', y: 1510 },
+  ],
+  nodes: [
+    researchNode('advancedIndustry', 'industry', 0, 60), researchNode('rapidFabrication', 'industry', 1, 60),
+    researchNode('humanStandardization', 'industry', 2, 60), researchNode('industrialIteration', 'industry', 3, 60),
+    researchNode('quantumExtraction', 'colonies', 1, 350), researchNode('humanColonialCharters', 'colonies', 2, 350),
+    researchNode('deepCoreExtraction', 'colonies', 3, 350), researchNode('resourceSynthesis', 'colonies', 4, 350),
+    researchNode('groundWarfare', 'army', 1, 690), researchNode('humanJointOperations', 'army', 2, 620),
+    researchNode('humanFieldEngineering', 'army', 2, 860), researchNode('heavyArmor', 'army', 3, 620),
+    researchNode('planetaryFortifications', 'army', 3, 860),
+    researchNode('fleetLogistics', 'expedition', 1, 1160), researchNode('humanPhaseCouriers', 'expedition', 2, 1090),
+    researchNode('phaseMastery', 'expedition', 3, 1090), researchNode('carrierOperations', 'expedition', 2, 1330),
+    researchNode('orbitalEngineering', 'navy', 1, 1580), researchNode('shieldHarmonics', 'navy', 2, 1480),
+    researchNode('capitalShips', 'navy', 2, 1730), researchNode('humanTargetingGrid', 'navy', 3, 1480),
+    researchNode('weaponsCalibration', 'navy', 4, 1480), researchNode('titanEngineering', 'navy', 3, 1730),
+    researchNode('combatSimulation', 'navy', 5, 1480),
+  ],
+  requires: {
+    rapidFabrication: 'advancedIndustry', humanStandardization: 'rapidFabrication', industrialIteration: 'humanStandardization',
+    quantumExtraction: 'advancedIndustry', humanColonialCharters: 'quantumExtraction', deepCoreExtraction: 'humanColonialCharters', resourceSynthesis: 'deepCoreExtraction',
+    groundWarfare: 'advancedIndustry', humanJointOperations: 'groundWarfare', heavyArmor: 'humanJointOperations',
+    humanFieldEngineering: 'groundWarfare', planetaryFortifications: 'humanFieldEngineering',
+    fleetLogistics: 'advancedIndustry', humanPhaseCouriers: 'fleetLogistics', phaseMastery: 'humanPhaseCouriers', carrierOperations: 'fleetLogistics',
+    orbitalEngineering: 'advancedIndustry', shieldHarmonics: 'orbitalEngineering', capitalShips: 'orbitalEngineering',
+    humanTargetingGrid: 'capitalShips', weaponsCalibration: 'humanTargetingGrid', titanEngineering: 'capitalShips', combatSimulation: 'weaponsCalibration',
+  },
+};
+
+const BROOD_RESEARCH_TREE: FactionResearchTree = {
+  width: 2100,
+  height: 2170,
+  rootLabel: 'PRIME GENETIC MEMORY',
+  branches: [
+    { id: 'metabolism', label: 'METABOLIC ASCENDANCY', subtitle: 'Consumption becomes evolution', y: 50 },
+    { id: 'growth', label: 'GESTATION CYCLE', subtitle: 'Industry grown rather than built', y: 430 },
+    { id: 'synapse', label: 'SYNAPTIC DOMINION', subtitle: 'One will across every world', y: 820 },
+    { id: 'void', label: 'VOID PREDATION', subtitle: 'Living fleets hunt between stars', y: 1260 },
+  ],
+  nodes: [
+    researchNode('broodHypermetabolism', 'metabolism', 0, 70), researchNode('quantumExtraction', 'metabolism', 1, 70),
+    researchNode('deepCoreExtraction', 'metabolism', 2, 70), researchNode('resourceSynthesis', 'metabolism', 3, 70),
+    researchNode('advancedIndustry', 'growth', 1, 430), researchNode('rapidFabrication', 'growth', 2, 430),
+    researchNode('broodSpawningPools', 'growth', 3, 430), researchNode('industrialIteration', 'growth', 4, 430),
+    researchNode('groundWarfare', 'synapse', 2, 820), researchNode('broodSynapticDominion', 'synapse', 3, 750),
+    researchNode('heavyArmor', 'synapse', 4, 750), researchNode('broodWorldCarapace', 'synapse', 3, 990),
+    researchNode('planetaryFortifications', 'synapse', 4, 990),
+    researchNode('fleetLogistics', 'void', 2, 1280), researchNode('broodVoidSenses', 'void', 3, 1210),
+    researchNode('phaseMastery', 'void', 4, 1210), researchNode('carrierOperations', 'void', 4, 1450),
+    researchNode('orbitalEngineering', 'void', 2, 1690), researchNode('shieldHarmonics', 'void', 3, 1690),
+    researchNode('capitalShips', 'void', 3, 1930), researchNode('weaponsCalibration', 'void', 4, 1690),
+    researchNode('broodApexInstinct', 'void', 4, 1930), researchNode('combatSimulation', 'void', 5, 1690),
+    researchNode('titanEngineering', 'void', 5, 1930),
+  ],
+  requires: {
+    quantumExtraction: 'broodHypermetabolism', deepCoreExtraction: 'quantumExtraction', resourceSynthesis: 'deepCoreExtraction',
+    advancedIndustry: 'broodHypermetabolism', rapidFabrication: 'advancedIndustry', broodSpawningPools: 'rapidFabrication', industrialIteration: 'broodSpawningPools',
+    groundWarfare: 'advancedIndustry', broodSynapticDominion: 'groundWarfare', heavyArmor: 'broodSynapticDominion',
+    broodWorldCarapace: 'groundWarfare', planetaryFortifications: 'broodWorldCarapace',
+    fleetLogistics: 'broodSynapticDominion', broodVoidSenses: 'fleetLogistics', phaseMastery: 'broodVoidSenses',
+    carrierOperations: 'fleetLogistics', orbitalEngineering: 'advancedIndustry', shieldHarmonics: 'orbitalEngineering',
+    capitalShips: 'orbitalEngineering', weaponsCalibration: 'broodSynapticDominion', broodApexInstinct: 'capitalShips',
+    combatSimulation: 'weaponsCalibration', titanEngineering: 'broodApexInstinct',
+  },
+};
+
+const AEGIS_RESEARCH_TREE: FactionResearchTree = {
+  width: 2100,
+  height: 2110,
+  rootLabel: 'AWAKENED HARMONIC CORE',
+  branches: [
+    { id: 'resonance', label: 'RESONANCE', subtitle: 'The lattice awakens', y: 50 },
+    { id: 'wards', label: 'SANCTUARY WARDS', subtitle: 'Protection through perfect harmony', y: 350 },
+    { id: 'sentinels', label: 'SENTINEL FORMS', subtitle: 'Patient armies and flawless assembly', y: 690 },
+    { id: 'farcast', label: 'FARCAST CHOIR', subtitle: 'Navigation through synchronized thought', y: 1080 },
+    { id: 'sovereign', label: 'SOVEREIGN ASCENSION', subtitle: 'The final geometry of war', y: 1390 },
+    { id: 'abundance', label: 'LUMINOUS ABUNDANCE', subtitle: 'Matter conducted through the lattice', y: 1810 },
+  ],
+  nodes: [
+    researchNode('aegisResonanceCore', 'resonance', 0, 60), researchNode('orbitalEngineering', 'resonance', 1, 60),
+    researchNode('shieldHarmonics', 'wards', 2, 340), researchNode('aegisSanctuaryField', 'wards', 3, 340),
+    researchNode('planetaryFortifications', 'wards', 3, 580), researchNode('aegisBastionLattice', 'wards', 4, 580),
+    researchNode('advancedIndustry', 'sentinels', 1, 760), researchNode('groundWarfare', 'sentinels', 2, 700),
+    researchNode('heavyArmor', 'sentinels', 3, 700), researchNode('rapidFabrication', 'sentinels', 2, 940),
+    researchNode('aegisPatientAssembly', 'sentinels', 3, 940), researchNode('industrialIteration', 'sentinels', 4, 940),
+    researchNode('fleetLogistics', 'farcast', 2, 1180), researchNode('aegisFarcastBeacons', 'farcast', 3, 1120),
+    researchNode('phaseMastery', 'farcast', 4, 1120), researchNode('carrierOperations', 'farcast', 3, 1360),
+    researchNode('capitalShips', 'sovereign', 2, 1530), researchNode('aegisLanceResonance', 'sovereign', 3, 1470),
+    researchNode('weaponsCalibration', 'sovereign', 4, 1470), researchNode('titanEngineering', 'sovereign', 3, 1710),
+    researchNode('combatSimulation', 'sovereign', 5, 1470),
+    researchNode('quantumExtraction', 'abundance', 2, 1910), researchNode('deepCoreExtraction', 'abundance', 3, 1910),
+    researchNode('resourceSynthesis', 'abundance', 4, 1910),
+  ],
+  requires: {
+    orbitalEngineering: 'aegisResonanceCore', shieldHarmonics: 'orbitalEngineering', aegisSanctuaryField: 'shieldHarmonics',
+    planetaryFortifications: 'shieldHarmonics', aegisBastionLattice: 'planetaryFortifications',
+    advancedIndustry: 'aegisResonanceCore', groundWarfare: 'advancedIndustry', heavyArmor: 'groundWarfare',
+    rapidFabrication: 'advancedIndustry', aegisPatientAssembly: 'rapidFabrication', industrialIteration: 'aegisPatientAssembly',
+    fleetLogistics: 'orbitalEngineering', aegisFarcastBeacons: 'fleetLogistics', phaseMastery: 'aegisFarcastBeacons',
+    carrierOperations: 'fleetLogistics', capitalShips: 'orbitalEngineering', aegisLanceResonance: 'capitalShips',
+    weaponsCalibration: 'aegisLanceResonance', titanEngineering: 'capitalShips', combatSimulation: 'weaponsCalibration',
+    quantumExtraction: 'advancedIndustry', deepCoreExtraction: 'quantumExtraction', resourceSynthesis: 'deepCoreExtraction',
+  },
+};
+
+const COVENANT_RESEARCH_TREE: FactionResearchTree = {
+  width: 2100,
+  height: 2170,
+  rootLabel: 'PRIME FOUNDRY DIRECTIVE',
+  branches: [
+    { id: 'foundry', label: 'FOUNDRY RECURSION', subtitle: 'Build the machines that build', y: 60 },
+    { id: 'logic', label: 'CONQUEST LOGIC', subtitle: 'War reduced to solvable operations', y: 680 },
+    { id: 'reclamation', label: 'TOTAL RECLAMATION', subtitle: 'Nothing is permitted to become waste', y: 1450 },
+  ],
+  nodes: [
+    researchNode('covenantMachineAwakening', 'foundry', 0, 70), researchNode('advancedIndustry', 'foundry', 1, 70),
+    researchNode('rapidFabrication', 'foundry', 2, 70), researchNode('covenantOverclockedForges', 'foundry', 3, 70),
+    researchNode('industrialIteration', 'foundry', 4, 70),
+    researchNode('orbitalEngineering', 'foundry', 2, 310), researchNode('capitalShips', 'foundry', 3, 310),
+    researchNode('covenantSelfRepairMatrices', 'foundry', 4, 310), researchNode('titanEngineering', 'foundry', 5, 310),
+    researchNode('groundWarfare', 'logic', 1, 720), researchNode('heavyArmor', 'logic', 2, 650),
+    researchNode('covenantRedundantCores', 'logic', 3, 650), researchNode('planetaryFortifications', 'logic', 4, 650),
+    researchNode('fleetLogistics', 'logic', 2, 890), researchNode('covenantPhaseCalculation', 'logic', 3, 890),
+    researchNode('phaseMastery', 'logic', 4, 890), researchNode('carrierOperations', 'logic', 3, 1130),
+    researchNode('weaponsCalibration', 'logic', 4, 1130), researchNode('combatSimulation', 'logic', 5, 1130),
+    researchNode('quantumExtraction', 'reclamation', 1, 1530), researchNode('covenantSalvageAlgorithms', 'reclamation', 2, 1530),
+    researchNode('deepCoreExtraction', 'reclamation', 3, 1530), researchNode('resourceSynthesis', 'reclamation', 4, 1530),
+    researchNode('shieldHarmonics', 'reclamation', 4, 1770),
+  ],
+  requires: {
+    advancedIndustry: 'covenantMachineAwakening', rapidFabrication: 'advancedIndustry',
+    covenantOverclockedForges: 'rapidFabrication', industrialIteration: 'covenantOverclockedForges',
+    orbitalEngineering: 'advancedIndustry', capitalShips: 'orbitalEngineering',
+    covenantSelfRepairMatrices: 'capitalShips', titanEngineering: 'covenantSelfRepairMatrices',
+    groundWarfare: 'covenantMachineAwakening', heavyArmor: 'groundWarfare', covenantRedundantCores: 'heavyArmor',
+    planetaryFortifications: 'covenantRedundantCores', fleetLogistics: 'groundWarfare',
+    covenantPhaseCalculation: 'fleetLogistics', phaseMastery: 'covenantPhaseCalculation', carrierOperations: 'fleetLogistics',
+    weaponsCalibration: 'carrierOperations', combatSimulation: 'weaponsCalibration',
+    quantumExtraction: 'covenantMachineAwakening', covenantSalvageAlgorithms: 'quantumExtraction',
+    deepCoreExtraction: 'covenantSalvageAlgorithms', resourceSynthesis: 'deepCoreExtraction', shieldHarmonics: 'deepCoreExtraction',
+  },
+};
+
+export const FACTION_RESEARCH_TREES: Record<PlayableFaction, FactionResearchTree> = {
+  human: HUMAN_RESEARCH_TREE,
+  brood: BROOD_RESEARCH_TREE,
+  aegis: AEGIS_RESEARCH_TREE,
+  covenant: COVENANT_RESEARCH_TREE,
+};
+
+export const researchTreeForCivilization = (civilization: PlayableFaction) => FACTION_RESEARCH_TREES[civilization];
+export const researchAvailableToCivilization = (id: ResearchId, civilization: PlayableFaction) =>
+  FACTION_RESEARCH_TREES[civilization].nodes.some(node => node.id === id);
+export const researchRequirementForCivilization = (id: ResearchId, civilization: PlayableFaction) =>
+  FACTION_RESEARCH_TREES[civilization].requires[id];
+
 export const researchDefinitionForCivilization = (id: ResearchId, civilization: PlayableFaction): Definition => ({
   ...RESEARCH[id],
-  label: FACTION_RESEARCH_LABELS[civilization][id],
+  label: FACTION_RESEARCH_LABELS[civilization][id] ?? RESEARCH[id].label,
+  requires: researchRequirementForCivilization(id, civilization),
 });
 
 export const researchUnlocksForCivilization = (id: ResearchId, civilization: PlayableFaction) => {

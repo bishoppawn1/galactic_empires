@@ -50,7 +50,8 @@ import {
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   requiredSpaceYardKind, SPACE_YARD_TIER,
-  researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitAvailableToCivilization,
+  researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -688,20 +689,42 @@ const harvestBattlefieldSalvage = (state: GameState, destroyed: Unit[], particip
   if (!recovered) return;
   participants.filter(faction => usesSalvage(state, faction)).forEach(faction => {
     const salvageArrayOnline = survivors.some(unit => unit.faction === faction && UNITS[unit.kind].ability?.kind === 'salvageArray');
-    const metal = Math.floor(recovered * (salvageArrayOnline ? COVENANT_SALVAGE_ARRAY_MULTIPLIER : 1));
+    const reclamationScale = empireEconomy(state, faction).completedResearch.includes('covenantSalvageAlgorithms') ? 1.5 : 1;
+    const metal = Math.floor(recovered * (salvageArrayOnline ? COVENANT_SALVAGE_ARRAY_MULTIPLIER : 1) * reclamationScale);
     empireEconomy(state, faction).resources.metal += metal;
     if (faction === 'player') addMessage(state, `COVENANT SALVAGE — ${metal} metal reclaimed ${location}.`);
   });
 };
 export const researchIncomeMultiplier = (completed: ResearchId[]) => (completed.includes('deepCoreExtraction') ? 1.5 : completed.includes('quantumExtraction') ? 1.25 : 1)
-  * (1 + researchLevel(completed, 'resourceSynthesis') * .05);
+  * (1 + researchLevel(completed, 'resourceSynthesis') * .05)
+  * (completed.includes('humanColonialCharters') ? 1.1 : 1)
+  * (completed.includes('broodHypermetabolism') ? 1.15 : 1);
 export const researchProductionMultiplier = (completed: ResearchId[]) => (completed.includes('rapidFabrication') ? 1.25 : 1)
-  * (1 + researchLevel(completed, 'industrialIteration') * .05);
-export const phaseTravelMultiplier = (completed: ResearchId[]) => completed.includes('phaseMastery') ? .75 : 1;
-export const shieldRecoveryMultiplier = (completed: ResearchId[]) => completed.includes('shieldHarmonics') ? 1.5 : 1;
+  * (1 + researchLevel(completed, 'industrialIteration') * .05)
+  * (completed.includes('humanStandardization') ? 1.1 : 1)
+  * (completed.includes('broodSpawningPools') ? 1.2 : 1)
+  * (completed.includes('aegisPatientAssembly') ? 1.1 : 1)
+  * (completed.includes('covenantOverclockedForges') ? 1.2 : 1);
+export const phaseTravelMultiplier = (completed: ResearchId[]) => (completed.includes('phaseMastery') ? .75 : 1)
+  * (completed.includes('humanPhaseCouriers') ? .9 : 1)
+  * (completed.includes('broodVoidSenses') ? .85 : 1)
+  * (completed.includes('aegisFarcastBeacons') ? .85 : 1)
+  * (completed.includes('covenantPhaseCalculation') ? .9 : 1);
+export const shieldRecoveryMultiplier = (completed: ResearchId[]) => (completed.includes('shieldHarmonics') ? 1.5 : 1)
+  * (completed.includes('aegisSanctuaryField') ? 1.75 : 1);
+export const hullRecoveryMultiplier = (completed: ResearchId[]) =>
+  completed.includes('broodApexInstinct') || completed.includes('covenantSelfRepairMatrices') ? 2 : 1;
 export const orbitalDamageMultiplier = (completed: ResearchId[]) => (completed.includes('weaponsCalibration') ? 1.15 : 1)
-  * (1 + researchLevel(completed, 'combatSimulation') * .03);
-export const defenseDurabilityMultiplier = (completed: ResearchId[]) => completed.includes('planetaryFortifications') ? 1.25 : 1;
+  * (1 + researchLevel(completed, 'combatSimulation') * .03)
+  * (completed.includes('humanJointOperations') ? 1.08 : 1)
+  * (completed.includes('humanTargetingGrid') ? 1.1 : 1)
+  * (completed.includes('broodSynapticDominion') ? 1.1 : 1)
+  * (completed.includes('aegisLanceResonance') ? 1.1 : 1);
+export const defenseDurabilityMultiplier = (completed: ResearchId[]) => (completed.includes('planetaryFortifications') ? 1.25 : 1)
+  * (completed.includes('humanFieldEngineering') ? 1.15 : 1)
+  * (completed.includes('broodWorldCarapace') ? 1.2 : 1)
+  * (completed.includes('aegisBastionLattice') ? 1.4 : 1)
+  * (completed.includes('covenantRedundantCores') ? 1.2 : 1);
 export const groundProductionMultiplier = (planet: Planet, completed: ResearchId[] = []) => Math.max(1, planet.buildings.reduce((capacity, building) =>
   capacity + (building.kind === 'groundFactory' ? 1 : building.kind === 'advancedGroundFactory' ? ADVANCED_GROUND_FACTORY_CAPACITY : 0), 0))
   * researchProductionMultiplier(completed);
@@ -850,7 +873,9 @@ export function beginResearch(input: GameState, id: ResearchId): GameResult {
   if (!state.planets.some(p => p.owner === 'player' && p.buildings.some(b => b.kind === 'researchLab'))) return fail(input, 'Construct a Research Lab first.');
   if ((!isRepeatableResearch(id) && state.completedResearch.includes(id)) || state.researchQueue.some(r => r.id === id)) return fail(input, 'Research already acquired or active.');
   const civilization = empireCivilization(state);
-  if (!hasResearch(state, def.requires)) return fail(input, `Requires ${researchDefinitionForCivilization(def.requires!, civilization).label}.`);
+  if (!researchAvailableToCivilization(id, civilization)) return fail(input, 'That research belongs to another civilization.');
+  const requirement = researchRequirementForCivilization(id, civilization);
+  if (!hasResearch(state, requirement)) return fail(input, `Requires ${researchDefinitionForCivilization(requirement!, civilization).label}.`);
   const cost = researchCost(id, state.completedResearch);
   const time = researchTime(id, state.completedResearch);
   if (!canPlayerAfford(state, cost)) return fail(input, insufficientPlayerResources(state));
@@ -1204,10 +1229,10 @@ export const COVENANT_FIELD_REPAIR_RANGE = 18;
 export const COVENANT_ASSEMBLY_REPAIR_RANGE = 220;
 export const COVENANT_FOUNDRY_REPAIR_RANGE = 280;
 
-export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human', recoveryMultiplier = 1): Unit {
+export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human', recoveryMultiplier = 1, hullMultiplier = 1): Unit {
   const shieldRecovery = (5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0)) * recoveryMultiplier;
   const livingHold = UNITS[u.kind].ability?.kind === 'livingHold';
-  const hullRecovery = livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0;
+  const hullRecovery = (livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0) * hullMultiplier;
   return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: Math.min(u.maxHp, u.hp + seconds * hullRecovery) };
 }
 
@@ -1984,16 +2009,13 @@ function enemyQueueUnit(state: GameState, p: Planet, kind: UnitKind, yard?: Buil
 
 function advanceEnemyResearch(state: GameState) {
   if (!state.planets.some(p => p.owner === 'enemy' && p.buildings.some(building => building.kind === 'researchLab'))) return;
-  const milestones: Array<[number, ResearchId]> = [
-    [80, 'advancedIndustry'], [105, 'rapidFabrication'], [130, 'groundWarfare'], [145, 'fleetLogistics'], [160, 'orbitalEngineering'],
-    [180, 'quantumExtraction'], [190, 'planetaryFortifications'], [205, 'phaseMastery'], [215, 'shieldHarmonics'],
-    [220, 'heavyArmor'], [245, 'carrierOperations'], [250, 'deepCoreExtraction'], [270, 'capitalShips'],
-    [315, 'weaponsCalibration'], [360, 'titanEngineering'],
-  ];
-  const next = milestones.find(([time, id]) => state.elapsed >= time && !state.enemyCompletedResearch.includes(id));
-  if (!next) return;
-  const [, id] = next; const def = RESEARCH[id];
-  if (!enemyHasResearch(state, def.requires) || !canEnemyAfford(state, def.cost)) return;
+  const civilization = empireCivilization(state, 'enemy');
+  const tree = researchTreeForCivilization(civilization);
+  const candidates = tree.nodes.filter(node => !isRepeatableResearch(node.id) && !state.enemyCompletedResearch.includes(node.id));
+  const eligible = candidates.filter(node => enemyHasResearch(state, tree.requires[node.id]));
+  const id = eligible.find(node => state.elapsed >= 70 + tree.nodes.indexOf(node) * 13 && canEnemyAfford(state, RESEARCH[node.id].cost))?.id;
+  if (!id) return;
+  const def = RESEARCH[id];
   spendEnemyResources(state, def.cost);
   state.enemyCompletedResearch.push(id);
 }
@@ -2109,7 +2131,10 @@ function launchEnemyCombatFleets(state: GameState) {
 
 export function tick(input: GameState, seconds: number): GameState {
   const state = migrateGameState(input); state.elapsed += seconds;
-  state.fleets = state.fleets.map(fleet => ({ ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(empireEconomy(state, fleet.faction).completedResearch)), seconds) }));
+  state.fleets = state.fleets.map(fleet => {
+    const completed = empireEconomy(state, fleet.faction).completedResearch;
+    return { ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(completed), hullRecoveryMultiplier(completed)), seconds) };
+  });
   state.fleets.forEach(fleet => syncDepartingFleetPosition(state, fleet));
   for (const p of state.planets) {
     advanceDefenseConstruction(state, p, seconds);
@@ -2133,7 +2158,10 @@ export function tick(input: GameState, seconds: number): GameState {
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, spaceProductionMultiplier(economy.completedResearch), p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
     }
     tickOrbitMovement(p, seconds);
-    p.orbitUnits = p.orbitUnits.map(u => recoverCarrierFighters(recoverSpaceUnit(u, isColonizableWorld(p) && p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), u.faction === 'neutral' ? 1 : shieldRecoveryMultiplier(empireEconomy(state, u.faction).completedResearch)), seconds));
+    p.orbitUnits = p.orbitUnits.map(u => {
+      const completed = u.faction === 'neutral' ? [] : empireEconomy(state, u.faction).completedResearch;
+      return recoverCarrierFighters(recoverSpaceUnit(u, isColonizableWorld(p) && p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), shieldRecoveryMultiplier(completed), hullRecoveryMultiplier(completed)), seconds);
+    });
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     const stagedFleetIds = stageDepartingFleetsForCombat(state, p);
     tickOrbitCombat(state, p, seconds);

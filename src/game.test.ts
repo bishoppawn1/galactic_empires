@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -734,18 +734,29 @@ describe('production and research', () => {
     });
   });
 
-  it('defines a connected research lattice with three repeatable capstones', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(18);
+  it('defines four distinct expanded research lattices with exclusive technologies', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(42);
+    for (const tree of Object.values(FACTION_RESEARCH_TREES)) {
+      expect(tree.nodes).toHaveLength(24);
+      expect(tree.nodes.filter(node => !tree.requires[node.id])).toHaveLength(1);
+      expect(tree.nodes.filter(node => tree.requires[node.id])).toHaveLength(23);
+    }
+    expect(new Set(Object.values(FACTION_RESEARCH_TREES).map(tree => tree.branches.length)).size).toBeGreaterThan(1);
+    expect(new Set(Object.values(FACTION_RESEARCH_TREES).map(tree =>
+      tree.nodes.map(node => `${node.id}:${node.x}:${node.y}`).join('|'))).size).toBe(4);
+    expect(researchAvailableToCivilization('humanStandardization', 'human')).toBe(true);
+    expect(researchAvailableToCivilization('humanStandardization', 'brood')).toBe(false);
+    expect(researchAvailableToCivilization('broodHypermetabolism', 'brood')).toBe(true);
+    expect(researchAvailableToCivilization('aegisSanctuaryField', 'aegis')).toBe(true);
+    expect(researchAvailableToCivilization('covenantSalvageAlgorithms', 'covenant')).toBe(true);
     expect(REPEATABLE_RESEARCH).toEqual(['industrialIteration', 'resourceSynthesis', 'combatSimulation']);
     expect(REPEATABLE_RESEARCH.every(isRepeatableResearch)).toBe(true);
-    expect(RESEARCH.heavyArmor.requires).toBe('groundWarfare');
-    expect(RESEARCH.carrierOperations.requires).toBe('fleetLogistics');
-    expect(RESEARCH.titanEngineering.requires).toBe('capitalShips');
-    expect(RESEARCH.industrialIteration.requires).toBe('rapidFabrication');
-    expect(RESEARCH.resourceSynthesis.requires).toBe('deepCoreExtraction');
-    expect(RESEARCH.combatSimulation.requires).toBe('weaponsCalibration');
+    expect(researchRequirementForCivilization('heavyArmor', 'human')).toBe('humanJointOperations');
+    expect(researchRequirementForCivilization('heavyArmor', 'brood')).toBe('broodSynapticDominion');
+    expect(researchRequirementForCivilization('titanEngineering', 'brood')).toBe('broodApexInstinct');
+    expect(researchRequirementForCivilization('titanEngineering', 'covenant')).toBe('covenantSelfRepairMatrices');
     expect(RESEARCH_UNLOCKS.titanEngineering).toContain('Titan Dreadnought');
-    expect(RESEARCH_UNLOCKS.rapidFabrication).toContain('+25% unit production speed');
+    expect(RESEARCH_UNLOCKS.humanStandardization).toContain('+10% unit production speed');
   });
 
   it('specializes research doctrine names for every civilization', () => {
@@ -760,7 +771,7 @@ describe('production and research', () => {
   it('researches repeatable capstones forever with scaling costs, time, and bonuses', () => {
     let state = createInitialState(); const terra = state.planets[0];
     terra.buildings.push({ id: 'repeatable-lab', kind: 'researchLab' });
-    state.completedResearch.push('advancedIndustry', 'rapidFabrication');
+    state.completedResearch.push('advancedIndustry', 'rapidFabrication', 'humanStandardization');
     state.resources = { metal: 10000, crystal: 10000, gold: 10000 };
     const firstCost = researchCost('industrialIteration', state.completedResearch);
     const firstTime = researchTime('industrialIteration', state.completedResearch);
@@ -777,7 +788,7 @@ describe('production and research', () => {
     const second = beginResearch(state, 'industrialIteration'); expectOk(second);
     state = tick(second.state, secondTime);
     expect(researchLevel(state.completedResearch, 'industrialIteration')).toBe(2);
-    expect(researchProductionMultiplier(state.completedResearch)).toBeCloseTo(1.25 * 1.1);
+    expect(researchProductionMultiplier(state.completedResearch)).toBeCloseTo(1.25 * 1.1 * 1.1);
   });
 
   it('requires the exact shipyard tier for frigates, cruisers, and super capitals', () => {
@@ -897,16 +908,7 @@ describe('production and research', () => {
     }
   });
 
-  it('defines expanded research branches with simulation bonuses', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(18);
-    expect(RESEARCH).toMatchObject({
-      rapidFabrication: { requires: 'advancedIndustry' },
-      planetaryFortifications: { requires: 'groundWarfare' },
-      phaseMastery: { requires: 'fleetLogistics' },
-      shieldHarmonics: { requires: 'orbitalEngineering' },
-      deepCoreExtraction: { requires: 'quantumExtraction' },
-      weaponsCalibration: { requires: 'capitalShips' },
-    });
+  it('applies shared and civilization-exclusive research bonuses', () => {
     expect(researchProductionMultiplier(['rapidFabrication'])).toBe(1.25);
     expect(spaceProductionMultiplier(['rapidFabrication'])).toBe(1.25);
     expect(phaseTravelMultiplier(['phaseMastery'])).toBe(.75);
@@ -917,6 +919,15 @@ describe('production and research', () => {
     expect(researchProductionMultiplier(['rapidFabrication', 'industrialIteration', 'industrialIteration'])).toBeCloseTo(1.25 * 1.1);
     expect(researchIncomeMultiplier(['deepCoreExtraction', 'resourceSynthesis', 'resourceSynthesis'])).toBeCloseTo(1.5 * 1.1);
     expect(orbitalDamageMultiplier(['weaponsCalibration', 'combatSimulation', 'combatSimulation'])).toBeCloseTo(1.15 * 1.06);
+    expect(researchProductionMultiplier(['humanStandardization'])).toBeCloseTo(1.1);
+    expect(researchProductionMultiplier(['broodSpawningPools'])).toBeCloseTo(1.2);
+    expect(researchIncomeMultiplier(['broodHypermetabolism'])).toBeCloseTo(1.15);
+    expect(phaseTravelMultiplier(['aegisFarcastBeacons'])).toBeCloseTo(.85);
+    expect(shieldRecoveryMultiplier(['aegisSanctuaryField'])).toBeCloseTo(1.75);
+    expect(defenseDurabilityMultiplier(['aegisBastionLattice'])).toBeCloseTo(1.4);
+    expect(orbitalDamageMultiplier(['humanJointOperations', 'humanTargetingGrid'])).toBeCloseTo(1.08 * 1.1);
+    expect(hullRecoveryMultiplier(['broodApexInstinct'])).toBe(2);
+    expect(hullRecoveryMultiplier(['covenantSelfRepairMatrices'])).toBe(2);
   });
 
   it('applies Rapid Fabrication to both ground and space production queues', () => {
@@ -1091,6 +1102,10 @@ describe('production and research', () => {
     state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     const lab = constructBuilding(state, 'terra', 'researchLab'); expectOk(lab);
     expect(beginResearch(lab.state, 'capitalShips').ok).toBe(false);
+    expect(beginResearch(lab.state, 'broodHypermetabolism')).toMatchObject({
+      ok: false,
+      error: 'That research belongs to another civilization.',
+    });
     const started = beginResearch(lab.state, 'advancedIndustry'); expectOk(started);
     const done = tick(started.state, 50);
     expect(done.completedResearch).toContain('advancedIndustry');

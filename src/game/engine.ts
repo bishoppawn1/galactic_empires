@@ -284,7 +284,13 @@ const planet = (id: string, name: string, x: number, y: number, color: string, o
   buildings: [], groundUnits: [], orbitUnits: [], groundQueue: [], spaceQueue: [],
 });
 
-const MAP_PLANETS: Record<MapSize, number> = { small: 7, medium: 11, large: 15, huge: 21 };
+const MAP_PLANETS: Record<MapSize, number> = { small: 7, medium: 11, large: 15, huge: 21, massive: 31, galactic: 45 };
+const FRONTIER_PLANET_NAMES = [
+  'Caldera', 'Praxus', 'Lumen', 'Arcadia', 'Tantalus', 'Oberon', 'Carina', 'Sable',
+  'Ilyria', 'Madrigal', 'Perseus', 'Callisto', 'Erebus', 'Avalon', 'Titania', 'Argent',
+  'Cerulea', 'Daedalus', 'Elysion', 'Fortuna', 'Hyperion', 'Ishtar', 'Janus', 'Kestrel',
+] as const;
+const FRONTIER_PLANET_COLORS = ['#69d5c1', '#f0a36f', '#98b9ff', '#d996ff', '#f2cf70', '#7bd6ef', '#d88198', '#9dd58a'] as const;
 const SPECIAL_SYSTEM_NAMES: Record<Exclude<SystemKind, 'planet'>, string[]> = {
   nebula: ['The Blind Veil', 'Morrow Nebula', 'Ghostlight Cloud', 'The Violet Shroud', 'Wraithwake', 'Dusk Expanse'],
   star: ['Helios Pyre', 'The Cinder Star', 'Vulcan Furnace'],
@@ -300,10 +306,15 @@ const RANDOM_SYSTEM_KINDS: Array<{ kind: Exclude<SystemKind, 'star'>; weight: nu
   { kind: 'pirateBase', weight: .12 },
   { kind: 'ancientTemple', weight: .06 },
 ];
-const PIRATE_ORBITAL_GARRISON: SpaceUnitKind[] = [
+const PIRATE_FLEET_PATTERN: SpaceUnitKind[] = [
   'escortFrigate', 'escortFrigate', 'missileFrigate', 'missileFrigate',
-  'flakFrigate', 'lightCruiser', 'lightCruiser', 'destroyer', 'assaultCarrier',
+  'flakFrigate', 'lightCruiser', 'lightCruiser', 'destroyer',
+  'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought',
 ];
+const PIRATE_ORBITAL_GARRISON: SpaceUnitKind[] = Array.from(
+  { length: 48 },
+  (_, index) => PIRATE_FLEET_PATTERN[index % PIRATE_FLEET_PATTERN.length],
+);
 const PIRATE_GROUND_GARRISON: GroundUnitKind[] = [
   'infantry', 'infantry', 'infantry', 'antiVehicle', 'antiVehicle', 'recon',
   'lightTank', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'defenseTurret',
@@ -351,6 +362,36 @@ const randomizeSystemPositions = (systems: Planet[], random: () => number) => {
     system.y = Math.max(4, Math.min(96, y + (random() - .5) * 4));
   });
 };
+const addFrontierPlanets = (systems: Planet[], count: number) => {
+  const candidates = Array.from({ length: 7 }, (_, column) => 8 + column * 14)
+    .flatMap(x => Array.from({ length: 7 }, (_, row) => ({ x, y: 8 + row * 14 })));
+  for (let index = 0; index < count; index += 1) {
+    const position = candidates
+      .map(candidate => ({
+        ...candidate,
+        separation: Math.min(...systems.map(system => Math.hypot(system.x - candidate.x, system.y - candidate.y))),
+      }))
+      .sort((a, b) => b.separation - a.separation || a.y - b.y || a.x - b.x)[0];
+    candidates.splice(candidates.findIndex(candidate => candidate.x === position.x && candidate.y === position.y), 1);
+    const resourceYield = pool(
+      .65 + (index * 3 % 7) * .1,
+      .6 + (index * 5 % 7) * .1,
+      .55 + (index * 2 % 8) * .1,
+    );
+    const mineMax = pool(3 + (index * 3 % 4), 3 + (index * 5 % 4), 3 + (index * 2 % 4));
+    systems.push(planet(
+      `frontier-${index + 1}`,
+      FRONTIER_PLANET_NAMES[index],
+      position.x,
+      position.y,
+      FRONTIER_PLANET_COLORS[index % FRONTIER_PLANET_COLORS.length],
+      null,
+      resourceYield,
+      mineMax,
+      3 + index % 3,
+    ));
+  }
+};
 const distantHomeSystems = (systems: Planet[], count: number, random: () => number) => {
   const available = [...systems];
   const selected = [available.splice(Math.floor(random() * available.length), 1)[0]];
@@ -375,8 +416,10 @@ const randomSystemKind = (random: () => number): Exclude<SystemKind, 'star'> => 
   return 'planet';
 };
 const configureSpecialSystem = (system: Planet, kind: Exclude<SystemKind, 'planet'>, nameIndex: number) => {
+  const names = SPECIAL_SYSTEM_NAMES[kind];
+  const nameCycle = Math.floor(nameIndex / names.length);
   system.systemKind = kind;
-  system.name = SPECIAL_SYSTEM_NAMES[kind][nameIndex % SPECIAL_SYSTEM_NAMES[kind].length];
+  system.name = `${names[nameIndex % names.length]}${nameCycle ? ` ${nameCycle + 1}` : ''}`;
   system.color = SPECIAL_SYSTEM_COLORS[kind];
   system.owner = null;
   system.buildings = [];
@@ -457,7 +500,10 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     planet('umbra', 'Umbra', 53, 96, '#8c92ff', null, pool(.75, 1.25, .7), pool(3, 6, 4)),
     planet('crown', 'Crown Reach', 98, 55, '#ffd36e', null, pool(.8, .75, 1.3), pool(4, 3, 6)),
   ];
-  const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(['large', 'huge'].includes(config.mapSize) ? largePlanets : []), ...(config.mapSize === 'huge' ? hugePlanets : [])];
+  const includesLarge = ['large', 'huge', 'massive', 'galactic'].includes(config.mapSize);
+  const includesHuge = ['huge', 'massive', 'galactic'].includes(config.mapSize);
+  const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(includesLarge ? largePlanets : []), ...(includesHuge ? hugePlanets : [])];
+  addFrontierPlanets(planets, MAP_PLANETS[config.mapSize] - planets.length);
   const random = seededRandom(config.mapSeed);
   if (config.mapSeed) randomizeSystemPositions(planets, random);
   const requestedHomes = mode === 'competitive' ? Math.min(4, planets.length) : 2;
@@ -477,8 +523,10 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
       configureSpecialSystem(system, kind, nameIndex);
       namesUsed[kind] = nameIndex + 1;
     };
-    configure(candidates[0], 'star');
-    candidates.slice(1).forEach(system => {
+    const centralStar = candidates.reduce((closest, system) =>
+      Math.hypot(system.x - 50, system.y - 50) < Math.hypot(closest.x - 50, closest.y - 50) ? system : closest);
+    configure(centralStar, 'star');
+    candidates.filter(system => system !== centralStar).forEach(system => {
       const kind = randomSystemKind(random);
       if (kind !== 'planet') configure(system, kind);
     });
@@ -525,7 +573,15 @@ export function migrateGameState(input: GameState): GameState {
   state.messages = Array.isArray(state.messages) && state.messages.length ? state.messages : ['SAVED CAMPAIGN RECOVERED — systems online.'];
   state.resources ??= pool(520, 420, 280);
   state.mode ??= 'solo';
-  state.config ??= { mapSize: state.planets.length <= 7 ? 'small' : state.planets.length <= 11 ? 'medium' : state.planets.length <= 15 ? 'large' : 'huge', difficulty: 'commander', playerFaction: 'human' };
+  state.config ??= {
+    mapSize: state.planets.length <= 7 ? 'small'
+      : state.planets.length <= 11 ? 'medium'
+        : state.planets.length <= 15 ? 'large'
+          : state.planets.length <= 21 ? 'huge'
+            : state.planets.length <= 31 ? 'massive' : 'galactic',
+    difficulty: 'commander',
+    playerFaction: 'human',
+  };
   state.config.playerFaction = PLAYABLE_FACTIONS.includes(state.config.playerFaction ?? 'human') ? state.config.playerFaction ?? 'human' : 'human';
   state.config.mapSeed = Number.isFinite(state.config.mapSeed) ? state.config.mapSeed : 0;
   const savedCivilizations = state.empireCivilizations as Partial<Record<EmpireFaction, PlayableFaction>> | undefined;
@@ -1154,7 +1210,11 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
     { faction: 'player', controller: 'human' }, { faction: 'enemy', controller: 'human' },
   ] satisfies MatchEmpireSlot[];
   const playerCivilization = slots.find(slot => slot.faction === 'player')?.civilization ?? config.playerFaction ?? 'human';
-  const effectiveConfig = { ...config, playerFaction: playerCivilization, ...(slots.length > 2 && config.mapSize !== 'huge' ? { mapSize: 'huge' as const } : {}) };
+  const effectiveConfig = {
+    ...config,
+    playerFaction: playerCivilization,
+    ...(slots.length > 2 && ['small', 'medium', 'large'].includes(config.mapSize) ? { mapSize: 'huge' as const } : {}),
+  };
   const state = createInitialState(effectiveConfig, 'competitive');
   const homeIds = state.homeSystemIds?.length ? state.homeSystemIds : ['terra', 'cygnus', 'halcyon', 'vesta'];
   const firstEmpire = state.planets.find(planet => planet.id === homeIds[0])!;

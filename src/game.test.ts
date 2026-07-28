@@ -556,6 +556,8 @@ describe('campaign configuration', () => {
     expect(createInitialState({ mapSize: 'medium', difficulty: 'commander' }).planets).toHaveLength(11);
     expect(createInitialState({ mapSize: 'large', difficulty: 'commander' }).planets).toHaveLength(15);
     expect(createInitialState({ mapSize: 'huge', difficulty: 'commander' }).planets).toHaveLength(21);
+    expect(createInitialState({ mapSize: 'massive', difficulty: 'commander' }).planets).toHaveLength(31);
+    expect(createInitialState({ mapSize: 'galactic', difficulty: 'commander' }).planets).toHaveLength(45);
   });
 
   it('changes AI cadence by difficulty without granting starting forces', () => {

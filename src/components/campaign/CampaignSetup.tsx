@@ -6,6 +6,8 @@ const MAP_SIZE_DETAILS: Record<MapSize, { label: string; description: string }> 
   medium: { label: 'Standard', description: '11 systems · balanced frontier' },
   large: { label: 'Expansive', description: '15 systems · long campaign' },
   huge: { label: 'Colossal', description: '21 systems · four-empire frontier' },
+  massive: { label: 'Massive', description: '31 systems · extended conquest' },
+  galactic: { label: 'Galactic', description: '45 systems · maximum-scale war' },
 };
 
 const DIFFICULTY_DETAILS: Record<EnemyDifficulty, { label: string; description: string }> = {
@@ -36,7 +38,7 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
           return <button type="button" key={faction} className={`faction-${faction} ${playerFaction === faction ? 'selected' : ''}`} aria-pressed={playerFaction === faction} onClick={() => setPlayerFaction(faction)}><b>{profile.label}</b><span>{profile.doctrine} · {profile.strengths}</span><small>{profile.weakness}</small></button>;
         })}
       </div></fieldset>
-      <fieldset><legend>Galaxy size</legend><div className="setup-options">
+      <fieldset><legend>Galaxy size</legend><div className="setup-options map-size-options">
         {(Object.keys(MAP_SIZE_DETAILS) as MapSize[]).map(size => <button type="button" key={size} className={mapSize === size ? 'selected' : ''} aria-pressed={mapSize === size} onClick={() => setMapSize(size)}><b>{MAP_SIZE_DETAILS[size].label}</b><span>{MAP_SIZE_DETAILS[size].description}</span></button>)}
       </div></fieldset>
       <fieldset><legend>Enemy difficulty</legend><div className="setup-options difficulty-options">

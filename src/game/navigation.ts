@@ -9,6 +9,7 @@ export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.h
   : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
 
 export const MAX_PHASE_LANE_DISTANCE = 42;
+export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 3;
 
 export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHASE_LANE_DISTANCE): PlanetConnection[] {
   const candidates: PlanetConnection[] = [];
@@ -46,7 +47,7 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   for (const planet of planets) {
     candidates
       .filter(connection => connection.from.id === planet.id || connection.to.id === planet.id)
-      .slice(0, 2)
+      .slice(0, MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT)
       .forEach(connection => nearestNeighbors.get(planet.id)!.add(
         connection.from.id === planet.id ? connection.to.id : connection.from.id,
       ));

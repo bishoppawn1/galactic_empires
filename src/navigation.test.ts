@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PHASE_LANE_DISTANCE,
+  MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT,
   PHASE_TUNNEL_MIN_SECONDS,
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
   createInitialState,
@@ -10,6 +11,10 @@ import {
 } from './game';
 
 describe('sparse phase-lane navigation', () => {
+  it('allows three mutual local neighbors without restoring every nearby lane', () => {
+    expect(MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT).toBe(3);
+  });
+
   it('keeps generated maps connected while removing redundant nearby lanes', () => {
     for (const mapSize of ['small', 'medium', 'large', 'huge'] as const) {
       for (let mapSeed = 0; mapSeed <= 20; mapSeed += 1) {

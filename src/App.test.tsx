@@ -821,6 +821,23 @@ describe('Galactic Empires interface', () => {
     }
   });
 
+  it('enables Spore Migration for the Brood after Evolved Industry', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
+    state.planets[0].buildings.push({ id: 'brood-research-lab-test', kind: 'researchLab' });
+    state.completedResearch.push('broodHypermetabolism', 'advancedIndustry');
+    state.resources.biomass = 5000;
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    const node = document.querySelector('[data-tech-id="fleetLogistics"]') as HTMLElement;
+    expect(node).toHaveAttribute('data-requires', 'advancedIndustry');
+    fireEvent.click(within(node).getByRole('button', { name: 'RESEARCH' }));
+
+    expect(screen.getByText('Spore Migration research initiated.')).toBeInTheDocument();
+    expect(within(node).getByLabelText('Spore Migration progress')).toBeInTheDocument();
+  });
+
   it('renders orbital defenses as installations in space', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     cygnus.buildings.push({ id: 'test-defense', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });

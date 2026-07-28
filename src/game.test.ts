@@ -1182,6 +1182,18 @@ describe('production and research', () => {
     const done = tick(started.state, 50);
     expect(done.completedResearch).toContain('advancedIndustry');
   });
+
+  it('lets the Brood begin Spore Migration after Evolved Industry', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
+    state.planets[0].buildings.push({ id: 'brood-research-lab', kind: 'researchLab' });
+    state.completedResearch.push('broodHypermetabolism', 'advancedIndustry');
+    state.resources.biomass = 5000;
+
+    expect(researchRequirementForCivilization('fleetLogistics', 'brood')).toBe('advancedIndustry');
+    const started = beginResearch(state, 'fleetLogistics'); expectOk(started);
+    expect(started.state.researchQueue).toContainEqual(expect.objectContaining({ id: 'fleetLogistics' }));
+    expect(started.state.messages[0]).toBe('Spore Migration research initiated.');
+  });
 });
 
 describe('enemy strategy', () => {

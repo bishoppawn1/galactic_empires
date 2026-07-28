@@ -385,7 +385,7 @@ const BROOD_RESEARCH_TREE: FactionResearchTree = {
     advancedIndustry: 'broodHypermetabolism', rapidFabrication: 'advancedIndustry', broodSpawningPools: 'rapidFabrication', industrialIteration: 'broodSpawningPools',
     groundWarfare: 'advancedIndustry', broodSynapticDominion: 'groundWarfare', heavyArmor: 'broodSynapticDominion',
     broodWorldCarapace: 'groundWarfare', planetaryFortifications: 'broodWorldCarapace',
-    fleetLogistics: 'broodSynapticDominion', broodVoidSenses: 'fleetLogistics', phaseMastery: 'broodVoidSenses',
+    fleetLogistics: 'advancedIndustry', broodVoidSenses: 'fleetLogistics', phaseMastery: 'broodVoidSenses',
     carrierOperations: 'fleetLogistics', orbitalEngineering: 'advancedIndustry', shieldHarmonics: 'orbitalEngineering',
     capitalShips: 'orbitalEngineering', weaponsCalibration: 'broodSynapticDominion', broodApexInstinct: 'capitalShips',
     combatSimulation: 'weaponsCalibration', titanEngineering: 'broodApexInstinct',

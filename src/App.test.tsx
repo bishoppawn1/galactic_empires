@@ -375,9 +375,9 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-3d');
     expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('50');
     expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(50deg)');
-    expect(document.querySelectorAll('.ship-model-3d')).toHaveLength(4);
-    expect(document.querySelectorAll('.ship-volume-layer')).toHaveLength(24);
-    expect(screen.getByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.ship-model-3d')).toHaveLength(3);
+    expect(document.querySelectorAll('.ship-volume-layer')).toHaveLength(18);
+    expect(screen.queryByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Rotate camera right' }));

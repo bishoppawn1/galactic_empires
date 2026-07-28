@@ -62,9 +62,17 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByRole('button', { name: `${nebula.name} SENSOR-DARK NEBULA` })).toHaveClass('system-nebula');
     expect(screen.getByRole('button', { name: `${star.name} LETHAL STELLAR HAZARD` })).toHaveClass('system-star');
-    expect(screen.getByRole('button', { name: `${pirates.name} PIRATE STRONGHOLD` })).toHaveClass('system-pirateBase');
+    const pirateButton = screen.getByRole('button', { name: `${pirates.name} PIRATE-OCCUPIED WORLD` });
+    expect(pirateButton).toHaveClass('system-pirateBase');
     expect(screen.getByRole('button', { name: `${temple.name} ANCIENT RELIC` })).toHaveClass('system-ancientTemple');
-    expect(document.querySelectorAll('.system-object')).toHaveLength(7);
+    expect(document.querySelectorAll('.system-object')).toHaveLength(state.planets.filter(planet => ['nebula', 'star', 'ancientTemple'].includes(planet.systemKind ?? 'planet')).length);
+    expect(document.querySelectorAll('.planet-sphere.pirate-world')).toHaveLength(state.planets.filter(planet => planet.systemKind === 'pirateBase').length);
+
+    fireEvent.click(pirateButton);
+    expect(screen.getByRole('heading', { name: 'Static pirate garrison' })).toBeInTheDocument();
+    expect(screen.getByText(/habitable planet held by a large pirate fleet and ground army/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'construction' })).toBeInTheDocument();
+    expect(screen.queryByText(/abandoned anchorage/i)).not.toBeInTheDocument();
   });
 
   it('starts a Brood campaign with biomass instead of mineral resources', () => {

@@ -17,12 +17,12 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
   const classification = kind === 'planet' ? (planet.owner === 'player' ? 'Player-controlled world' : planet.owner ? 'Rival-controlled world' : 'Unclaimed frontier world')
     : kind === 'nebula' ? 'Empty sensor-dark nebula'
       : kind === 'star' ? 'Unstable lethal star'
-        : kind === 'pirateBase' ? 'Independent pirate stronghold'
+        : kind === 'pirateBase' ? (planet.owner === 'player' ? 'Player-controlled former pirate world' : planet.owner ? 'Rival-controlled former pirate world' : 'Pirate-occupied frontier world')
           : planet.owner ? `${factionName(planet.owner)} controls the relic` : 'Uncontrolled ancient relic';
   return <aside className="panel">
     <header className="planet-header">
       <div className={`mini-planet mini-${kind}`} style={{ '--planet': planetDisplayColor(planet) } as React.CSSProperties} />
-      <div><small>{kind === 'planet' ? `${planet.intelStatus === 'unscouted' ? 'UNSCOUTED' : factionName(planet.owner)} // ${planet.id.toUpperCase()}` : `${kind.replace(/([A-Z])/g, ' $1').toUpperCase()} // DEEP SPACE`}</small><h1>{planet.name}</h1><p>{kind === 'planet' ? planet.intelStatus === 'unscouted' ? 'Unverified frontier world' : planet.intelStatus === 'stale' ? 'Last known reconnaissance' : classification : classification}</p></div>
+      <div><small>{world ? `${planet.intelStatus === 'unscouted' ? 'UNSCOUTED' : factionName(planet.owner)} // ${planet.id.toUpperCase()}` : `${kind.replace(/([A-Z])/g, ' $1').toUpperCase()} // DEEP SPACE`}</small><h1>{planet.name}</h1><p>{world ? planet.intelStatus === 'unscouted' ? `Unverified ${kind === 'pirateBase' ? 'pirate world' : 'frontier world'}` : planet.intelStatus === 'stale' ? 'Last known reconnaissance' : classification : classification}</p></div>
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}
     <nav className="tabs" aria-label="Planet sections">
@@ -38,20 +38,25 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
 
 function Command({ state, planet }: { state: GameState; planet: Planet }) {
   const kind = systemKind(planet);
-  if (kind !== 'planet') {
+  if (kind !== 'planet' && kind !== 'pirateBase') {
     const data = kind === 'nebula'
       ? { kicker: 'NEBULA', title: 'Blind-space phenomenon', icon: '◌', text: 'There is no planet here and nothing can be built or landed. Long-range scans cannot reveal hostile ships inside; entering the cloud restores close-range contact.' }
       : kind === 'star'
         ? { kicker: 'STELLAR HAZARD', title: 'Unstable stellar furnace', icon: '☀', text: `There is no planet here. Radiation inflicts ${STELLAR_HAZARD_DAMAGE_PER_SECOND} damage per second on every ship in the system until it leaves or is destroyed.` }
-        : kind === 'pirateBase'
-          ? { kicker: 'PIRATE BASE', title: 'Black-market anchorage', icon: '☠', text: planet.orbitUnits.some(ship => ship.faction === 'neutral') ? 'There is no planet here. The neutral pirate flotilla attacks every empire that enters its weapon range.' : 'The pirate flotilla has been destroyed. The abandoned anchorage cannot be colonized or used for construction.' }
-          : { kicker: 'ANCIENT TEMPLE', title: 'Relic control site', icon: '◇', text: `There is no planet here. Hold this system uncontested to claim its relic: +${Math.round((ANCIENT_RELIC_ECONOMY_MULTIPLIER - 1) * 100)}% empire income and +${Math.round((ANCIENT_RELIC_DAMAGE_MULTIPLIER - 1) * 100)}% fleet damage while controlled.` };
+        : { kicker: 'ANCIENT TEMPLE', title: 'Relic control site', icon: '◇', text: `There is no planet here. Hold this system uncontested to claim its relic: +${Math.round((ANCIENT_RELIC_ECONOMY_MULTIPLIER - 1) * 100)}% empire income and +${Math.round((ANCIENT_RELIC_DAMAGE_MULTIPLIER - 1) * 100)}% fleet damage while controlled.` };
     return <section className={`special-system-brief ${kind}`}><SectionTitle kicker={data.kicker} title={data.title} /><div className="special-system-icon">{data.icon}</div><p>{data.text}</p>{kind === 'ancientTemple' && <div className={`relic-control ${planet.owner ?? 'neutral'}`}><b>{planet.owner ? `${factionName(planet.owner)} CONTROLS THE RELIC` : 'RELIC UNCONTROLLED'}</b><small>{visibleOrbitUnits(planet).length} visible ship{visibleOrbitUnits(planet).length === 1 ? '' : 's'} in system</small></div>}</section>;
   }
-  if (planet.intelStatus === 'unscouted') return <section><SectionTitle kicker="PLANETARY COMMAND" title="No reconnaissance data" /><Locked text="Bring one of your ships into this system to identify its controller, structures, and ground forces." /></section>;
+  const pirateBrief = kind === 'pirateBase' ? <section className="special-system-brief pirateBase">
+    <SectionTitle kicker="PIRATE WORLD" title={planet.owner ? 'Captured stronghold' : 'Static pirate garrison'} />
+    <div className="special-system-icon">☠</div>
+    <p>{planet.owner
+      ? 'This conquered pirate world can be developed, defended, and used for production like any other colony.'
+      : 'This is a habitable planet held by a large pirate fleet and ground army. The garrison never builds units or receives reinforcements: clear its orbit, land troops, and conquer the surface to claim the world.'}</p>
+  </section> : null;
+  if (planet.intelStatus === 'unscouted') return <>{pirateBrief}<section><SectionTitle kicker="PLANETARY COMMAND" title="No reconnaissance data" /><Locked text="Bring one of your ships into this system to identify its controller, structures, and ground forces." /></section></>;
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);
   const brood = empireCivilization(state) === 'brood';
-  return <section>
+  return <>{pirateBrief}<section>
     <SectionTitle kicker="PLANETARY COMMAND" title="Colony overview" />
     <div className="stat-grid">
       <Stat label="Structures" value={planet.buildings.length} /><Stat label="Ground forces" value={planet.groundUnits.length} />
@@ -66,7 +71,7 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
     })}
     {planet.intelStatus === 'stale' && <div className="intel"><b>LAST KNOWN INTELLIGENCE</b><p>Ownership, structures, and ground forces may have changed since your ships left this system.</p></div>}
     {planet.owner !== 'player' && planet.intelStatus !== 'stale' && <div className="intel"><b>{planet.owner ? 'HOSTILE INTELLIGENCE' : 'NEUTRAL GARRISON'}</b><p>{planet.owner ? 'Select a transport in a friendly orbit, then click this planet. Squads embark and invade automatically.' : `${planet.groundUnits.length} independent defender${planet.groundUnits.length === 1 ? '' : 's'} detected. Land ground forces to secure this world.`}</p></div>}
-  </section>;
+  </section></>;
 }
 
 function Construction({ state, planet, act }: { state: GameState; planet: Planet; act: (command: GameCommand) => void }) {

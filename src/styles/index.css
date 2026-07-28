@@ -66,11 +66,13 @@ button { color: inherit; }
 .system-object.star::after { transform:rotate(118deg); }
 .system-object.pirateBase { width:82px; height:58px; top:66px; left:54px; border:3px solid #d8a24b; clip-path:polygon(8% 20%,38% 20%,50% 0,62% 20%,92% 20%,100% 50%,78% 88%,56% 72%,50% 100%,44% 72%,22% 88%,0 50%); background:linear-gradient(145deg,#553d26,#16191e 48%,#8a542d); box-shadow:0 0 24px #d8a24b77,inset 0 0 20px #000; }
 .system-object.pirateBase::after { content:'☠'; position:absolute; inset:12px; color:#ffe2a2; font:700 25px Inter; }
+.planet-sphere.pirate-world { background:radial-gradient(circle at 35% 30%,#ffe0a3,var(--planet) 25%,#5b3b27 61%,#080606 100%); box-shadow:inset -13px -10px 20px #000b,0 0 34px #d8a24b88; }
+.planet-sphere.pirate-world::after { content:'☠'; position:absolute; inset:22px 0; color:#fff0c8; font:700 31px Inter; text-align:center; text-shadow:0 0 5px #000,0 0 14px #d8a24b; }
 .system-object.ancientTemple { width:72px; height:86px; top:52px; left:59px; background:linear-gradient(145deg,#b7fbff,#366e82 45%,#122733); clip-path:polygon(50% 0,95% 34%,78% 100%,22% 100%,5% 34%); box-shadow:0 0 30px #79e4ff99; }
 .system-object.ancientTemple::after { content:'◇'; position:absolute; inset:17px 0; color:#e8ffff; font:700 36px Inter; text-shadow:0 0 12px #fff; }
 .planet-node.selected .system-object { transform:scale(1.15); }
 .planet-node.system-nebula.selected .system-object { transform:scale(1.15) rotate(8deg); }
-.planet-node.system-nebula .ownership-ring,.planet-node.system-star .ownership-ring,.planet-node.system-pirateBase .ownership-ring { border-color:#77838d55; border-style:dotted; box-shadow:none; }
+.planet-node.system-nebula .ownership-ring,.planet-node.system-star .ownership-ring { border-color:#77838d55; border-style:dotted; box-shadow:none; }
 .planet-node.system-nebula .faction-badge { border-color:#7d6cff; color:#c9c2ff; }
 .planet-node.system-star .faction-badge { border-color:#ff884d; color:#ffc49f; }
 .planet-node.system-pirateBase .faction-badge { border-color:#d8a24b; color:#ffe2a2; }
@@ -134,10 +136,11 @@ button { color: inherit; }
 .galaxy.view-3d .galaxy-scroll { background: radial-gradient(ellipse at 50% 86%,#14343a55,transparent 58%),#020408; }.galaxy.view-3d .galaxy-canvas { overflow: visible; }.galaxy.view-3d .galaxy-canvas,.galaxy.view-3d .orbit-ship,.galaxy.view-3d .transit-ship { transform-style: preserve-3d; }.galaxy.view-3d .planet-sphere { transform: scaleY(var(--camera-counter-scale)); transform-origin: center; box-shadow: inset -13px -10px 20px #0009,0 26px 24px #000a,0 0 34px color-mix(in srgb,var(--planet),transparent 48%); }.galaxy.view-3d .planet-node.selected .planet-sphere { transform: scale(1.15) scaleY(var(--camera-counter-scale)); }
 .panel { min-width: 0; min-height: 0; background: var(--panel); border-left: 1px solid #2a343e; box-shadow: -22px 0 50px #0009; display: flex; flex-direction: column; z-index: 10; }
 .planet-header { display: flex; align-items: center; gap: 16px; padding: 16px 21px; background: linear-gradient(90deg, #111a24, #090f16); border-bottom: 1px solid #25313b; }
-.mini-planet { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, var(--planet) 25%, color-mix(in srgb, var(--planet), #10151b 65%) 70%); box-shadow: inset -8px -7px 14px #000a, 0 0 20px color-mix(in srgb, var(--planet), transparent 60%); }
+.mini-planet { position:relative; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, white, var(--planet) 25%, color-mix(in srgb, var(--planet), #10151b 65%) 70%); box-shadow: inset -8px -7px 14px #000a, 0 0 20px color-mix(in srgb, var(--planet), transparent 60%); }
 .mini-nebula { border-radius:45% 55%; background:radial-gradient(circle,#ddd7ff,#7d6cff77 34%,transparent 70%); filter:blur(1px); }
 .mini-star { background:radial-gradient(circle,#fff 0 8%,#ffe37c 20%,#ff884d 53%,#6e1712 72%); box-shadow:0 0 28px #ff884daa; }
-.mini-pirateBase { border-radius:8px; clip-path:polygon(50% 0,100% 35%,83% 100%,17% 100%,0 35%); background:linear-gradient(145deg,#d8a24b,#30231a 55%); }
+.mini-pirateBase { border-radius:50%; background:radial-gradient(circle at 35% 30%,#ffe0a3,#8f5b2e 32%,#30231a 68%,#080606); box-shadow:0 0 16px #d8a24b88,inset -8px -7px 12px #0009; }
+.mini-pirateBase::after { content:'☠'; position:absolute; inset:17px 0; color:#fff0c8; font:700 21px Inter; text-align:center; text-shadow:0 0 6px #000; }
 .mini-ancientTemple { border-radius:4px; clip-path:polygon(50% 0,95% 35%,78% 100%,22% 100%,5% 35%); background:linear-gradient(145deg,#d6ffff,#36768d 54%,#142a35); box-shadow:0 0 24px #79e4ff99; }
 .special-system-brief .special-system-icon { display:grid; place-items:center; width:112px; height:112px; margin:24px auto; border:1px solid #ffffff22; border-radius:50%; background:#071016; color:var(--cyan); font-size:48px; box-shadow:inset 0 0 35px #000,0 0 25px #55d6be22; }
 .special-system-brief > p { color:#aebbc2; line-height:1.65; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards, spaceYardTier,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, isColonizableWorld, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards, spaceYardTier,
   systemKind, visibleOrbitUnits, type GameState, type Planet,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -306,11 +306,12 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const battle = state.battles.some(b => b.planetId === p.id);
           const hostileOrbit = new Set(visibleOrbitUnits(p).map(unit => unit.faction)).size > 1;
           const kind = systemKind(p);
+          const world = isColonizableWorld(p);
           const visibleShips = visibleOrbitUnits(p);
-          const kindLabel = kind === 'planet' ? factionName(p.owner) : kind === 'nebula' ? 'SENSOR-DARK NEBULA' : kind === 'star' ? 'LETHAL STELLAR HAZARD' : kind === 'pirateBase' ? 'PIRATE STRONGHOLD' : p.owner ? `${factionName(p.owner)} · RELIC ACTIVE` : 'ANCIENT RELIC';
+          const kindLabel = kind === 'planet' ? factionName(p.owner) : kind === 'nebula' ? 'SENSOR-DARK NEBULA' : kind === 'star' ? 'LETHAL STELLAR HAZARD' : kind === 'pirateBase' ? (p.owner ? `${factionName(p.owner)} · CAPTURED PIRATE WORLD` : 'PIRATE-OCCUPIED WORLD') : p.owner ? `${factionName(p.owner)} · RELIC ACTIVE` : 'ANCIENT RELIC';
           return <button key={p.id} aria-label={`${p.name} ${kind === 'planet' ? ownerLabel(p.owner) : kindLabel}`} className={`planet-node system-${kind} ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': planetDisplayColor(p), '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
-            {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" />{kind === 'planet' ? <span className="planet-sphere" /> : <span className={`system-object ${kind}`} aria-hidden="true"><i /></span>}
-            <span className="faction-badge">{kind === 'planet' || kind === 'ancientTemple' ? planetFactionBadge(p.owner) : kind === 'pirateBase' ? 'PIRATES' : 'ANOMALY'}</span><span className="planet-name">{p.name}</span><span className="planet-status">{kindLabel}</span>{kind === 'nebula' && p.orbitUnits.length !== visibleShips.length ? <span className="orbit-count jammed">SIGNALS JAMMED</span> : !!visibleShips.length && <span className="orbit-count">◈ {visibleShips.length}</span>}
+            {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" />{world ? <span className={`planet-sphere ${kind === 'pirateBase' ? 'pirate-world' : ''}`} /> : <span className={`system-object ${kind}`} aria-hidden="true"><i /></span>}
+            <span className="faction-badge">{kind === 'planet' || kind === 'ancientTemple' || (kind === 'pirateBase' && p.owner) ? planetFactionBadge(p.owner) : kind === 'pirateBase' ? 'PIRATES' : 'ANOMALY'}</span><span className="planet-name">{p.name}</span><span className="planet-status">{kindLabel}</span>{kind === 'nebula' && p.orbitUnits.length !== visibleShips.length ? <span className="orbit-count jammed">SIGNALS JAMMED</span> : !!visibleShips.length && <span className="orbit-count">◈ {visibleShips.length}</span>}
           </button>;
         })}
         {state.planets.flatMap(p => {

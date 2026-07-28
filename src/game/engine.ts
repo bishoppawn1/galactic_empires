@@ -285,28 +285,36 @@ const planet = (id: string, name: string, x: number, y: number, color: string, o
 });
 
 const MAP_PLANETS: Record<MapSize, number> = { small: 7, medium: 11, large: 15, huge: 21 };
-const SPECIAL_SYSTEM_COUNTS: Record<MapSize, Partial<Record<Exclude<SystemKind, 'planet'>, number>>> = {
-  small: { nebula: 1, star: 1, pirateBase: 1, ancientTemple: 1 },
-  medium: { nebula: 1, star: 1, pirateBase: 1, ancientTemple: 1 },
-  large: { nebula: 2, star: 1, pirateBase: 1, ancientTemple: 1 },
-  huge: { nebula: 2, star: 2, pirateBase: 2, ancientTemple: 1 },
-};
 const SPECIAL_SYSTEM_NAMES: Record<Exclude<SystemKind, 'planet'>, string[]> = {
-  nebula: ['The Blind Veil', 'Morrow Nebula', 'Ghostlight Cloud'],
+  nebula: ['The Blind Veil', 'Morrow Nebula', 'Ghostlight Cloud', 'The Violet Shroud', 'Wraithwake', 'Dusk Expanse'],
   star: ['Helios Pyre', 'The Cinder Star', 'Vulcan Furnace'],
-  pirateBase: ['Blackwake Anchorage', 'Corsair Hold', 'Red Jack Station'],
-  ancientTemple: ['Temple of the First Dawn', 'The Silent Reliquary', 'Orison Vault'],
+  pirateBase: ['Blackwake', 'Corsair Hold', 'Red Jack', 'Skullhaven', 'Rogue Meridian', 'The Broken Crown'],
+  ancientTemple: ['Temple of the First Dawn', 'The Silent Reliquary', 'Orison Vault', 'The Astral Sepulcher', 'Pilgrim Zero', 'The Last Archive'],
 };
 const SPECIAL_SYSTEM_COLORS: Record<Exclude<SystemKind, 'planet'>, string> = {
   nebula: '#7d6cff', star: '#ff884d', pirateBase: '#d8a24b', ancientTemple: '#79e4ff',
 };
+const RANDOM_SYSTEM_KINDS: Array<{ kind: Exclude<SystemKind, 'star'>; weight: number }> = [
+  { kind: 'planet', weight: .68 },
+  { kind: 'nebula', weight: .14 },
+  { kind: 'pirateBase', weight: .12 },
+  { kind: 'ancientTemple', weight: .06 },
+];
+const PIRATE_ORBITAL_GARRISON: SpaceUnitKind[] = [
+  'escortFrigate', 'escortFrigate', 'missileFrigate', 'missileFrigate',
+  'flakFrigate', 'lightCruiser', 'lightCruiser', 'destroyer', 'assaultCarrier',
+];
+const PIRATE_GROUND_GARRISON: GroundUnitKind[] = [
+  'infantry', 'infantry', 'infantry', 'antiVehicle', 'antiVehicle', 'recon',
+  'lightTank', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'defenseTurret',
+];
 
 export const STELLAR_HAZARD_DAMAGE_PER_SECOND = 10;
 export const ANCIENT_RELIC_ECONOMY_MULTIPLIER = 1.5;
 export const ANCIENT_RELIC_DAMAGE_MULTIPLIER = 1.25;
 
 export const systemKind = (system: Planet): SystemKind => system.systemKind ?? 'planet';
-export const isColonizableWorld = (system: Planet) => systemKind(system) === 'planet';
+export const isColonizableWorld = (system: Planet) => ['planet', 'pirateBase'].includes(systemKind(system));
 export const controlsAncientRelic = (state: GameState, faction: EmpireFaction) =>
   state.planets.some(system => systemKind(system) === 'ancientTemple' && system.owner === faction);
 export const visibleOrbitUnits = (system: Planet, viewer: EmpireFaction = 'player') => {
@@ -357,22 +365,32 @@ const distantHomeSystems = (systems: Planet[], count: number, random: () => numb
   }
   return selected;
 };
+const randomSystemKind = (random: () => number): Exclude<SystemKind, 'star'> => {
+  const roll = random();
+  let total = 0;
+  for (const option of RANDOM_SYSTEM_KINDS) {
+    total += option.weight;
+    if (roll < total) return option.kind;
+  }
+  return 'planet';
+};
 const configureSpecialSystem = (system: Planet, kind: Exclude<SystemKind, 'planet'>, nameIndex: number) => {
   system.systemKind = kind;
   system.name = SPECIAL_SYSTEM_NAMES[kind][nameIndex % SPECIAL_SYSTEM_NAMES[kind].length];
   system.color = SPECIAL_SYSTEM_COLORS[kind];
   system.owner = null;
   system.buildings = [];
-  system.groundUnits = [];
   system.groundQueue = [];
   system.spaceQueue = [];
-  system.orbitUnits = kind === 'pirateBase'
-    ? [
-      unit(`pirate-${system.id}-1`, 'escortFrigate', 'neutral'),
-      unit(`pirate-${system.id}-2`, 'missileFrigate', 'neutral'),
-      unit(`pirate-${system.id}-3`, 'escortFrigate', 'neutral'),
-    ]
-    : [];
+  if (kind === 'pirateBase') {
+    system.groundUnits = PIRATE_GROUND_GARRISON.map((unitKind, index) =>
+      unit(`pirate-ground-${system.id}-${index + 1}`, unitKind, 'neutral'));
+    system.orbitUnits = PIRATE_ORBITAL_GARRISON.map((unitKind, index) =>
+      unit(`pirate-orbit-${system.id}-${index + 1}`, unitKind, 'neutral'));
+  } else {
+    system.groundUnits = [];
+    system.orbitUnits = [];
+  }
 };
 
 const seedNeutralGarrisons = (planets: Planet[]) => {
@@ -452,10 +470,18 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   enemyHome.owner = 'enemy';
   enemyHome.buildings = starterBuildings('eb', 'human');
   if (config.mapSeed) {
-    const specialKinds = (Object.entries(SPECIAL_SYSTEM_COUNTS[config.mapSize]) as Array<[Exclude<SystemKind, 'planet'>, number]>)
-      .flatMap(([kind, count]) => Array.from({ length: count }, () => kind));
     const candidates = shuffle(planets.filter(system => !homeSystems.includes(system)), random);
-    specialKinds.forEach((kind, index) => configureSpecialSystem(candidates[index], kind, index));
+    const namesUsed: Partial<Record<Exclude<SystemKind, 'planet'>, number>> = {};
+    const configure = (system: Planet, kind: Exclude<SystemKind, 'planet'>) => {
+      const nameIndex = namesUsed[kind] ?? 0;
+      configureSpecialSystem(system, kind, nameIndex);
+      namesUsed[kind] = nameIndex + 1;
+    };
+    configure(candidates[0], 'star');
+    candidates.slice(1).forEach(system => {
+      const kind = randomSystemKind(random);
+      if (kind !== 'planet') configure(system, kind);
+    });
   }
   seedNeutralGarrisons(planets);
   const state: GameState = {
@@ -467,7 +493,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [], enemyResearchQueue: [],
     enemyActionClock: 8, enemyAttackClock: config.difficulty === 'cadet' ? 180 : config.difficulty === 'admiral' ? 100 : 130, enemyMissionCount: 0,
     empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
-    startingPlanetIds: { player: 'terra', enemy: 'cygnus' },
+    startingPlanetIds: { player: playerHome.id, enemy: enemyHome.id },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true, homeSystemIds: homeSystems.map(system => system.id),
     messages: [playerFaction === 'brood' ? `THE BROOD AWAKENS — ${playerHome.name} begins generating biomass.` : playerFaction === 'aegis' ? `AEGIS COMMAND ONLINE — ${playerHome.name} is ready.` : playerFaction === 'covenant' ? `IRON PROTOCOL ONLINE — ${playerHome.name} awaits material.` : `COMMAND ONLINE — ${playerHome.name} awaits your orders.`],
@@ -516,14 +542,19 @@ export function migrateGameState(input: GameState): GameState {
   state.additionalEmpires ??= {};
   state.aiFactions ??= state.mode === 'solo' ? ['enemy'] : [];
   if (!state.startingPlanetIds) {
+    const recordedHomes = state.homeSystemIds ?? [];
+    const ownedHome = (faction: EmpireFaction, fallbackId: string, index: number) =>
+      recordedHomes[index]
+      ?? state.planets.find(planet => planet.owner === faction && isColonizableWorld(planet))?.id
+      ?? fallbackId;
     state.startingPlanetIds = state.mode === 'competitive'
       ? {
-          player: 'terra',
-          enemy: 'cygnus',
-          ...(('rival2' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival2')) ? { rival2: 'halcyon' } : {}),
-          ...(('rival3' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival3')) ? { rival3: 'vesta' } : {}),
+          player: ownedHome('player', 'terra', 0),
+          enemy: ownedHome('enemy', 'cygnus', 1),
+          ...(('rival2' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival2')) ? { rival2: ownedHome('rival2', 'halcyon', 2) } : {}),
+          ...(('rival3' in state.additionalEmpires || state.planets.some(planet => planet.owner === 'rival3')) ? { rival3: ownedHome('rival3', 'vesta', 3) } : {}),
         }
-      : { player: 'terra', enemy: 'cygnus' };
+      : { player: ownedHome('player', 'terra', 0), enemy: ownedHome('enemy', 'cygnus', 1) };
   }
   state.elapsed ??= 0;
   state.nextId ??= 100;

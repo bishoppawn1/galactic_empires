@@ -88,4 +88,31 @@ describe('ground unit hitboxes', () => {
     const advanced = tick(state, .5);
     expectClearance([...advanced.battles[0].attackers, ...advanced.battles[0].defenders]);
   });
+
+  it('moves overlapping troops away without displacing a landed transport', () => {
+    const state = createInitialState();
+    const transport: Unit = {
+      id: 'grounded',
+      kind: 'transport',
+      faction: 'player',
+      hp: UNITS.transport.hp,
+      maxHp: UNITS.transport.hp,
+      shields: UNITS.transport.shields,
+      maxShields: UNITS.transport.shields,
+      battleX: 50,
+      battleY: 50,
+      landedTransport: true,
+    };
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [transport, combatUnit('troop', 'infantry', 'player', 50, 50)],
+      defenders: [combatUnit('enemy', 'defenseTurret', 'enemy', 88, 50)],
+    }];
+
+    const separated = tick(state, 0);
+    const grounded = separated.battles[0].attackers.find(unit => unit.id === transport.id)!;
+    expect(grounded.battleX).toBe(50);
+    expect(grounded.battleY).toBe(50);
+    expectClearance([...separated.battles[0].attackers, ...separated.battles[0].defenders]);
+  });
 });

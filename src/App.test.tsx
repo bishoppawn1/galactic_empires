@@ -1237,6 +1237,30 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('2 SHIPS PROVIDING ORBITAL FIRE · 2 DAMAGE/S')).toBeInTheDocument();
   });
 
+  it('renders landed transports as stationary ground battlefield units', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [
+        { ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 },
+        { ...makeUnit('landed', 'transport', 'player'), battleX: 16, battleY: 58, landedTransport: true },
+      ],
+      defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }],
+    }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    const landed = screen.getByRole('button', { name: 'Landed Transport landed' });
+    expect(screen.getByText(/2 ATTACKERS/)).toBeInTheDocument();
+    expect(landed).toHaveClass('grounded-transport');
+    expect(landed.querySelector('.landed-transport-image')).not.toBeNull();
+    expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
+    expect(document.querySelectorAll('.battle-fire .weapon-fire')).toHaveLength(0);
+    fireEvent.click(landed);
+    expect(screen.getByText('DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS')).toBeInTheDocument();
+  });
+
   it('selects friendly troops and issues a formation move by right-clicking the battlefield', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];

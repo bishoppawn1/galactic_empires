@@ -66,6 +66,34 @@ describe('manual ground controls', () => {
     expect(pursuing.battles[0].attackers[0].battleTargetY).toBeUndefined();
   });
 
+  it('keeps landed transports stationary, unarmed, and outside maneuver groups', () => {
+    const state = createInitialState();
+    const transport: Unit = {
+      id: 'landed-transport',
+      kind: 'transport',
+      faction: 'player',
+      hp: UNITS.transport.hp,
+      maxHp: UNITS.transport.hp,
+      shields: UNITS.transport.shields,
+      maxShields: UNITS.transport.shields,
+      battleX: 40,
+      battleY: 50,
+      landedTransport: true,
+    };
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [transport],
+      defenders: [combatUnit('defender', 'infantry', 'enemy', 50)],
+    }];
+
+    expect(maneuverGroundUnits(state, 'draven', [transport.id], 70, 70).ok).toBe(false);
+    const advanced = tick(state, 1);
+    expect(advanced.battles[0].attackers[0].battleX).toBe(40);
+    expect(advanced.battles[0].attackers[0].battleY).toBe(50);
+    expect(advanced.battles[0].attackers[0].weaponFlash ?? 0).toBe(0);
+    expect(advanced.battles[0].defenders[0].shields).toBe(UNITS.infantry.shields);
+  });
+
   it('pursues an out-of-range artillery unit after taking fire and retaliates in range', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('infantry', 'infantry', 'player', 40)], defenders: [combatUnit('artillery', 'artillery', 'enemy', 70)] }];

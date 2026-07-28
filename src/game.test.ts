@@ -1801,10 +1801,11 @@ describe('transport and colonization', () => {
     let landed = arrived;
     for (let second = 0; second < fullLandingApproachSeconds + 2 && !landed.battles.some(battle => battle.planetId === 'halcyon'); second += 1) landed = tick(landed, 1);
     const battle = landed.battles.find(candidate => candidate.planetId === 'halcyon')!;
-    const dockedTransport = landed.planets.find(planet => planet.id === 'halcyon')!.orbitUnits.find(unit => unit.id === transport.id)!;
-    expect(dockedTransport).toMatchObject({ docked: true, orbitX: 0, orbitY: 0 });
-    expect(dockedTransport.pendingLanding).toBeUndefined();
-    expect(battle.attackers).toHaveLength(3);
+    const battlefieldTransport = battle.attackers.find(unit => unit.id === transport.id)!;
+    expect(landed.planets.find(planet => planet.id === 'halcyon')!.orbitUnits.some(unit => unit.id === transport.id)).toBe(false);
+    expect(battlefieldTransport).toMatchObject({ landedTransport: true, cargo: [], loadedUnitIds: [] });
+    expect(battlefieldTransport.pendingLanding).toBeUndefined();
+    expect(battle.attackers).toHaveLength(4);
     expect(battle.defenders.length).toBeGreaterThanOrEqual(1);
     expect(battle.defenders.length).toBeLessThanOrEqual(2);
     expect(battle.defenders.every(unit => unit.faction === 'neutral')).toBe(true);
@@ -1833,11 +1834,14 @@ describe('transport and colonization', () => {
     const landed = tick(state, fullLandingApproachSeconds);
     const battle = landed.battles.find(candidate => candidate.planetId === target.id)!;
     const transports = landed.planets.find(planet => planet.id === target.id)!.orbitUnits;
-    expect(battle.attackers).toHaveLength(40);
-    expect(new Set(battle.attackers.map(unit => unit.id)).size).toBe(40);
+    const battlefieldTransports = battle.attackers.filter(unit => unit.landedTransport);
+    expect(battle.attackers).toHaveLength(50);
+    expect(new Set(battle.attackers.map(unit => unit.id)).size).toBe(50);
+    expect(battlefieldTransports).toHaveLength(10);
     expect(battle.defenders).toHaveLength(1);
     expect(landed.planets.find(planet => planet.id === target.id)!.owner).toBe('enemy');
-    expect(transports.every(transport => transport.cargo?.length === 0 && transport.loadedUnitIds?.length === 0)).toBe(true);
+    expect(transports).toHaveLength(0);
+    expect(battlefieldTransports.every(transport => transport.cargo?.length === 0 && transport.loadedUnitIds?.length === 0)).toBe(true);
 
     let resolved = landed;
     for (let second = 0; second < 180 && resolved.battles.some(candidate => candidate.planetId === target.id); second += 1) resolved = tick(resolved, 1);
@@ -1845,6 +1849,8 @@ describe('transport and colonization', () => {
     expect(resolved.battles.some(candidate => candidate.planetId === target.id)).toBe(false);
     expect(secured.owner).toBe('player');
     expect(secured.groundUnits.length).toBeGreaterThan(4);
+    expect(secured.orbitUnits.filter(unit => unit.kind === 'transport')).toHaveLength(10);
+    expect(secured.orbitUnits.filter(unit => unit.kind === 'transport').every(unit => unit.docked && !unit.landedTransport)).toBe(true);
   });
 
   it('lets one escort destroy a full-health loaded transport before it reaches the planet', () => {

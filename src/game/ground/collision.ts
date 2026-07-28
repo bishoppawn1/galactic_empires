@@ -99,8 +99,8 @@ function separatePair(first: Unit, second: Unit) {
   }
   const divisor = distance || 1;
   const overlap = GROUND_UNIT_MIN_SPACING - distance;
-  const firstFixed = Boolean(first.sourceBuildingId);
-  const secondFixed = Boolean(second.sourceBuildingId);
+  const firstFixed = Boolean(first.sourceBuildingId || first.landedTransport);
+  const secondFixed = Boolean(second.sourceBuildingId || second.landedTransport);
   const firstShare = firstFixed && !secondFixed ? 0 : secondFixed && !firstFixed ? 1 : .5;
   const secondShare = 1 - firstShare;
   moveUnitByPixels(first, -vector.x / divisor * overlap * firstShare, -vector.y / divisor * overlap * firstShare);

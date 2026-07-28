@@ -1160,28 +1160,44 @@ function ensureGroundDefenseBattleUnits(state: GameState, battle: GroundBattle) 
   battle.defenders.push(...defenses.filter(building => !existingSources.has(building.id)).map(building => groundDefenseUnit(state, building, p.owner!)));
 }
 
+function groundTransport(p: Planet, transport: Unit) {
+  transport.cargo = [];
+  transport.loadedUnitIds = [];
+  transport.landedTransport = true;
+  delete transport.orbitX;
+  delete transport.orbitY;
+  delete transport.orbitTargetX;
+  delete transport.orbitTargetY;
+  delete transport.heading;
+  delete transport.phaseArrival;
+  delete transport.pendingLanding;
+  delete transport.pendingEmbark;
+  delete transport.docked;
+  p.orbitUnits = p.orbitUnits.filter(unit => unit.id !== transport.id);
+  return transport;
+}
+
 function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   const cargo = transport.cargo ?? [];
-  if (transport.faction === 'neutral') return;
+  if (transport.faction === 'neutral') return false;
   const faction = transport.faction;
-  if (!isColonizableWorld(p) || !UNITS[transport.kind].capacity || !cargo.length) return;
+  if (!isColonizableWorld(p) || !UNITS[transport.kind].capacity || !cargo.length) return false;
   const activeBattle = state.battles.find(battle => battle.planetId === p.id);
   if (activeBattle) {
     const attackerFaction = activeBattle.attackerFaction ?? activeBattle.attackers[0]?.faction;
     const reinforcements = faction === attackerFaction ? activeBattle.attackers : activeBattle.defenders;
-    reinforcements.push(...cargo);
+    reinforcements.push(...cargo, groundTransport(p, transport));
     ensureBattlePositions(activeBattle);
-    addMessage(state, `${cargo.length} ${faction === attackerFaction ? 'attacking' : 'defending'} squad${cargo.length === 1 ? '' : 's'} reinforced the ground battle on ${p.name}.`);
-    transport.cargo = [];
-    transport.loadedUnitIds = [];
-    return;
+    addMessage(state, `${cargo.length} ${faction === attackerFaction ? 'attacking' : 'defending'} squad${cargo.length === 1 ? '' : 's'} and their transport reinforced the ground battle on ${p.name}.`);
+    return true;
   }
   if (p.owner === null && p.groundUnits.length) {
-    const battle: GroundBattle = { planetId: p.id, attackers: cargo, defenders: [...p.groundUnits], attackerFaction: faction, groundDefenseBuildingIds: [] };
+    const battle: GroundBattle = { planetId: p.id, attackers: [...cargo, groundTransport(p, transport)], defenders: [...p.groundUnits], attackerFaction: faction, groundDefenseBuildingIds: [] };
     ensureBattlePositions(battle);
     state.battles.push(battle);
     p.groundUnits = [];
     addMessage(state, faction === 'player' ? `LANDING CONTESTED — neutral defenders are resisting on ${p.name}.` : `Enemy forces engaged the neutral garrison on ${p.name}.`);
+    return true;
   } else if (p.owner === null) {
     p.owner = faction; p.groundUnits.push(...recoverGroundUnits(cargo));
     addMessage(state, faction === 'player' ? `${p.name} colonized by ${cargo.length} automatically deployed squad${cargo.length === 1 ? '' : 's'}.` : `Enemy forces established a new base on ${p.name}.`);
@@ -1189,12 +1205,13 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
     const defenses = p.buildings.filter(building => building.kind === 'groundDefense' && isBuildingOperational(building));
     const fortifications = defenses.map(building => groundDefenseUnit(state, building, p.owner!));
     if (p.groundUnits.length || fortifications.length) {
-      const battle: GroundBattle = { planetId: p.id, attackers: cargo, defenders: [...p.groundUnits, ...fortifications], attackerFaction: faction, groundDefenseBuildingIds: defenses.map(building => building.id) };
+      const battle: GroundBattle = { planetId: p.id, attackers: [...cargo, groundTransport(p, transport)], defenders: [...p.groundUnits, ...fortifications], attackerFaction: faction, groundDefenseBuildingIds: defenses.map(building => building.id) };
       ensureBattlePositions(battle);
       state.battles.push(battle);
       p.groundUnits = [];
       const defenseReport = defenses.length ? ` ${defenses.length} defense turret${defenses.length === 1 ? '' : 's'} online.` : '';
       addMessage(state, faction === 'player' ? `Automatic landing initiated a ground battle on ${p.name}.${defenseReport}` : `HOSTILE LANDING — enemy troops are attacking ${p.name}.${defenseReport}`);
+      return true;
     } else {
       p.owner = faction; p.groundUnits.push(...recoverGroundUnits(cargo));
       addMessage(state, faction === 'player' ? `${p.name} occupied without ground resistance.` : `${p.name} lost to an unopposed enemy landing.`);
@@ -1205,6 +1222,7 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   }
   transport.cargo = [];
   transport.loadedUnitIds = [];
+  return false;
 }
 
 export function setBattleFocus(input: GameState, planetId: string, targetId?: string): GameState {
@@ -1551,6 +1569,10 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
 
 function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
+  if (unit.landedTransport) {
+    tickUnitWeapon(unit, seconds, false);
+    return;
+  }
   let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
   const followingOrder = typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number';
@@ -1597,7 +1619,7 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
   const state = clone(input);
   const battle = state.battles.find(candidate => candidate.planetId === planetId);
   const requested = new Set(unitIds);
-  const units = battle ? [...battle.attackers, ...battle.defenders].filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId) : [];
+  const units = battle ? [...battle.attackers, ...battle.defenders].filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport) : [];
   if (!battle || !units.length || units.length !== requested.size) return fail(input, 'Select mobile ground units in the active battle.');
   const center = clampGroundPosition(battleX, battleY);
   const columns = Math.min(5, Math.ceil(Math.sqrt(units.length)));
@@ -1634,7 +1656,19 @@ function resolveGroundDefenseBuildings(p: Planet, battle: GroundBattle, survivin
   if (destroyed) startDefenseRebuildCooldown(p, 'groundDefense');
 }
 
-const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !unit.sourceBuildingId));
+const fieldArmy = (units: Unit[]) => recoverGroundUnits(units.filter(unit => !unit.sourceBuildingId && !unit.landedTransport));
+
+function returnLandedTransportsToOrbit(p: Planet, units: Unit[]) {
+  const landed = recoverGroundUnits(units.filter(unit => unit.landedTransport));
+  for (const transport of landed) {
+    delete transport.landedTransport;
+    transport.orbitX = 0;
+    transport.orbitY = 0;
+    transport.docked = true;
+    p.orbitUnits = p.orbitUnits.filter(unit => unit.id !== transport.id);
+    p.orbitUnits.push(transport);
+  }
+}
 
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (!battle.attackers.length || !battle.defenders.length) return;
@@ -1683,12 +1717,14 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
     const attackingUnitFaction = battle.attackers[0].faction;
     const winner = battle.attackerFaction ?? (attackingUnitFaction === 'neutral' ? 'player' : attackingUnitFaction);
     resolveGroundDefenseBuildings(p, battle, []);
+    returnLandedTransportsToOrbit(p, battle.attackers);
     p.owner = winner; p.groundUnits = fieldArmy(battle.attackers);
     state.battles = state.battles.filter(b => b.planetId !== battle.planetId);
     addMessage(state, winner === 'player' ? `${p.name} secured. Ground forces fully restored.` : `${p.name} has fallen to enemy ground forces.`);
   } else if (!battle.attackers.length) {
     const winner = battle.defenders[0]?.faction ?? 'enemy';
     resolveGroundDefenseBuildings(p, battle, battle.defenders);
+    returnLandedTransportsToOrbit(p, battle.defenders);
     p.owner = winner === 'neutral' ? null : winner;
     p.groundUnits = fieldArmy(battle.defenders);
     state.battles = state.battles.filter(b => b.planetId !== battle.planetId);
@@ -2026,11 +2062,15 @@ function resolveLandingApproaches(state: GameState, p: Planet) {
   for (const ship of p.orbitUnits.filter(unit => unit.pendingLanding && typeof unit.orbitTargetX !== 'number' && typeof unit.orbitTargetY !== 'number')) {
     delete ship.pendingLanding;
     delete ship.phaseArrival;
-    unloadTransport(state, p, ship);
-    ship.orbitX = 0;
-    ship.orbitY = 0;
-    ship.docked = true;
-    addMessage(state, `${UNITS[ship.kind].label} docked after completing its landing approach at ${p.name}.`);
+    const joinedBattle = unloadTransport(state, p, ship);
+    if (joinedBattle) {
+      addMessage(state, `${UNITS[ship.kind].label} landed and is holding position on the battlefield at ${p.name}.`);
+    } else {
+      ship.orbitX = 0;
+      ship.orbitY = 0;
+      ship.docked = true;
+      addMessage(state, `${UNITS[ship.kind].label} docked after completing its landing approach at ${p.name}.`);
+    }
   }
 }
 

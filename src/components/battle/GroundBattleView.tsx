@@ -4,6 +4,7 @@ import {
   type GameState, type GroundBattle, type Unit,
 } from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
+import { ShipImage } from '../shared/ShipImage';
 import { GROUND_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 
 type SelectionBox = { left: number; top: number; width: number; height: number };
@@ -53,7 +54,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox>();
   const allUnits = [...battle.attackers, ...battle.defenders];
-  const selectedUnits = allUnits.filter(unit => unit.faction === 'player' && selectedUnitIds.includes(unit.id));
+  const selectedUnits = allUnits.filter(unit => unit.faction === 'player' && !unit.landedTransport && selectedUnitIds.includes(unit.id));
   useEffect(() => {
     const viewport = scrollRef.current;
     if (!viewport) return;
@@ -66,7 +67,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
     else { viewport.scrollLeft = left; viewport.scrollTop = top; }
   }, [battle.planetId]);
   useEffect(() => {
-    const available = new Set(allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId).map(unit => unit.id));
+    const available = new Set(allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport).map(unit => unit.id));
     setSelectedUnitIds(current => current.filter(id => available.has(id)));
   }, [battle.attackers.length, battle.defenders.length]);
 
@@ -78,9 +79,9 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player');
   const playerOrbitalSupport = allUnits.some(unit => unit.faction === 'player') && playerShips.length > 0
     && !planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral');
-  const shots = [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => target && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
+  const shots = [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => !unit.landedTransport && target && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
   const selectFriendly = (unit: Unit, additive: boolean) => {
-    if (unit.sourceBuildingId) return;
+    if (unit.sourceBuildingId || unit.landedTransport) return;
     setSelectedUnitIds(current => additive
       ? current.includes(unit.id) ? current.filter(id => id !== unit.id) : [...current, unit.id]
       : current.length === 1 && current[0] === unit.id ? [] : [unit.id]);
@@ -107,9 +108,11 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   };
   const combatant = (unit: Unit, index: number) => {
     const friendly = unit.faction === 'player';
+    const selectable = friendly && !unit.sourceBuildingId && !unit.landedTransport;
     const selected = selectedUnitIds.includes(unit.id);
     const definition = UNITS[unit.kind];
-    return <button key={unit.id} type="button" aria-label={`${friendly ? 'Select' : 'Target'} ${definition.label} ${unit.id}`} aria-pressed={friendly ? selected : battle.focusTargetId === unit.id} title={definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}><span className="range-ring" /><UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? 'SELECTED' : `${definition.label}${unit.corrodedFor ? ' · CORRODED' : ''}`}</small></button>;
+    const action = selectable ? 'Select' : friendly ? 'Landed' : 'Target';
+    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? 'SELECTED' : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${unit.corrodedFor ? ' · CORRODED' : ''}`}</small></button>;
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
@@ -131,7 +134,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
         const top = Math.min(drag.startY, point.y);
         const width = Math.abs(point.x - drag.startX);
         const height = Math.abs(point.y - drag.startY);
-        const boxedIds = allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId).filter(unit => {
+        const boxedIds = allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport).filter(unit => {
           const x = (unit.battleX ?? 12) / 100 * point.width;
           const y = (unit.battleY ?? 50) / 100 * point.height;
           return x >= left && x <= left + width && y >= top && y <= top + height;
@@ -166,5 +169,5 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
 }
 
 function UnitCore({ unit }: { unit: Unit }) {
-  return <div className="unit-core"><GroundUnitImage kind={unit.kind} /><div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div><div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div></div>;
+  return <div className="unit-core">{unit.landedTransport ? <ShipImage kind={unit.kind} className="landed-transport-image" /> : <GroundUnitImage kind={unit.kind} />}<div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div><div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div></div>;
 }

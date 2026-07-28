@@ -31,10 +31,18 @@ export type GroundUnitKind =
   | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
   | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
-  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate' | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
-  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard' | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
-  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate' | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
-  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor' | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
+  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate'
+  | 'advancedTransport' | 'advancedEscortFrigate' | 'advancedMissileFrigate' | 'advancedFlakFrigate'
+  | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
+  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard'
+  | 'greaterSporeArk' | 'clawCruiser' | 'needleCruiser' | 'greaterSporeguard'
+  | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
+  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate'
+  | 'aegisBastionLanderII' | 'aegisShieldMonitorII' | 'aegisLanceCruiser' | 'aegisSentinelCruiser'
+  | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
+  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor'
+  | 'covenantAssemblyArkII' | 'covenantSalvageCruiser' | 'covenantChainCruiser' | 'covenantInterdictorCruiser'
+  | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
 export type UnitAbilityKind =

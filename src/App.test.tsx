@@ -96,7 +96,7 @@ describe('Galactic Empires interface', () => {
     expect(broodlingOrder).toBeInTheDocument();
     expect(broodlingOrder).not.toHaveTextContent('Rending Claws');
     expect(broodlingOrder).toHaveTextContent('SWARM INSTINCT');
-    expect(screen.getByRole('button', { name: /Spore Ark/i })).toBeInTheDocument();
+    expect(screen.getByText('Spore Ark', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sporeguard Frigate/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
@@ -115,10 +115,10 @@ describe('Galactic Empires interface', () => {
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
-  it('uses dedicated artwork for every Brood spaceship', () => {
+  it('uses dedicated Brood artwork while Tier 2 counterparts retain their recognizable silhouettes', () => {
     const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
     const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
-    expect(broodShipArt).toHaveLength(9);
+    expect(broodShipArt).toHaveLength(13);
     expect(new Set(broodShipArt.map(image => image.src)).size).toBe(9);
     broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
   });
@@ -133,13 +133,13 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Metal')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
     expect(screen.getByRole('button', { name: /Iron Cohort/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Assembly Ark/i })).toBeInTheDocument();
+    expect(screen.getByText('Assembly Ark', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Dreadforge Titan/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Interdictor Flak Frigate/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
-    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(8);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(12);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {
@@ -277,13 +277,17 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Siege Walker', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Shock Troopers', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Railgun Tank', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Transport Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Escort Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Missile Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Flak Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Phase Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Atlas Mega Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Titan Dreadnought', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'TIER 1 · FRIGATES & TRANSPORTS' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'TIER 2 · CRUISERS' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'TIER 2 · ADVANCED SHIPS' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'TIER 3 · SUPER CAPITALS' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' }).closest('button')).not.toHaveTextContent('RESEARCH REQUIRED');

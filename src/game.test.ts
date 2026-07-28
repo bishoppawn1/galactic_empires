@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -113,6 +113,28 @@ describe('unit weapon definitions', () => {
     for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
+    }
+  });
+
+  it('gives every Tier 1 ship in every faction a stronger Tier 2 counterpart', () => {
+    for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
+      const tierOneShips = roster.filter(kind => UNITS[kind].spaceTier === 1);
+      expect(tierOneShips).toHaveLength(4);
+      const tierTwoCopies = tierOneShips.map(kind => TIER_TWO_COPY_BY_TIER_ONE[kind]);
+      expect(new Set(tierTwoCopies).size).toBe(tierOneShips.length);
+      tierOneShips.forEach((kind, index) => {
+        const copy = tierTwoCopies[index]!;
+        expect(roster).toContain(copy);
+        expect(UNITS[copy].spaceTier).toBe(2);
+        expect(UNITS[copy].requires).toBe('orbitalEngineering');
+        expect(UNITS[copy].hp).toBeGreaterThanOrEqual(UNITS[kind].hp);
+        expect(UNITS[copy].shields).toBeGreaterThanOrEqual(UNITS[kind].shields);
+        expect(UNITS[copy].range).toBeGreaterThanOrEqual(UNITS[kind].range);
+        expect(UNITS[copy].weapon.effect).toBe(UNITS[kind].weapon.effect);
+        expect(UNITS[copy].weapon.projectiles).toBeGreaterThanOrEqual(UNITS[kind].weapon.projectiles);
+        expect(UNITS[copy].ability?.kind).toBe(UNITS[kind].ability?.kind);
+        if (UNITS[kind].capacity) expect(UNITS[copy].capacity).toBeGreaterThan(UNITS[kind].capacity!);
+      });
     }
   });
 });
@@ -453,7 +475,7 @@ describe('starter faction foundations', () => {
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
     expect(BROOD_GROUND_KINDS).toHaveLength(9);
-    expect(BROOD_SPACE_KINDS).toHaveLength(9);
+    expect(BROOD_SPACE_KINDS).toHaveLength(13);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -484,7 +506,7 @@ describe('starter faction foundations', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(AEGIS_GROUND_KINDS).toHaveLength(5);
-    expect(AEGIS_SPACE_KINDS).toHaveLength(7);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(11);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
@@ -492,11 +514,13 @@ describe('starter faction foundations', () => {
     expect(tick(queued.state, UNITS.aegisWarden.time!).planets[0].groundUnits.some(unit => unit.kind === 'aegisWarden')).toBe(true);
   });
 
-  it('gives every Aegis unit its own tactical ability', () => {
+  it('gives every Aegis unit a tactical ability while Tier 2 counterparts preserve their Tier 1 role', () => {
     const kinds = [...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS];
     const abilities = kinds.map(kind => UNITS[kind].ability?.kind);
     expect(abilities.every(Boolean)).toBe(true);
-    expect(new Set(abilities).size).toBe(kinds.length);
+    AEGIS_SPACE_KINDS.filter(kind => UNITS[kind].spaceTier === 1).forEach(kind => {
+      expect(UNITS[TIER_TWO_COPY_BY_TIER_ONE[kind]!].ability?.kind).toBe(UNITS[kind].ability?.kind);
+    });
   });
 
   it('regenerates Aegis shields faster in orbit and during ground combat', () => {

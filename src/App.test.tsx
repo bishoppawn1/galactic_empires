@@ -406,18 +406,26 @@ describe('Galactic Empires interface', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(toggle).toHaveTextContent('2D VIEW');
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-3d');
-    expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('50');
-    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(50deg)');
+    expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('38');
+    const galaxyCanvas = document.querySelector('.galaxy-canvas') as HTMLElement;
+    expect(galaxyCanvas.style.transform).toContain('rotateX(38deg)');
+    expect(galaxyCanvas.style.getPropertyValue('--camera-inverse-pitch')).toBe('-38deg');
+    expect(galaxyCanvas.style.getPropertyValue('--camera-inverse-yaw')).toBe('0deg');
+    expect(document.querySelectorAll('.planet-name.camera-billboard')).toHaveLength(cameraState.planets.length);
+    expect(document.querySelectorAll('.planet-status.camera-billboard')).toHaveLength(cameraState.planets.length);
+    expect(document.querySelectorAll('.faction-badge.camera-billboard')).toHaveLength(cameraState.planets.length);
     expect(document.querySelectorAll('.ship-model-3d')).toHaveLength(3);
     expect(document.querySelectorAll('.ship-volume-layer')).toHaveLength(18);
     expect(screen.queryByRole('button', { name: 'Escort Frigate orbiting Cygnus Reach' })).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Rotate camera right' }));
-    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateZ(10deg)');
+    expect(galaxyCanvas.style.transform).toContain('rotateZ(10deg)');
+    expect(galaxyCanvas.style.getPropertyValue('--camera-inverse-yaw')).toBe('-10deg');
     fireEvent.change(screen.getByRole('slider', { name: 'Camera pitch' }), { target: { value: '60' } });
     expect(screen.getByRole('slider', { name: 'Camera pitch' })).toHaveValue('60');
-    expect((document.querySelector('.galaxy-canvas') as HTMLElement).style.transform).toContain('rotateX(60deg)');
+    expect(galaxyCanvas.style.transform).toContain('rotateX(60deg)');
+    expect(galaxyCanvas.style.getPropertyValue('--camera-inverse-pitch')).toBe('-60deg');
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset camera to top view' }));
     expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveClass('view-2d');
@@ -652,7 +660,9 @@ describe('Galactic Empires interface', () => {
 
   it('uses left-click to inspect and right-click to route a selected ship', () => {
     const state = stateWithPlayerForces();
-    const path = findPlanetPath(state.planets, 'terra', 'nyx')!;
+    const route = findPlanetPath(state.planets, 'terra', 'nyx')!;
+    const routeLaneCount = route.length - 1;
+    const firstHop = state.planets.find(planet => planet.id === route[1])!;
     saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
@@ -663,7 +673,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
     fireEvent.contextMenu(destination);
 
-    expect(screen.getByText(`1 ship routed across ${path.length - 1} phase lane${path.length === 2 ? '' : 's'} to Nyx.`)).toBeInTheDocument();
+    expect(screen.getByText(`1 ship routed across ${routeLaneCount} phase lane${routeLaneCount === 1 ? '' : 's'} to Nyx.`)).toBeInTheDocument();
     const transitLayer = document.querySelector('.ship-canvas-layer');
     expect(transitLayer).toHaveAttribute('data-transit-count', '1');
     expect(transitLayer?.querySelector('small')).toBeNull();
@@ -671,8 +681,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.local-route.active')).not.toBeNull();
     expect(screen.queryByText('1 SHIP SELECTED')).not.toBeInTheDocument();
 
-    const firstWaypoint = state.planets.find(planet => planet.id === path[1])!;
-    const cancellable = screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${firstWaypoint.name} — jump can be canceled` });
+    const cancellable = screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${firstHop.name} — jump can be canceled` });
     fireEvent.click(cancellable);
     expect(cancellable).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
@@ -685,24 +694,25 @@ describe('Galactic Empires interface', () => {
 
   it('routes orbiting and already-departing ships together through the selected phase gate', () => {
     const state = stateWithPlayerForces(); const terra = state.planets[0];
-    const destination = state.planets.find(planet => planet.id === findPlanetPath(state.planets, terra.id, 'nyx')![1])!;
+    const directDestinationId = findPlanetPath(state.planets, terra.id, 'nyx')![1];
+    const directDestination = state.planets.find(planet => planet.id === directDestinationId)!;
     const transport = terra.orbitUnits.find(unit => unit.kind === 'transport')!;
     terra.orbitUnits = terra.orbitUnits.filter(unit => unit.id !== transport.id);
     state.fleets = [{
-      id: 'partially-departing-group', faction: 'player', originId: terra.id, destinationId: destination.id,
-      finalDestinationId: destination.id, unit: transport, phase: 'exiting', departureX: transport.orbitX,
+      id: 'partially-departing-group', faction: 'player', originId: terra.id, destinationId: directDestination.id,
+      finalDestinationId: directDestination.id, unit: transport, phase: 'exiting', departureX: transport.orbitX,
       departureY: transport.orbitY, progress: 1, travelTime: 10,
     }];
     saveState(state);
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${destination.name} — jump can be canceled` }));
+    fireEvent.click(screen.getByRole('button', { name: `Transport clearing well from Terra Nova toward ${directDestination.name} — jump can be canceled` }));
     fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }), { shiftKey: true });
     expect(screen.getByText('2 SHIPS SELECTED')).toBeInTheDocument();
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: `Cross phase lane from Terra Nova to ${destination.name}` }));
+    fireEvent.contextMenu(screen.getByRole('button', { name: `Cross phase lane from Terra Nova to ${directDestination.name}` }));
 
-    expect(screen.getByText(`2 ships routed across 1 phase lane to ${destination.name}.`)).toBeInTheDocument();
+    expect(screen.getByText(`2 ships routed across 1 phase lane to ${directDestination.name}.`)).toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '2');
     expect(screen.queryByText('2 SHIPS SELECTED')).not.toBeInTheDocument();
   });

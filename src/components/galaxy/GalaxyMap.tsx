@@ -31,7 +31,7 @@ const statusPercent = (value: number, maximum: number) => maximum > 0
 
 function ShipMapStatusBars({ ship, visible }: { ship: Unit; visible: boolean }) {
   if (!visible) return null;
-  return <span className="ship-map-status" aria-hidden="true">
+  return <span className="ship-map-status camera-billboard" aria-hidden="true">
     <i className="ship-map-hull"><b style={{ width: `${statusPercent(ship.hp, ship.maxHp)}%` }} /></i>
     <i className="ship-map-shields"><b style={{ width: `${statusPercent(ship.shields, ship.maxShields)}%` }} /></i>
   </span>;
@@ -184,6 +184,9 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           transform: `rotateZ(${camera.yaw}deg) rotateX(${camera.pitch}deg)`,
           transformOrigin: '50% 50%',
           '--camera-counter-scale': 1 / cameraDepth(camera.pitch),
+          '--camera-inverse-pitch': `${-camera.pitch}deg`,
+          '--camera-inverse-yaw': `${-camera.yaw}deg`,
+          '--camera-yaw': `${camera.yaw}deg`,
         } : {}),
       } as React.CSSProperties} onClickCapture={event => {
         const target = event.target as Element;
@@ -314,7 +317,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           if (from.id !== selectedOrigin.id && to.id !== selectedOrigin.id) return [];
           const destination = from.id === selectedOrigin.id ? to : from;
           const position = gatePosition(selectedOrigin, destination);
-          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{ left: position.x, top: position.y }} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(destination.id); }}><span>⇢</span><small>RIGHT-CLICK · {destination.name}</small></button>;
+          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{ left: position.x, top: position.y }} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(destination.id); }}><span className="camera-billboard">⇢</span><small className="camera-billboard">RIGHT-CLICK · {destination.name}</small></button>;
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);
@@ -324,8 +327,8 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const visibleShips = visibleOrbitUnits(p);
           const kindLabel = kind === 'planet' ? factionName(p.owner) : kind === 'nebula' ? 'SENSOR-DARK NEBULA' : kind === 'star' ? 'LETHAL STELLAR HAZARD' : kind === 'pirateBase' ? (p.owner ? `${factionName(p.owner)} · CAPTURED PIRATE WORLD` : 'PIRATE-OCCUPIED WORLD') : p.owner ? `${factionName(p.owner)} · RELIC ACTIVE` : 'ANCIENT RELIC';
           return <button key={p.id} aria-label={`${p.name} ${kind === 'planet' ? ownerLabel(p.owner) : kindLabel}`} className={`planet-node system-${kind} ${selectedId === p.id ? 'selected' : ''} ${p.owner ?? 'neutral'}`} style={{ left: `${p.x}%`, top: `${p.y}%`, '--planet': planetDisplayColor(p), '--gravity-well-size': `${GRAVITY_WELL_RADIUS * 2}px`, '--gravity-well-offset': `${PLANET_HIT_SIZE / 2 - GRAVITY_WELL_RADIUS}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelect(p.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(p.id); }}>
-            {(battle || hostileOrbit) && <span className="battle-pulse">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" />{world ? <span className={`planet-sphere ${kind === 'pirateBase' ? 'pirate-world' : ''}`} /> : <span className={`system-object ${kind}`} aria-hidden="true"><i /></span>}
-            <span className="faction-badge">{kind === 'planet' || kind === 'ancientTemple' || (kind === 'pirateBase' && p.owner) ? planetFactionBadge(p.owner) : kind === 'pirateBase' ? 'PIRATES' : 'ANOMALY'}</span><span className="planet-name">{p.name}</span><span className="planet-status">{kindLabel}</span>{kind === 'nebula' && p.orbitUnits.length !== visibleShips.length ? <span className="orbit-count jammed">SIGNALS JAMMED</span> : !!visibleShips.length && <span className="orbit-count">◈ {visibleShips.length}</span>}
+            {(battle || hostileOrbit) && <span className="battle-pulse camera-billboard">⚔</span>}<span className="orbit-zone" /><span className="ownership-ring" /><span className="orbit-ring" />{world ? <span className={`planet-sphere ${kind === 'pirateBase' ? 'pirate-world' : ''}`} /> : <span className={`system-object ${kind}`} aria-hidden="true"><i /></span>}
+            <span className="faction-badge camera-billboard">{kind === 'planet' || kind === 'ancientTemple' || (kind === 'pirateBase' && p.owner) ? planetFactionBadge(p.owner) : kind === 'pirateBase' ? 'PIRATES' : 'ANOMALY'}</span><span className="planet-name camera-billboard">{p.name}</span><span className="planet-status camera-billboard">{kindLabel}</span>{kind === 'nebula' && p.orbitUnits.length !== visibleShips.length ? <span className="orbit-count jammed camera-billboard">SIGNALS JAMMED</span> : !!visibleShips.length && <span className="orbit-count camera-billboard">◈ {visibleShips.length}</span>}
           </button>;
         })}
         {state.planets.flatMap(p => {
@@ -336,7 +339,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const tier = spaceYardTier(yard)!;
             const yardLabel = tier === 1 ? 'Space Yard' : tier === 2 ? 'Advanced Space Yard' : 'Experimental Space Yard';
             const shortLabel = tier === 1 ? 'SPACE YARD' : tier === 2 ? 'ADV YARD' : 'EXP YARD';
-            const content = <><span>{tier === 1 ? 'Y' : tier === 2 ? 'A' : 'X'}{index + 1}</span><small>{p.owner !== 'player' ? `HOSTILE ${shortLabel}` : shortLabel}</small></>;
+            const content = <><span className="camera-billboard">{tier === 1 ? 'Y' : tier === 2 ? 'A' : 'X'}{index + 1}</span><small className="camera-billboard">{p.owner !== 'player' ? `HOSTILE ${shortLabel}` : shortLabel}</small></>;
             const className = `orbit-yard ${p.owner} tier-${tier} ${tier === 2 ? 'advanced' : tier === 3 ? 'experimental' : ''} ${selectedYardIds.includes(yard.id) ? 'selected' : ''}`;
             return p.owner === 'player'
               ? <button key={yard.id} aria-label={`${yardLabel} ${index + 1} orbiting ${p.name} — open ship production`} aria-pressed={selectedYardIds.includes(yard.id)} className={className} style={{ left: position.x, top: position.y }} onClick={event => { event.stopPropagation(); onSelectSpaceYard(p.id, yard.id, event.shiftKey); }}>{content}</button>
@@ -349,7 +352,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const position = defenseMapPosition(p, index, defenses.length);
             const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');
             const focused = p.orbitFocusTargetId === defense.id;
-            const content = <><span>⌾</span><i /><div className="defense-health"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small>{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
+            const content = <><span className="camera-billboard">⌾</span><i /><div className="defense-health camera-billboard"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small className="camera-billboard">{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
             const className = `orbital-defense ${p.owner ?? 'neutral'} ${targetable ? 'targetable' : ''} ${focused ? 'focused' : ''}`;
             const style = { left: position.x, top: position.y };
             return targetable
@@ -370,7 +373,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const ability = UNITS[ship.kind].ability;
           const repairRange = ability?.kind === 'assemblyLine' ? COVENANT_ASSEMBLY_REPAIR_RANGE : ability?.kind === 'foundryAura' ? COVENANT_FOUNDRY_REPAIR_RANGE : 0;
           const selected = selectedShipIds.includes(ship.id);
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload${ability ? ` · ${ability.label}: ${ability.description}` : ''}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selected ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px`, '--ship-status-offset': `${displaySize / 2 + 7}px`, '--ship-status-width': `${Math.min(68, Math.max(48, displaySize * .55))}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{ability?.kind === 'shieldProjection' && <i className="ship-ability-ring" aria-label="Shield Projection radius" style={{ '--ship-ability-range': `${AEGIS_SHIELD_PROJECTION_RANGE * 2}px` } as React.CSSProperties} />}{repairRange > 0 && <i className="ship-ability-ring covenant-repair" aria-label={`${ability!.label} radius`} style={{ '--ship-ability-range': `${repairRange * 2}px` } as React.CSSProperties} />}{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} volumetric={camera3D} /><ShipMapStatusBars ship={ship} visible={selected && showSelectedShipStatus} />{capacity && <small className={`transport-capacity ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload${ability ? ` · ${ability.label}: ${ability.description}` : ''}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selected ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px`, '--ship-status-offset': `${displaySize / 2 + 7}px`, '--ship-status-width': `${Math.min(68, Math.max(48, displaySize * .55))}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{ability?.kind === 'shieldProjection' && <i className="ship-ability-ring" aria-label="Shield Projection radius" style={{ '--ship-ability-range': `${AEGIS_SHIELD_PROJECTION_RANGE * 2}px` } as React.CSSProperties} />}{repairRange > 0 && <i className="ship-ability-ring covenant-repair" aria-label={`${ability!.label} radius`} style={{ '--ship-ability-range': `${repairRange * 2}px` } as React.CSSProperties} />}{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} volumetric={camera3D} /><ShipMapStatusBars ship={ship} visible={selected && showSelectedShipStatus} />{capacity && <small className={`transport-capacity camera-billboard ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.flatMap(fleet => {
           if (!camera3D && fleet.faction !== 'player') return [];

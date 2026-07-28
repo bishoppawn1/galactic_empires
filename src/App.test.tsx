@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
-import { GalaxyMap } from './components/galaxy/GalaxyMap';
+import { GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
 import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
@@ -136,13 +136,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
   });
 
-  it('opens the resource exchange and trades 150 gold for 50 metal', () => {
+  it('sets a resource exchange amount and trades it at three to one', () => {
+    const state = createInitialState(); state.resources.gold = 2_000; saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'TRADE 3:1' }));
-    fireEvent.click(screen.getByRole('button', { name: '150 GOLD → 50 METAL' }));
-    expect(within(document.querySelector('.resource.metal') as HTMLElement).getByText('570')).toBeInTheDocument();
-    expect(within(document.querySelector('.resource.gold') as HTMLElement).getByText('130')).toBeInTheDocument();
-    expect(screen.getByText('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount to spend' }), { target: { value: '1500' } });
+    expect(screen.getByText('RECEIVE 500')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '1,500 GOLD → 500 METAL' }));
+    expect(within(document.querySelector('.resource.metal') as HTMLElement).getByText('1,020')).toBeInTheDocument();
+    expect(within(document.querySelector('.resource.gold') as HTMLElement).getByText('500')).toBeInTheDocument();
+    expect(screen.getByText('TRADE COMPLETE — 1,500 GOLD exchanged for 500 METAL.')).toBeInTheDocument();
   });
 
   it('renders an older campaign even when research-era fields are missing', () => {
@@ -242,6 +245,33 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
     expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
+
+    const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 640 });
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 440 });
+    Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 500 });
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 500 });
+    fireEvent.click(screen.getByRole('button', { name: 'Show Whole Map' }));
+    expect(screen.getByText('5%', { selector: 'output' })).toBeInTheDocument();
+    expect(viewport.scrollLeft).toBe(0);
+    expect(viewport.scrollTop).toBe(0);
+    expect(screen.getByRole('button', { name: 'Show Whole Map' })).toHaveAttribute('title', 'Show Whole Map');
+  });
+
+  it('suppresses mouse-wheel and trackpad movement over the galaxy map', () => {
+    render(<App />);
+    const map = screen.getByRole('main', { name: 'Galaxy map' });
+    const viewport = document.querySelector('.galaxy-scroll') as HTMLElement;
+    Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 500 });
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 500 });
+    const wheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 80, deltaY: 120 });
+
+    map.dispatchEvent(wheel);
+
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(viewport.scrollLeft).toBe(500);
+    expect(viewport.scrollTop).toBe(500);
+    expect(screen.getByText('100%', { selector: 'output' })).toBeInTheDocument();
   });
 
   it('toggles an orbitable three-dimensional galaxy camera', () => {
@@ -250,6 +280,7 @@ describe('Galactic Empires interface', () => {
     saveState(cameraState);
     render(<App />);
     const toggle = screen.getByRole('button', { name: 'Toggle 3D view' });
+    expect(toggle.closest('.camera-controls')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
     expect(toggle).toHaveTextContent('3D VIEW');
     expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
@@ -290,6 +321,32 @@ describe('Galactic Empires interface', () => {
     const bounds = galaxyCameraBounds(DEFAULT_GALAXY_CAMERA);
     expect(bounds.width).toBeGreaterThan(0);
     expect(bounds.height).toBeLessThan(8_800);
+  });
+
+  it('calculates whole-map zoom from both viewport dimensions', () => {
+    expect(wholeMapZoom(640, 600)).toBe(.05);
+    expect(wholeMapZoom(1_000, 440)).toBe(.05);
+  });
+
+  it('preserves map zoom after visiting research and following a ground battle', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [{ ...makeUnit('zoom-attacker', 'infantry', 'player'), battleX: 10, battleY: 50 }],
+      defenders: [{ ...makeUnit('zoom-defender', 'infantry', 'enemy'), battleX: 90, battleY: 50 }],
+    }];
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'galaxy' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Return to galaxy' }));
+    expect(screen.getByText('83%', { selector: 'output' })).toBeInTheDocument();
   });
 
   it('pans the galaxy camera with WASD controls', () => {
@@ -413,6 +470,23 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('3.3s');
   });
 
+  it('shows 2.5 times as much capacity for each advanced ground factory', () => {
+    const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.completedResearch.push('advancedIndustry');
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'construction' }));
+    const advancedFactoryCard = screen.getByText('Advanced Ground Factory', { selector: '.card-copy b' }).closest('article')!;
+    expect(advancedFactoryCard).toHaveTextContent('2.5× factory capacity');
+    fireEvent.click(within(advancedFactoryCard).getByRole('button', { name: 'BUILD +1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    expect(screen.getByText('Ground factories · 2 online · 3.5× speed')).toBeInTheDocument();
+    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('2.9s');
+  });
+
   it('supports additive fleet selection', () => {
     saveState(stateWithPlayerForces());
     render(<App />);
@@ -502,23 +576,28 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '1');
   });
 
-  it('opens research as a top-level empire tab and renders prerequisite branches', () => {
+  it('opens research as a top-level empire tab and renders a connected faction lattice', () => {
     render(<App />);
     const empireViews = screen.getByRole('navigation', { name: 'Empire views' });
     fireEvent.click(within(empireViews).getByRole('button', { name: 'research' }));
 
     expect(screen.getByRole('main', { name: 'Research tech tree' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Technology tree' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(15);
-    expect(document.querySelectorAll('.tech-tier')).toHaveLength(4);
+    expect(screen.getByRole('heading', { name: 'Human Coalition technology lattice' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(18);
+    expect(document.querySelectorAll('.tech-tier')).toHaveLength(5);
+    expect(document.querySelectorAll('.research-connections path')).toHaveLength(17);
     expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'groundWarfare');
     expect(document.querySelector('[data-tech-id="carrierOperations"]')).toHaveAttribute('data-requires', 'fleetLogistics');
     expect(document.querySelector('[data-tech-id="phaseMastery"]')).toHaveAttribute('data-requires', 'fleetLogistics');
     expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'quantumExtraction');
     expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'capitalShips');
     expect(document.querySelector('[data-tech-id="titanEngineering"]')).toHaveAttribute('data-requires', 'capitalShips');
+    expect(document.querySelector('[data-tech-id="industrialIteration"]')).toHaveAttribute('data-requires', 'rapidFabrication');
+    expect(document.querySelector('[data-tech-id="resourceSynthesis"]')).toHaveAttribute('data-requires', 'deepCoreExtraction');
+    expect(document.querySelector('[data-tech-id="combatSimulation"]')).toHaveAttribute('data-requires', 'weaponsCalibration');
     expect(document.querySelector('.expanded-tech-tree')).not.toBeNull();
     expect(screen.getByText('Titan Dreadnought')).toBeInTheDocument();
+    expect(screen.getByText('Fleet War Games')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Planet sections' })).not.toBeInTheDocument();
   });
 

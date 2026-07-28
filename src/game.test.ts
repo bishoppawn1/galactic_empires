@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_UPGRADES, UNITS, civilizationUnitKind, isTitanKind, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, TITAN_UPGRADES, UNITS, civilizationUnitKind, isRepeatableResearch, isTitanKind, researchCost, researchDefinitionForCivilization, researchLevel, researchTime, unitRange, unitWeaponDamage, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -103,24 +103,33 @@ describe('economy and construction', () => {
     expect(isGameCommand({ type: 'maneuver', planetId: 'terra', unitIds: [], orbitX: Infinity, orbitY: 0 })).toBe(false);
   });
 
-  it('trades mineral resources in immutable three-to-one lots', () => {
-    const state = createInitialState();
-    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(result);
-    expect(result.state.resources).toEqual({ metal: 570, crystal: 420, gold: 130 });
-    expect(state.resources).toEqual({ metal: 520, crystal: 420, gold: 280 });
-    expect(result.state.messages[0]).toBe('TRADE COMPLETE — 150 GOLD exchanged for 50 METAL.');
+  it('trades a configurable resource amount immutably at three to one', () => {
+    const state = createInitialState(); state.resources.gold = 2_000;
+    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 1_500 }); expectOk(result);
+    expect(result.state.resources).toEqual({ metal: 1_020, crystal: 420, gold: 500 });
+    expect(state.resources).toEqual({ metal: 520, crystal: 420, gold: 2_000 });
+    expect(result.state.messages[0]).toBe('TRADE COMPLETE — 1,500 GOLD exchanged for 500 METAL.');
   });
 
   it('rejects unaffordable, same-resource, invalid, and biomass trades', () => {
     const state = createInitialState(); state.resources.gold = 149;
-    const poorTrade = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal' });
+    const poorTrade = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 150 });
     expect(poorTrade.ok).toBe(false);
     expect(poorTrade.state).toBe(state);
-    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'gold' })).toBe(false);
-    expect(isGameCommand({ type: 'trade', from: 'biomass', to: 'metal' })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'gold', amount: 150 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'biomass', to: 'metal', amount: 150 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'metal', amount: 2.5 })).toBe(false);
+    expect(isGameCommand({ type: 'trade', from: 'gold', to: 'metal', amount: Infinity })).toBe(false);
     const brood = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
-    const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal' });
+    const broodTrade = applyGameCommand(brood, { type: 'trade', from: 'gold', to: 'metal', amount: 150 });
     expect(broodTrade.ok).toBe(false);
+  });
+
+  it('supports fractional payouts for whole amounts not divisible by three', () => {
+    const state = createInitialState();
+    const result = applyGameCommand(state, { type: 'trade', from: 'gold', to: 'metal', amount: 100 }); expectOk(result);
+    expect(result.state.resources.gold).toBe(180);
+    expect(result.state.resources.metal).toBeCloseTo(553.333333);
   });
 
   it('accepts and applies formation orders for fleets larger than 70 ships', () => {
@@ -522,7 +531,7 @@ describe('competitive multiplayer', () => {
   it('applies a guest resource trade only to that empire', () => {
     const canonical = createCompetitiveState();
     const guestView = viewStateForFaction(canonical, 'enemy');
-    const traded = applyGameCommand(guestView, { type: 'trade', from: 'gold', to: 'metal' }); expectOk(traded);
+    const traded = applyGameCommand(guestView, { type: 'trade', from: 'gold', to: 'metal', amount: 150 }); expectOk(traded);
     const updatedCanonical = viewStateForFaction(traded.state, 'enemy');
     expect(updatedCanonical.enemyResources).toEqual({ metal: 570, crystal: 420, gold: 130 });
     expect(updatedCanonical.resources).toEqual(canonical.resources);
@@ -625,13 +634,50 @@ describe('galaxy routes', () => {
 });
 
 describe('production and research', () => {
-  it('defines four tiers of research with fifteen visible unlock packages', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(15);
+  it('defines a connected research lattice with three repeatable capstones', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(18);
+    expect(REPEATABLE_RESEARCH).toEqual(['industrialIteration', 'resourceSynthesis', 'combatSimulation']);
+    expect(REPEATABLE_RESEARCH.every(isRepeatableResearch)).toBe(true);
     expect(RESEARCH.heavyArmor.requires).toBe('groundWarfare');
     expect(RESEARCH.carrierOperations.requires).toBe('fleetLogistics');
     expect(RESEARCH.titanEngineering.requires).toBe('capitalShips');
+    expect(RESEARCH.industrialIteration.requires).toBe('rapidFabrication');
+    expect(RESEARCH.resourceSynthesis.requires).toBe('deepCoreExtraction');
+    expect(RESEARCH.combatSimulation.requires).toBe('weaponsCalibration');
     expect(RESEARCH_UNLOCKS.titanEngineering).toContain('Titan Dreadnought');
     expect(RESEARCH_UNLOCKS.rapidFabrication).toContain('+25% unit production speed');
+  });
+
+  it('specializes research doctrine names for every civilization', () => {
+    const labels = (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).map(civilization =>
+      researchDefinitionForCivilization('combatSimulation', civilization).label);
+    expect(new Set(labels).size).toBe(4);
+    expect(labels).toEqual(['Fleet War Games', 'Predatory Adaptation', 'Eternal Vigil', 'Combat Logic Refinement']);
+    expect(researchDefinitionForCivilization('advancedIndustry', 'brood').label).toBe('Evolved Industry');
+    expect(researchDefinitionForCivilization('advancedIndustry', 'aegis').label).toBe('Harmonic Fabrication');
+  });
+
+  it('researches repeatable capstones forever with scaling costs, time, and bonuses', () => {
+    let state = createInitialState(); const terra = state.planets[0];
+    terra.buildings.push({ id: 'repeatable-lab', kind: 'researchLab' });
+    state.completedResearch.push('advancedIndustry', 'rapidFabrication');
+    state.resources = { metal: 10000, crystal: 10000, gold: 10000 };
+    const firstCost = researchCost('industrialIteration', state.completedResearch);
+    const firstTime = researchTime('industrialIteration', state.completedResearch);
+    const first = beginResearch(state, 'industrialIteration'); expectOk(first);
+    expect(first.state.researchQueue[0]).toMatchObject({ id: 'industrialIteration', total: firstTime });
+    expect(first.state.resources.metal).toBe(10000 - firstCost.metal);
+    state = tick(first.state, firstTime);
+    expect(researchLevel(state.completedResearch, 'industrialIteration')).toBe(1);
+
+    const secondCost = researchCost('industrialIteration', state.completedResearch);
+    const secondTime = researchTime('industrialIteration', state.completedResearch);
+    expect(secondCost.metal).toBeGreaterThan(firstCost.metal);
+    expect(secondTime).toBeGreaterThan(firstTime);
+    const second = beginResearch(state, 'industrialIteration'); expectOk(second);
+    state = tick(second.state, secondTime);
+    expect(researchLevel(state.completedResearch, 'industrialIteration')).toBe(2);
+    expect(researchProductionMultiplier(state.completedResearch)).toBeCloseTo(1.25 * 1.1);
   });
 
   it('requires advanced factories for heavy ground units and capital hulls', () => {
@@ -788,8 +834,8 @@ describe('production and research', () => {
     }
   });
 
-  it('defines six additional research branches with simulation bonuses', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(15);
+  it('defines expanded research branches with simulation bonuses', () => {
+    expect(Object.keys(RESEARCH)).toHaveLength(18);
     expect(RESEARCH).toMatchObject({
       rapidFabrication: { requires: 'advancedIndustry' },
       planetaryFortifications: { requires: 'groundWarfare' },
@@ -805,6 +851,9 @@ describe('production and research', () => {
     expect(defenseDurabilityMultiplier(['planetaryFortifications'])).toBe(1.25);
     expect(orbitalDamageMultiplier(['weaponsCalibration'])).toBe(1.15);
     expect(researchIncomeMultiplier(['quantumExtraction', 'deepCoreExtraction'])).toBe(1.5);
+    expect(researchProductionMultiplier(['rapidFabrication', 'industrialIteration', 'industrialIteration'])).toBeCloseTo(1.25 * 1.1);
+    expect(researchIncomeMultiplier(['deepCoreExtraction', 'resourceSynthesis', 'resourceSynthesis'])).toBeCloseTo(1.5 * 1.1);
+    expect(orbitalDamageMultiplier(['weaponsCalibration', 'combatSimulation', 'combatSimulation'])).toBeCloseTo(1.15 * 1.06);
   });
 
   it('adds half-speed for every empire Research Lab after the first', () => {
@@ -859,15 +908,15 @@ describe('production and research', () => {
     expect(completed.planets[0].groundUnits.some(u => u.kind === 'lightTank')).toBe(true);
   });
 
-  it('accelerates the active ground queue for every standard or advanced ground factory', () => {
+  it('gives advanced ground factories 2.5 times the production capacity of standard factories', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.buildings.push({ id: 'b-extra-ground', kind: 'groundFactory' }, { id: 'b-advanced-ground', kind: 'advancedGroundFactory' });
-    expect(groundProductionMultiplier(terra)).toBe(3);
+    expect(groundProductionMultiplier(terra)).toBe(4.5);
 
     const queued = queueUnit(state, 'terra', 'infantry'); expectOk(queued);
-    const nearlyComplete = tick(queued.state, 3);
+    const nearlyComplete = tick(queued.state, 2);
     expect(nearlyComplete.planets[0].groundQueue[0].remaining).toBe(1);
-    const completed = tick(nearlyComplete, 1 / 3);
+    const completed = tick(nearlyComplete, 2 / 9);
     expect(completed.planets[0].groundQueue).toHaveLength(0);
     expect(completed.planets[0].groundUnits).toHaveLength(1);
   });
@@ -929,6 +978,14 @@ describe('production and research', () => {
     expect(migrated.fleets[0].route).toEqual([]);
     expect(migrated.fleets[0].finalDestinationId).toBe('halcyon');
     expect(migrated.fleets[0].phase).toBe('tunnel');
+  });
+
+  it('preserves repeatable research levels through save migration', () => {
+    const state = createInitialState();
+    state.completedResearch.push('advancedIndustry', 'rapidFabrication', 'industrialIteration', 'industrialIteration', 'industrialIteration');
+    const migrated = migrateGameState(state);
+    expect(researchLevel(migrated.completedResearch, 'industrialIteration')).toBe(3);
+    expect(researchProductionMultiplier(migrated.completedResearch)).toBeCloseTo(1.25 * 1.15);
   });
 
   it('deploys completed ships into distinct persistent orbit positions', () => {
@@ -995,6 +1052,34 @@ describe('enemy strategy', () => {
     expect(battle?.attackers.every(unit => unit.faction === 'enemy')).toBe(true);
   });
 
+  it('launches multiple loaded transports together for an invasion', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    state.planets[0].groundUnits.push(makeUnit('player-defender', 'infantry', 'player'));
+    cygnus.groundUnits = Array.from({ length: 6 }, (_, index) => makeUnit(`invasion-squad-${index}`, 'infantry', 'enemy'));
+    cygnus.orbitUnits = [makeUnit('transport-a', 'transport', 'enemy'), makeUnit('transport-b', 'transport', 'enemy'), makeUnit('transport-c', 'transport', 'enemy')];
+    state.enemyMissionCount = 2;
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    const transports = launched.fleets.filter(fleet => fleet.finalDestinationId === 'terra' && (UNITS[fleet.unit.kind].capacity ?? 0) > 0);
+    expect(transports).toHaveLength(3);
+    expect(transports.every(fleet => (fleet.unit.cargo?.length ?? 0) > 0)).toBe(true);
+    expect(transports.reduce((total, fleet) => total + fleet.unit.cargo!.length, 0)).toBe(6);
+  });
+
+  it('keeps producing transports until its local invasion group reaches its target size', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.orbitUnits = [makeUnit('first-transport', 'transport', 'enemy')];
+    state.enemyResources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.enemyActionClock = 0;
+    state.enemyAttackClock = 9999;
+
+    const planning = tick(state, 0);
+    const queuedKinds = spaceYards(planning.planets.find(planet => planet.id === 'cygnus')!).flatMap(yard => yard.spaceQueue ?? []).map(item => item.kind);
+    expect(queuedKinds.some(kind => (UNITS[kind].capacity ?? 0) > 0)).toBe(true);
+  });
+
   it('launches transport-independent strike fleets from every eligible rear colony', () => {
     const state = createInitialState();
     const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
@@ -1015,6 +1100,17 @@ describe('enemy strategy', () => {
     expect(launched.messages.filter(message => message.includes('HOSTILE STRIKE FLEET'))).toHaveLength(2);
   });
 
+  it('deploys every surplus warship above the local defensive reserve', () => {
+    const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.orbitUnits = Array.from({ length: 14 }, (_, index) => makeUnit(`surplus-warship-${index}`, 'escortFrigate', 'enemy'));
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const launched = tick(state, 0);
+    expect(launched.fleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(12);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+  });
+
   it('sends surplus warships alongside a transport invasion instead of limiting the attack to escorts', () => {
     const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
     state.planets[0].groundUnits.push(makeUnit('player-defender', 'infantry', 'player'));
@@ -1032,7 +1128,7 @@ describe('enemy strategy', () => {
     expect(invasionFleets.filter(fleet => (UNITS[fleet.unit.kind].capacity ?? 0) > 0)).toHaveLength(1);
     expect(invasionFleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(7);
     expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
-    expect(launched.messages.some(message => message.includes('HOSTILE STRIKE FLEET'))).toBe(true);
+    expect(launched.messages.some(message => message.includes('HOSTILE FLEET LAUNCHED'))).toBe(true);
   });
 
   it('reinforces a friendly colony under orbital attack before launching another strike', () => {
@@ -1157,6 +1253,35 @@ describe('transport and colonization', () => {
 
     const returnOrder = dispatchSpaceUnit(arrived, 'halcyon', 'frigate', 'terra'); expectOk(returnOrder);
     expect(returnOrder.state.fleets[0]).toMatchObject({ originId: 'halcyon', finalDestinationId: 'terra' });
+  });
+
+  it('moves AI combat arrivals off the system edge toward hostile ships', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    state.planets[0].orbitUnits.push(makeUnit('ai-frigate', 'escortFrigate', 'player'));
+    const order = dispatchSpaceUnit(state, 'terra', 'ai-frigate', 'halcyon'); expectOk(order);
+    order.state.fleets[0].faction = 'enemy';
+    order.state.fleets[0].unit.faction = 'enemy';
+    const halcyon = order.state.planets.find(planet => planet.id === 'halcyon')!;
+    halcyon.owner = 'player';
+    halcyon.orbitUnits = [{ ...makeUnit('orbital-defender', 'escortFrigate', 'player'), orbitX: 190, orbitY: 0 }];
+
+    const arrived = advanceFleetToArrival(order.state, 'ai-frigate');
+    const frigate = arrived.planets.find(planet => planet.id === 'halcyon')!.orbitUnits.find(unit => unit.id === 'ai-frigate')!;
+    expect(Math.hypot(frigate.orbitX!, frigate.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
+    expect(typeof frigate.orbitTargetX).toBe('number');
+    expect(typeof frigate.orbitTargetY).toBe('number');
+    const distanceToTarget = Math.hypot(frigate.orbitTargetX! - frigate.orbitX!, frigate.orbitTargetY! - frigate.orbitY!);
+
+    const advancing = tick(arrived, 1).planets.find(planet => planet.id === 'halcyon')!.orbitUnits.find(unit => unit.id === 'ai-frigate')!;
+    expect(Math.hypot(advancing.orbitTargetX! - advancing.orbitX!, advancing.orbitTargetY! - advancing.orbitY!)).toBeLessThan(distanceToTarget);
+
+    let engaging = arrived;
+    const approachLimit = Math.ceil(MAX_SHIP_ORBIT_RADIUS / ORBIT_MANEUVER_SPEED) + 40;
+    for (let second = 0; second < approachLimit && !orbitalCombatShots(engaging.planets.find(planet => planet.id === 'halcyon')!).some(shot => shot.attackerId === 'ai-frigate'); second += 1) {
+      engaging = tick(engaging, 1);
+    }
+    expect(orbitalCombatShots(engaging.planets.find(planet => planet.id === 'halcyon')!).some(shot => shot.attackerId === 'ai-frigate')).toBe(true);
   });
 
   it('fans arriving fleets apart along the destination system edge', () => {

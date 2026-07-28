@@ -10,7 +10,7 @@ export interface GalaxyPoint {
   y: number;
 }
 
-export const DEFAULT_GALAXY_CAMERA: GalaxyCamera = { pitch: 50, yaw: 0 };
+export const DEFAULT_GALAXY_CAMERA: GalaxyCamera = { pitch: 38, yaw: 0 };
 export const MIN_CAMERA_PITCH = 20;
 export const MAX_CAMERA_PITCH = 70;
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
@@ -435,6 +435,19 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('slider', { name: 'Camera pitch' })).not.toBeInTheDocument();
     expect(document.querySelector('.ship-model-3d')).not.toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toBeInTheDocument();
+  });
+
+  it('uses single-image 3D silhouettes once the large-fleet budget activates', () => {
+    const state = createInitialState();
+    state.planets[0].orbitUnits = Array.from({ length: 96 }, (_, index) =>
+      makeUnit(`large-3d-${index}`, 'escortFrigate', 'player'));
+    render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveAttribute('data-large-fleet-rendering', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle 3D view' }));
+    expect(document.querySelectorAll('.ship-model-3d')).toHaveLength(0);
+    expect(document.querySelectorAll('.ship-volume-layer')).toHaveLength(0);
+    expect(document.querySelectorAll('.orbit-ship.player > img.ship-image')).toHaveLength(96);
   });
 
   it('round-trips galaxy pointer coordinates through the 3D camera projection', () => {
@@ -895,7 +908,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
   });
 
-  it('keeps unselected player ships mounted outside the cached viewport', () => {
+  it('culls an offscreen player ship locally and restores it after recentering', async () => {
     const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(850);
     const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
     const state = createInitialState();
@@ -903,9 +916,12 @@ describe('Galactic Empires interface', () => {
     vesta.owner = 'player';
     vesta.orbitUnits = [makeUnit('remote-player-ship', 'escortFrigate', 'player')];
 
-    const view = render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+    const view = render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={['remote-player-ship']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Escort Frigate orbiting Vesta' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Escort Frigate orbiting Vesta' })).not.toBeInTheDocument());
+    expect(screen.getByText('1 SHIP SELECTED')).toBeInTheDocument();
+    view.rerender(<GalaxyMap state={state} selectedId="vesta" selectedShipIds={['remote-player-ship']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Escort Frigate orbiting Vesta' })).toBeInTheDocument());
     view.unmount();
     width.mockRestore();
     height.mockRestore();
@@ -1020,6 +1036,24 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(80);
     expect(document.querySelectorAll('.orbit-ship.player')).toHaveLength(40);
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '40');
+  });
+
+  it('uses a bounded visual budget without removing ships from a massive engagement', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = Array.from({ length: 120 }, (_, index) => ({
+      ...makeUnit(`budget-salvo-${index}`, 'escortFrigate', index % 2 ? 'enemy' : 'player'),
+      orbitX: 100 + index % 12 * 3, orbitY: 100 + Math.floor(index / 12) * 3,
+    }));
+    saveState(state);
+    render(<App />);
+
+    const galaxy = screen.getByRole('main', { name: 'Galaxy map' });
+    expect(galaxy).toHaveAttribute('data-large-fleet-rendering', 'true');
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(96);
+    expect(document.querySelectorAll('.orbital-fire .weapon-projectile')).toHaveLength(192);
+    expect(document.querySelectorAll('.orbit-ship.player')).toHaveLength(60);
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '60');
+    expect(terra.orbitUnits).toHaveLength(120);
   });
 
 

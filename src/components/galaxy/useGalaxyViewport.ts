@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH } from './geometry';
 import type { GalaxyViewportBounds } from './geometry';
 
 const VIEWPORT_OVERSCAN = 480;
@@ -18,8 +19,8 @@ export function useGalaxyViewport(zoom: number) {
     const next = {
       left: Math.max(0, Math.floor(left / VIEWPORT_STEP) * VIEWPORT_STEP - VIEWPORT_OVERSCAN),
       top: Math.max(0, Math.floor(top / VIEWPORT_STEP) * VIEWPORT_STEP - VIEWPORT_OVERSCAN),
-      right: Math.ceil(right / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN,
-      bottom: Math.ceil(bottom / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN,
+      right: Math.min(GALAXY_CANVAS_WIDTH, Math.ceil(right / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
+      bottom: Math.min(GALAXY_CANVAS_HEIGHT, Math.ceil(bottom / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
     };
     setBounds(current => current && current.left === next.left && current.top === next.top && current.right === next.right && current.bottom === next.bottom ? current : next);
   }, [zoom]);

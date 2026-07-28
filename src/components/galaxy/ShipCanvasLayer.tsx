@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { visibleOrbitUnits, type GameState, type UnitFaction } from '../../game';
 import { isSpaceUnit, shipDisplaySize, shipImageSource } from '../shared/ShipImage';
 import { fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, type GalaxyViewportBounds } from './geometry';
+import { canvasPixelScale } from './renderBudget';
 
 interface CanvasShip {
   id: string;
@@ -70,13 +71,16 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
     if (!canvas || !bounds || typeof CanvasRenderingContext2D === 'undefined') return;
     const context = canvas.getContext('2d');
     if (!context) return;
-    const pixelScale = Math.min(1.5, Math.max(.5, zoom * (window.devicePixelRatio || 1)));
+    const pixelScale = canvasPixelScale(zoom, window.devicePixelRatio || 1);
     const width = bounds.right - bounds.left, height = bounds.bottom - bounds.top;
-    canvas.width = Math.max(1, Math.ceil(width * pixelScale));
-    canvas.height = Math.max(1, Math.ceil(height * pixelScale));
+    const backingWidth = Math.max(1, Math.ceil(width * pixelScale));
+    const backingHeight = Math.max(1, Math.ceil(height * pixelScale));
+    if (canvas.width !== backingWidth) canvas.width = backingWidth;
+    if (canvas.height !== backingHeight) canvas.height = backingHeight;
     context.setTransform(pixelScale, 0, 0, pixelScale, 0, 0);
     context.clearRect(0, 0, width, height);
     let active = true;
+    const selectedIds = new Set(selectedShipIds);
 
     const draw = () => {
       if (!active) return;
@@ -90,7 +94,7 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
         context.rotate(ship.heading * Math.PI / 180);
         context.globalAlpha = ship.charging ? .72 : .9;
         context.drawImage(image, -size / 2, -size / 2, size, size);
-        const selected = selectedShipIds.includes(ship.id);
+        const selected = selectedIds.has(ship.id);
         if (selected) {
           context.globalAlpha = 1;
           context.strokeStyle = '#ffffff';
@@ -107,5 +111,6 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
   }, [bounds, selectedShipIds, ships, zoom]);
 
   const style = bounds ? { left: bounds.left, top: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top } : undefined;
-  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-selected-ship-count={ships.filter(ship => selectedShipIds.includes(ship.id)).length} data-transit-count={state.fleets.length} aria-hidden="true" />;
+  const selectedIds = new Set(selectedShipIds);
+  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-selected-ship-count={ships.filter(ship => selectedIds.has(ship.id)).length} data-transit-count={state.fleets.length} aria-hidden="true" />;
 }

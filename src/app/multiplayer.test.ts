@@ -10,7 +10,7 @@ import {
   prepareOutgoingCommand,
   STATE_SYNC_INTERVAL_MS,
 } from './multiplayer';
-import { createCompetitiveState, isGameCommand, viewStateForFaction, type GameCommand } from '../game';
+import { createCompetitiveState, isGameCommand, UNITS, viewStateForFaction, type EmpireFaction, type GameCommand, type MatchEmpireSlot } from '../game';
 
 describe('multiplayer state transport', () => {
   it('uses PeerJS binary serialization so large snapshots are automatically chunked', () => {
@@ -39,6 +39,29 @@ describe('multiplayer state transport', () => {
     expect(rival.planets.find(planet => planet.id === 'cygnus')?.owner).toBe('player');
     expect(prepareIncomingState({ planets: [] })).toBeUndefined();
     expect(prepareIncomingState(null)).toBeUndefined();
+  });
+
+  it('marks every guest empire ship as local before client-side viewport culling', () => {
+    const factions: EmpireFaction[] = ['player', 'enemy', 'rival2', 'rival3'];
+    const slots: MatchEmpireSlot[] = factions.map(faction => ({ faction, controller: 'human', civilization: 'human' }));
+    const canonical = createCompetitiveState({ mapSize: 'huge', difficulty: 'commander' }, slots);
+
+    for (const faction of factions) {
+      const home = canonical.planets.find(planet => planet.owner === faction)!;
+      home.orbitUnits = [{
+        id: `${faction}-viewport-ship`,
+        kind: 'escortFrigate',
+        faction,
+        hp: UNITS.escortFrigate.hp,
+        maxHp: UNITS.escortFrigate.hp,
+        shields: UNITS.escortFrigate.shields,
+        maxShields: UNITS.escortFrigate.shields,
+      }];
+      const localView = prepareIncomingState(viewStateForFaction(canonical, faction))!;
+      const localHome = localView.planets.find(planet => planet.id === home.id)!;
+      expect(localHome.owner).toBe('player');
+      expect(localHome.orbitUnits).toEqual([expect.objectContaining({ id: `${faction}-viewport-ship`, faction: 'player' })]);
+    }
   });
 
   it('omits undefined optional fields before binary command serialization', () => {

@@ -206,8 +206,14 @@ export default function App() {
   const orderShipsToPlanet = (id: string) => {
     setSelectedYardIds([]);
     if (!selectedShipIds.length) return;
-    const origin = state.planets.find(candidate => selectedShipIds.every(shipId => candidate.orbitUnits.some(unit => unit.id === shipId && unit.faction === 'player')));
-    if (!origin) return;
+    const selectedOrigins = selectedShipIds.flatMap(shipId => {
+      const orbit = state.planets.find(candidate => candidate.orbitUnits.some(unit => unit.id === shipId && unit.faction === 'player'));
+      const fleet = state.fleets.find(candidate => candidate.unit.id === shipId && candidate.faction === 'player' && (candidate.phase === 'exiting' || candidate.phase === 'charging'));
+      return orbit ? [orbit.id] : fleet ? [fleet.originId] : [];
+    });
+    const originIds = new Set(selectedOrigins);
+    if (selectedOrigins.length !== selectedShipIds.length || originIds.size !== 1) return;
+    const origin = state.planets.find(candidate => candidate.id === selectedOrigins[0])!;
     if (origin.id === id) { issue({ type: 'dock', planetId: origin.id, unitIds: selectedShipIds }); return; }
     if (issue({ type: 'dispatch', originId: origin.id, unitIds: selectedShipIds, destinationId: id })) {
       setSelectedId(id); setTab('command'); setProductionFocus(undefined); setSelectedShipIds([]);

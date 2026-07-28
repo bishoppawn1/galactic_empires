@@ -1308,6 +1308,30 @@ describe('transport and colonization', () => {
     expect(canceled.state.messages[0]).toBe('Jump canceled — 1 ship maneuvering inside Terra Nova gravity well.');
   });
 
+  it('routes a mixed selection when only some ships are already clearing the chosen phase lane', () => {
+    const state = createInitialState(); const terra = seedPlayerForces(state);
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const transport = terra.orbitUnits.find(unit => unit.kind === 'transport')!;
+    const escort = terra.orbitUnits.find(unit => unit.kind === 'escortFrigate')!;
+    const firstOrder = dispatchSpaceUnit(state, terra.id, transport.id, 'halcyon'); expectOk(firstOrder);
+    const leaving = tick(firstOrder.state, 1);
+    const continuingFleet = leaving.fleets.find(fleet => fleet.unit.id === transport.id)!;
+    const originalProgress = continuingFleet.progress;
+    const originalTravelTime = continuingFleet.travelTime;
+
+    const mixedOrder = dispatchSpaceUnits(leaving, terra.id, [transport.id, escort.id], 'halcyon'); expectOk(mixedOrder);
+    const selectedFleets = mixedOrder.state.fleets.filter(fleet => fleet.unit.id === transport.id || fleet.unit.id === escort.id);
+    const continued = selectedFleets.find(fleet => fleet.unit.id === transport.id)!;
+
+    expect(selectedFleets).toHaveLength(2);
+    expect(continued.id).toBe(continuingFleet.id);
+    expect(continued.progress).toBe(originalProgress);
+    expect(continued.travelTime).toBe(originalTravelTime);
+    expect(selectedFleets.every(fleet => fleet.finalDestinationId === 'halcyon')).toBe(true);
+    expect(mixedOrder.state.planets.find(planet => planet.id === terra.id)!.orbitUnits.some(unit => unit.id === escort.id)).toBe(false);
+    expect(mixedOrder.state.messages[0]).toBe('2 ships routed across 1 phase lane to Halcyon.');
+  });
+
   it('keeps a large departing fleet on its simulated path and vulnerable until tunnel entry', () => {
     let state = createInitialState();
     const terra = state.planets.find(planet => planet.id === 'terra')!;

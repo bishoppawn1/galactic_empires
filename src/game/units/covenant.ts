@@ -9,10 +9,10 @@ export const COVENANT_GROUND_KINDS = [
 export const COVENANT_SPACE_KINDS = [
   'covenantAssemblyArk', 'covenantSalvageFrigate', 'covenantChainFrigate', 'covenantInterdictor',
   'covenantAssemblyArkII', 'covenantSalvageCruiser', 'covenantChainCruiser', 'covenantInterdictorCruiser',
-  'covenantFoundryCruiser', 'covenantFabricatorCarrier', 'covenantIronclad', 'covenantDreadforge',
+  'covenantFabricatorCarrier', 'covenantIronclad', 'covenantDreadforge',
 ] satisfies SpaceUnitKind[];
 
-type CovenantUnitKind = typeof COVENANT_GROUND_KINDS[number] | typeof COVENANT_SPACE_KINDS[number] | 'covenantBulwark';
+type CovenantUnitKind = typeof COVENANT_GROUND_KINDS[number] | typeof COVENANT_SPACE_KINDS[number] | 'covenantBulwark' | 'covenantFoundryCruiser';
 
 export const COVENANT_UNITS: Record<CovenantUnitKind, UnitDefinition> = {
   covenantCohort: { label: 'Iron Cohort', description: 'Networked combat automatons that combine unlike weapon modules into a stronger firing solution.', cost: cost(44, 18, 8), time: 13, factory: 'ground', hp: 165, shields: 0, range: 15, moveSpeed: 6.4, weapon: { label: 'Linked Pulse Carbines', damage: 1.2, cooldown: .8, projectiles: 3, effect: 'pulse' }, ability: { kind: 'modularTargeting', label: 'Modular Targeting', description: 'Deals 25% more damage while a different Covenant ground chassis is nearby.' } },

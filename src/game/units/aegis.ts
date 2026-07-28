@@ -9,10 +9,10 @@ export const AEGIS_GROUND_KINDS = [
 export const AEGIS_SPACE_KINDS = [
   'aegisBastionLander', 'aegisShieldMonitor', 'aegisLanceFrigate', 'aegisSentinelFrigate',
   'aegisBastionLanderII', 'aegisShieldMonitorII', 'aegisLanceCruiser', 'aegisSentinelCruiser',
-  'aegisWardCruiser', 'aegisCitadelCarrier', 'aegisSovereignDreadnought',
+  'aegisCitadelCarrier', 'aegisSovereignDreadnought',
 ] satisfies SpaceUnitKind[];
 
-type AegisUnitKind = typeof AEGIS_GROUND_KINDS[number] | typeof AEGIS_SPACE_KINDS[number];
+type AegisUnitKind = typeof AEGIS_GROUND_KINDS[number] | typeof AEGIS_SPACE_KINDS[number] | 'aegisWardCruiser';
 
 export const AEGIS_UNITS: Record<AegisUnitKind, UnitDefinition> = {
   aegisWarden: { label: 'Warden Cohort', description: 'Shield-bearing infantry that locks into a protective formation around nearby allies.', cost: cost(58, 25, 12), time: 18, factory: 'ground', hp: 150, shields: 100, range: 15, moveSpeed: 4.8, weapon: { label: 'Triad Pulse Carbines', damage: 1.5, cooldown: .9, projectiles: 3, effect: 'pulse' }, ability: { kind: 'shieldWall', label: 'Shield Wall', description: 'While its shields hold, nearby allied ground units take 20% less damage.' } },

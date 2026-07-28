@@ -85,7 +85,7 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   covenantDreadforge,
 };
 
-const BROOD_SHIP_IMAGES = new Set<SpaceUnitKind>(BROOD_SPACE_KINDS);
+const BROOD_SHIP_IMAGES = new Set<SpaceUnitKind>([...BROOD_SPACE_KINDS, 'hiveCruiser', 'voidStalker']);
 
 export const shipImageSource = (kind: SpaceUnitKind) => SHIP_IMAGES[kind];
 

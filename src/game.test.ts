@@ -113,6 +113,7 @@ describe('unit weapon definitions', () => {
     for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
+      expect(roster.filter(kind => UNITS[kind].spaceTier === 2)).toHaveLength(4);
     }
   });
 
@@ -475,7 +476,7 @@ describe('starter faction foundations', () => {
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
     expect(BROOD_GROUND_KINDS).toHaveLength(9);
-    expect(BROOD_SPACE_KINDS).toHaveLength(13);
+    expect(BROOD_SPACE_KINDS).toHaveLength(11);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -506,7 +507,7 @@ describe('starter faction foundations', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(AEGIS_GROUND_KINDS).toHaveLength(5);
-    expect(AEGIS_SPACE_KINDS).toHaveLength(11);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(10);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);

@@ -2236,7 +2236,7 @@ function runEnemyStrategicAction(state: GameState) {
           : !hasFlakFrigate ? spaceKind('flakFrigate')
             : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
       } else if (yard.kind === 'advancedSpaceFactory') {
-        const advancedLine: SpaceUnitKind[] = ['advancedEscortFrigate', 'advancedMissileFrigate', 'lightCruiser', 'destroyer'];
+        const advancedLine: SpaceUnitKind[] = ['advancedEscortFrigate', 'advancedMissileFrigate'];
         desired = needsCarrier ? spaceKind('advancedTransport')
           : !hasFlakFrigate ? spaceKind('advancedFlakFrigate')
             : spaceKind(advancedLine[state.nextId % advancedLine.length]);

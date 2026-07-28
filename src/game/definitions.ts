@@ -538,15 +538,18 @@ export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter',
 export const COALITION_SPACE_KINDS: SpaceUnitKind[] = [
   'transport', 'escortFrigate', 'missileFrigate', 'flakFrigate',
   'advancedTransport', 'advancedEscortFrigate', 'advancedMissileFrigate', 'advancedFlakFrigate',
-  'lightCruiser', 'destroyer', 'assaultCarrier', 'battlecruiser', 'dreadnought',
+  'assaultCarrier', 'battlecruiser', 'dreadnought',
 ];
 export const BROOD_SPACE_KINDS: SpaceUnitKind[] = [
   'sporeArk', 'clawFrigate', 'needleFrigate', 'broodSporeguard',
   'greaterSporeArk', 'clawCruiser', 'needleCruiser', 'greaterSporeguard',
-  'hiveCruiser', 'voidStalker', 'broodCarrier', 'leviathan', 'worldEater',
+  'broodCarrier', 'leviathan', 'worldEater',
 ];
 export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS, ...COVENANT_GROUND_KINDS, 'covenantBulwark'];
-export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS];
+const RETIRED_SPACE_KINDS: SpaceUnitKind[] = [
+  'lightCruiser', 'destroyer', 'hiveCruiser', 'voidStalker', 'aegisWardCruiser', 'covenantFoundryCruiser',
+];
+export const SPACE_KINDS: SpaceUnitKind[] = [...COALITION_SPACE_KINDS, ...BROOD_SPACE_KINDS, ...AEGIS_SPACE_KINDS, ...COVENANT_SPACE_KINDS, ...RETIRED_SPACE_KINDS];
 export const FLAK_FRIGATE_KINDS: ReadonlySet<SpaceUnitKind> = new Set([
   'flakFrigate', 'advancedFlakFrigate',
   'broodSporeguard', 'greaterSporeguard',

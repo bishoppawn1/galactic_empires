@@ -119,8 +119,8 @@ describe('Galactic Empires interface', () => {
   it('uses dedicated Brood artwork while Tier 2 counterparts retain their recognizable silhouettes', () => {
     const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
     const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
-    expect(broodShipArt).toHaveLength(13);
-    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(9);
+    expect(broodShipArt).toHaveLength(11);
+    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(7);
     broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
   });
 
@@ -140,7 +140,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
-    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(12);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(11);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {
@@ -282,7 +282,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Escort Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Missile Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Flak Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Phase Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.queryByText('Light Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Phase Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.getByText('Atlas Mega Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' })).toBeInTheDocument();
@@ -340,9 +341,10 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
 
-    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Ward Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Bastion Lander II', 'Shield Monitor II', 'Lance Cruiser', 'Sentinel Flak Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
       expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
     }
+    expect(screen.queryByText('Ward Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
 

@@ -54,8 +54,9 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   }
   for (const connection of candidates) {
     if (selected.has(connectionKey(connection))
-      || !nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
-      || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)) continue;
+      || (!(connection.from.systemKind === 'star' || connection.to.systemKind === 'star')
+        && (!nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
+          || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)))) continue;
     connections.push(connection);
   }
   return connections.sort((a, b) => a.distance - b.distance

@@ -1,4 +1,4 @@
-import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, UnitDefinition, UnitKind, WeaponDefinition } from './types';
+import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, MapSize, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, UnitDefinition, UnitKind, WeaponDefinition } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
 import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
@@ -13,6 +13,12 @@ export const RESOURCE_TRADE_DEFAULT_SPEND = 150;
 export const RESOURCE_TRADE_MAX_SPEND = 1_000_000_000;
 export const GALAXY_CANVAS_WIDTH = 12800;
 export const GALAXY_CANVAS_HEIGHT = 8800;
+export const GALACTIC_GALAXY_CANVAS_WIDTH = 19200;
+export interface GalaxyCanvasDimensions { width: number; height: number }
+export const galaxyCanvasDimensions = (mapSize: MapSize): GalaxyCanvasDimensions => ({
+  width: mapSize === 'galactic' ? GALACTIC_GALAXY_CANVAS_WIDTH : GALAXY_CANVAS_WIDTH,
+  height: GALAXY_CANVAS_HEIGHT,
+});
 
 export const BUILDINGS: Record<BuildingKind, Definition> = {
   metalMine: { label: 'Metal Mine', description: 'Produces a permanent stream of metal.', cost: pool(0, 80, 45) },

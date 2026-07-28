@@ -6,6 +6,7 @@ import {
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
   createInitialState,
   findPlanetPath,
+  galaxyCanvasDimensions,
   localPlanetConnections,
   phaseTravelTime,
 } from './game';
@@ -16,7 +17,7 @@ describe('sparse phase-lane navigation', () => {
   });
 
   it('keeps generated maps connected while removing redundant nearby lanes', () => {
-    for (const mapSize of ['small', 'medium', 'large', 'huge'] as const) {
+    for (const mapSize of ['small', 'medium', 'large', 'huge', 'massive', 'galactic'] as const) {
       for (let mapSeed = 0; mapSeed <= 20; mapSeed += 1) {
         const state = createInitialState({ mapSize, difficulty: 'commander', mapSeed });
         const connections = localPlanetConnections(state.planets);
@@ -28,9 +29,33 @@ describe('sparse phase-lane navigation', () => {
         expect(connections.length).toBeLessThanOrEqual(nearbyPairs);
         expect(connections.every(connection => connection.distance <= MAX_PHASE_LANE_DISTANCE)).toBe(true);
         expect(state.planets.every(planet => findPlanetPath(state.planets, state.planets[0].id, planet.id))).toBe(true);
-        if (nearbyPairs > state.planets.length - 1) expect(connections.length).toBeLessThan(nearbyPairs);
+        if (!state.planets.some(system => system.systemKind === 'star') && nearbyPairs > state.planets.length - 1) {
+          expect(connections.length).toBeLessThan(nearbyPairs);
+        }
       }
     }
+  });
+
+  it('gives the star a lane to every nearby system', () => {
+    for (let mapSeed = 1; mapSeed <= 20; mapSeed += 1) {
+      const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed });
+      const star = state.planets.find(system => system.systemKind === 'star')!;
+      const nearby = state.planets.filter(system =>
+        system.id !== star.id && Math.hypot(system.x - star.x, system.y - star.y) <= MAX_PHASE_LANE_DISTANCE);
+      const connections = localPlanetConnections(state.planets);
+
+      expect(nearby.length).toBeGreaterThan(0);
+      expect(nearby.every(system => connections.some(connection =>
+        (connection.from.id === star.id && connection.to.id === system.id)
+        || (connection.to.id === star.id && connection.from.id === system.id)))).toBe(true);
+    }
+  });
+
+  it('makes Galactic maps physically wider without shrinking their height', () => {
+    const massive = galaxyCanvasDimensions('massive');
+    const galactic = galaxyCanvasDimensions('galactic');
+    expect(galactic.width).toBe(massive.width * 1.5);
+    expect(galactic.height).toBe(massive.height);
   });
 
   it('crosses phase tunnels at roughly three times the former warp speed', () => {

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH } from './geometry';
+import type { GalaxyCanvasDimensions } from '../../game';
+import { DEFAULT_GALAXY_CANVAS_DIMENSIONS } from './geometry';
 import type { GalaxyViewportBounds } from './geometry';
 
 const VIEWPORT_OVERSCAN = 480;
 const VIEWPORT_STEP = 240;
 
-export function useGalaxyViewport(zoom: number) {
+export function useGalaxyViewport(zoom: number, dimensions: GalaxyCanvasDimensions = DEFAULT_GALAXY_CANVAS_DIMENSIONS) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | undefined>(undefined);
   const [bounds, setBounds] = useState<GalaxyViewportBounds>();
@@ -19,11 +20,11 @@ export function useGalaxyViewport(zoom: number) {
     const next = {
       left: Math.max(0, Math.floor(left / VIEWPORT_STEP) * VIEWPORT_STEP - VIEWPORT_OVERSCAN),
       top: Math.max(0, Math.floor(top / VIEWPORT_STEP) * VIEWPORT_STEP - VIEWPORT_OVERSCAN),
-      right: Math.min(GALAXY_CANVAS_WIDTH, Math.ceil(right / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
-      bottom: Math.min(GALAXY_CANVAS_HEIGHT, Math.ceil(bottom / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
+      right: Math.min(dimensions.width, Math.ceil(right / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
+      bottom: Math.min(dimensions.height, Math.ceil(bottom / VIEWPORT_STEP) * VIEWPORT_STEP + VIEWPORT_OVERSCAN),
     };
     setBounds(current => current && current.left === next.left && current.top === next.top && current.right === next.right && current.bottom === next.bottom ? current : next);
-  }, [zoom]);
+  }, [dimensions.height, dimensions.width, zoom]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== undefined) return;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { visibleOrbitUnits, type GameState, type UnitFaction } from '../../game';
+import { galaxyCanvasDimensions, visibleOrbitUnits, type GameState, type UnitFaction } from '../../game';
 import { isSpaceUnit, shipDisplaySize, shipImageSource } from '../shared/ShipImage';
 import { fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, type GalaxyViewportBounds } from './geometry';
 import { canvasPixelScale } from './renderBudget';
@@ -15,11 +15,12 @@ interface CanvasShip {
 }
 
 export function inspectableShipAtPoint(state: GameState, x: number, y: number) {
+  const dimensions = galaxyCanvasDimensions(state.config.mapSize);
   let nearest: { planetId: string; unitId: string; distance: number } | undefined;
   for (const planet of state.planets) {
     visibleOrbitUnits(planet).forEach((ship, index) => {
       if (ship.faction === 'player' || ship.faction === 'neutral' || ship.pendingLanding || ship.pendingEmbark || !isSpaceUnit(ship.kind)) return;
-      const position = shipMapPosition(planet, ship, index);
+      const position = shipMapPosition(planet, ship, index, dimensions);
       const distance = Math.hypot(position.x - x, position.y - y);
       const hitRadius = Math.max(20, shipDisplaySize(ship.kind) * .45);
       if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: planet.id, unitId: ship.id, distance };
@@ -27,7 +28,7 @@ export function inspectableShipAtPoint(state: GameState, x: number, y: number) {
   }
   state.fleets.forEach(fleet => {
     if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return;
-    const position = fleetMapPosition(fleet, state.planets);
+    const position = fleetMapPosition(fleet, state.planets, dimensions);
     const distance = Math.hypot(position.x - x, position.y - y);
     const hitRadius = Math.max(20, shipDisplaySize(fleet.unit.kind) * .45);
     if (distance <= hitRadius && (!nearest || distance < nearest.distance)) nearest = { planetId: fleet.destinationId, unitId: fleet.unit.id, distance };
@@ -49,18 +50,19 @@ const cachedShipImage = (kind: CanvasShip['kind']) => {
 export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number; selectedShipIds: string[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ships = useMemo(() => {
+    const dimensions = galaxyCanvasDimensions(state.config.mapSize);
     const orbiting = state.planets.flatMap(planet => visibleOrbitUnits(planet).flatMap((ship, index) => {
       if (ship.faction === 'player' || ship.pendingLanding || ship.pendingEmbark || !isSpaceUnit(ship.kind)) return [];
-      const position = shipMapPosition(planet, ship, index);
+      const position = shipMapPosition(planet, ship, index, dimensions);
       return pointInViewport(bounds, position.x, position.y, shipDisplaySize(ship.kind))
         ? [{ id: ship.id, kind: ship.kind, faction: ship.faction, ...position, heading: orbitShipHeading(ship), charging: false } satisfies CanvasShip]
         : [];
     }));
     const traveling = state.fleets.flatMap(fleet => {
       if (fleet.faction === 'player' || !isSpaceUnit(fleet.unit.kind)) return [];
-      const position = fleetMapPosition(fleet, state.planets);
+      const position = fleetMapPosition(fleet, state.planets, dimensions);
       return pointInViewport(bounds, position.x, position.y, shipDisplaySize(fleet.unit.kind))
-        ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x: position.x, y: position.y, heading: fleetHeading(fleet, state.planets), charging: position.phase === 'charging' } satisfies CanvasShip]
+        ? [{ id: fleet.unit.id, kind: fleet.unit.kind, faction: fleet.faction, x: position.x, y: position.y, heading: fleetHeading(fleet, state.planets, dimensions), charging: position.phase === 'charging' } satisfies CanvasShip]
         : [];
     });
     return [...orbiting, ...traveling];

@@ -8,7 +8,7 @@ import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojec
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { GroundUnitImage } from './components/shared/GroundUnitImage';
 import { ShipImage } from './components/shared/ShipImage';
-import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -386,6 +386,17 @@ describe('Galactic Empires interface', () => {
   it('calculates whole-map zoom from both viewport dimensions', () => {
     expect(wholeMapZoom(640, 600)).toBe(.05);
     expect(wholeMapZoom(1_000, 440)).toBe(.05);
+  });
+
+  it('renders the Galactic setting on a physically wider canvas', () => {
+    const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed: 142857 });
+    const dimensions = galaxyCanvasDimensions(state.config.mapSize);
+    render(<GalaxyMap state={state} selectedId={state.planets[0].id} selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;
+    expect(canvas.style.width).toBe('19200px');
+    expect(canvas.style.height).toBe('8800px');
+    expect(wholeMapZoom(640, 600, dimensions)).toBe(.033);
   });
 
   it('preserves map zoom after visiting research and following a ground battle', () => {

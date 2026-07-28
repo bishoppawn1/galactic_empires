@@ -45,10 +45,10 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
   researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipWeaponBatteries, unitAvailableToCivilization,
@@ -154,15 +154,16 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
   ship.heading = headingForVector(position.orbitX - (ship.orbitX ?? 0), position.orbitY - (ship.orbitY ?? 0), ship.heading);
 }
 
-const systemDirection = (from: Planet, to: Planet) => {
-  const dx = GALAXY_CANVAS_WIDTH * (to.x - from.x) / 100;
-  const dy = GALAXY_CANVAS_HEIGHT * (to.y - from.y) / 100;
+const systemDirection = (from: Planet, to: Planet, mapSize: MapSize) => {
+  const dimensions = galaxyCanvasDimensions(mapSize);
+  const dx = dimensions.width * (to.x - from.x) / 100;
+  const dy = dimensions.height * (to.y - from.y) / 100;
   const distance = Math.hypot(dx, dy) || 1;
   return { x: dx / distance, y: dy / distance };
 };
 
-function phaseEntryFormationPositions(origin: Planet, destination: Planet) {
-  const inboundDirection = systemDirection(destination, origin);
+function phaseEntryFormationPositions(origin: Planet, destination: Planet, mapSize: MapSize) {
+  const inboundDirection = systemDirection(destination, origin, mapSize);
   const normalX = inboundDirection.x, normalY = inboundDirection.y;
   const tangentX = -normalY, tangentY = normalX;
   const spacing = MIN_SHIP_ORBIT_SEPARATION + 2;
@@ -188,14 +189,14 @@ function phaseEntryFormationPositions(origin: Planet, destination: Planet) {
   return positions;
 }
 
-function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
+function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit, mapSize: MapSize) {
   delete ship.docked;
   const occupied = destination.orbitUnits.filter(unit => unit.id !== ship.id && Number.isFinite(unit.orbitX) && Number.isFinite(unit.orbitY))
     .map(unit => ({ orbitX: unit.orbitX!, orbitY: unit.orbitY! }));
   const open = (position: { x: number; y: number }) => occupied.every(point =>
     Math.hypot(point.orbitX - position.x, point.orbitY - position.y) >= MIN_SHIP_ORBIT_SEPARATION);
-  const preferred = phaseEntryFormationPositions(origin, destination).find(open);
-  const inboundDirection = systemDirection(destination, origin);
+  const preferred = phaseEntryFormationPositions(origin, destination, mapSize).find(open);
+  const inboundDirection = systemDirection(destination, origin, mapSize);
   const fallback = preferred ?? nearestOpenOrbitPosition(
     inboundDirection.x * MAX_SHIP_ORBIT_RADIUS,
     inboundDirection.y * MAX_SHIP_ORBIT_RADIUS,
@@ -203,7 +204,7 @@ function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit) {
   );
   ship.orbitX = fallback.x;
   ship.orbitY = fallback.y;
-  const outboundDirection = systemDirection(origin, destination);
+  const outboundDirection = systemDirection(origin, destination, mapSize);
   ship.heading = headingForVector(outboundDirection.x, outboundDirection.y, ship.heading);
   delete ship.phaseArrival;
   delete ship.orbitTargetX;
@@ -1006,7 +1007,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
   const interruptedIds = new Set(interruptedFleets.map(fleet => fleet.id));
   for (const fleet of interruptedFleets) {
     const destination = getPlanet(state, fleet.destinationId)!;
-    const border = systemBorderOffset(p, destination);
+    const border = systemBorderOffset(p, destination, state.config.mapSize);
     const progress = fleet.phase === 'charging' || fleet.travelTime <= 0 ? 1 : Math.min(1, fleet.progress / fleet.travelTime);
     fleet.unit.orbitX = (fleet.departureX ?? 0) + (border.x - (fleet.departureX ?? 0)) * progress;
     fleet.unit.orbitY = (fleet.departureY ?? 0) + (border.y - (fleet.departureY ?? 0)) * progress;
@@ -1043,13 +1044,13 @@ export const PHASE_TUNNEL_SECONDS_PER_MAP_UNIT = .28;
 export const phaseTravelTime = (from: Planet, to: Planet) =>
   Math.max(PHASE_TUNNEL_MIN_SECONDS, Math.hypot(to.x - from.x, to.y - from.y) * PHASE_TUNNEL_SECONDS_PER_MAP_UNIT);
 
-const systemBorderOffset = (from: Planet, to: Planet) => {
-  const direction = systemDirection(from, to);
+const systemBorderOffset = (from: Planet, to: Planet, mapSize: MapSize) => {
+  const direction = systemDirection(from, to, mapSize);
   return { x: direction.x * MAX_SHIP_ORBIT_RADIUS, y: direction.y * MAX_SHIP_ORBIT_RADIUS };
 };
 
-function beginSystemExit(fleet: Fleet, origin: Planet, destination: Planet, departureX: number, departureY: number) {
-  const border = systemBorderOffset(origin, destination);
+function beginSystemExit(fleet: Fleet, origin: Planet, destination: Planet, departureX: number, departureY: number, mapSize: MapSize) {
+  const border = systemBorderOffset(origin, destination, mapSize);
   fleet.phase = 'exiting';
   fleet.departureX = departureX;
   fleet.departureY = departureY;
@@ -1061,7 +1062,7 @@ function syncDepartingFleetPosition(state: GameState, fleet: Fleet) {
   if (fleet.phase !== 'exiting' && fleet.phase !== 'charging') return;
   const origin = getPlanet(state, fleet.originId), destination = getPlanet(state, fleet.destinationId);
   if (!origin || !destination) return;
-  const border = systemBorderOffset(origin, destination);
+  const border = systemBorderOffset(origin, destination, state.config.mapSize);
   const progress = fleet.phase === 'charging' || fleet.travelTime <= 0 ? 1 : Math.min(1, fleet.progress / fleet.travelTime);
   fleet.unit.orbitX = (fleet.departureX ?? 0) + (border.x - (fleet.departureX ?? 0)) * progress;
   fleet.unit.orbitY = (fleet.departureY ?? 0) + (border.y - (fleet.departureY ?? 0)) * progress;
@@ -1103,7 +1104,7 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
     delete ship.pendingEmbark;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
     const fleet: Fleet = { id: `f${state.nextId++}`, faction, originId: origin.id, destinationId: firstDestination.id, unit: ship, progress: 0, travelTime: 0, route: path.slice(2), finalDestinationId: destination.id };
-    beginSystemExit(fleet, origin, firstDestination, departureX, departureY);
+    beginSystemExit(fleet, origin, firstDestination, departureX, departureY, state.config.mapSize);
     state.fleets.push(fleet);
   }
   return true;
@@ -2340,12 +2341,12 @@ export function tick(input: GameState, seconds: number): GameState {
         } else if (fleet.route?.length) {
           const nextId = fleet.route.shift()!;
           const next = getPlanet(state, nextId)!;
-          const inboundBorder = systemBorderOffset(waypoint, origin);
+          const inboundBorder = systemBorderOffset(waypoint, origin, state.config.mapSize);
           fleet.originId = waypoint.id;
           fleet.destinationId = next.id;
-          beginSystemExit(fleet, waypoint, next, inboundBorder.x, inboundBorder.y);
+          beginSystemExit(fleet, waypoint, next, inboundBorder.x, inboundBorder.y, state.config.mapSize);
         } else {
-          placeAtSystemEdge(origin, waypoint, fleet.unit);
+          placeAtSystemEdge(origin, waypoint, fleet.unit, state.config.mapSize);
           waypoint.orbitUnits.push(fleet.unit);
           addMessage(state, `${UNITS[fleet.unit.kind].label} emerged at the outer edge of ${waypoint.name}.`);
           const group = arrivals.get(waypoint.id) ?? [];

@@ -778,13 +778,14 @@ describe('Galactic Empires interface', () => {
     const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
     expect(missile).not.toBeNull();
     expect(missile).toHaveAttribute('data-projectiles', '1');
-    expect(missile).toHaveAttribute('data-projectile-size', '12');
+    expect(missile).toHaveAttribute('data-projectile-size', '6');
     expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
     expect(missile!.querySelectorAll('.weapon-projectile-core')).toHaveLength(1);
     const projectile = missile!.querySelector('.weapon-projectile')!;
     expect(projectile.getAttribute('href')).toContain('missile');
-    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(38.4);
-    expect(Number(projectile.getAttribute('height'))).toBe(36);
+    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(19.2);
+    expect(Number(projectile.getAttribute('height'))).toBe(18);
+    expect(Number(missile!.querySelector('.weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(1.2);
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
   });
 
@@ -1054,8 +1055,9 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
-    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.6');
-    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(1.8);
+    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.3');
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(.9);
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(.08);
     expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();

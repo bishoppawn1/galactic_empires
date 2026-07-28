@@ -20,12 +20,18 @@ export function FleetSelectionHud({ ships }: { ships: Unit[] }) {
           <span className="selected-ship-icon" aria-hidden="true">{isSpaceUnit(ship.kind) && <ShipImage kind={ship.kind} />}</span>
           {definition.fighterWing && <span className="selected-fighter-count" aria-label={`${definition.fighterWing.label} ${carrierFighterCount(ship)} of ${definition.fighterWing.capacity}`}>FTR {carrierFighterCount(ship)}/{definition.fighterWing.capacity}</span>}
           <div className="selected-ship-bars">
-            <span className="selected-ship-health" role="meter" aria-label={`${label} hull`} aria-valuemin={0} aria-valuemax={ship.maxHp} aria-valuenow={Math.max(0, ship.hp)} title={`Hull ${Math.ceil(ship.hp)} / ${ship.maxHp}`}>
-              <i style={{ width: `${statusPercent(ship.hp, ship.maxHp)}%` }} />
-            </span>
-            <span className="selected-ship-shields" role="meter" aria-label={`${label} shields`} aria-valuemin={0} aria-valuemax={ship.maxShields} aria-valuenow={Math.max(0, ship.shields)} title={`Shields ${Math.ceil(ship.shields)} / ${ship.maxShields}`}>
-              <i style={{ width: `${statusPercent(ship.shields, ship.maxShields)}%` }} />
-            </span>
+            <div className="selected-ship-status-row">
+              <span className="selected-ship-health" role="meter" aria-label={`${label} hull`} aria-valuemin={0} aria-valuemax={ship.maxHp} aria-valuenow={Math.max(0, ship.hp)} title={`Hull ${Math.ceil(ship.hp)} / ${ship.maxHp}`}>
+                <i style={{ width: `${statusPercent(ship.hp, ship.maxHp)}%` }} />
+              </span>
+              <span className="selected-ship-status-value" aria-label={`${label} hull value`}>{Math.ceil(Math.max(0, ship.hp))}/{ship.maxHp}</span>
+            </div>
+            <div className="selected-ship-status-row">
+              <span className="selected-ship-shields" role="meter" aria-label={`${label} shields`} aria-valuemin={0} aria-valuemax={ship.maxShields} aria-valuenow={Math.max(0, ship.shields)} title={`Shields ${Math.ceil(ship.shields)} / ${ship.maxShields}`}>
+                <i style={{ width: `${statusPercent(ship.shields, ship.maxShields)}%` }} />
+              </span>
+              <span className="selected-ship-status-value" aria-label={`${label} shield value`}>{Math.ceil(Math.max(0, ship.shields))}/{ship.maxShields}</span>
+            </div>
           </div>
         </article>;
       })}

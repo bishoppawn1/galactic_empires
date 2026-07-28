@@ -642,8 +642,11 @@ describe('Galactic Empires interface', () => {
     const shields = within(card).getByRole('meter', { name: 'Transport shields' });
     expect(hull.querySelector('i')).toHaveStyle({ width: '50%' });
     expect(shields.querySelector('i')).toHaveStyle({ width: '25%' });
-    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }).querySelector('.ship-map-status')).toBeNull();
-    expect(card).not.toHaveTextContent(/\d/);
+    const mapStatus = screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }).querySelector('.ship-map-status')!;
+    expect(mapStatus).toBeInTheDocument();
+    expect(mapStatus).not.toHaveTextContent(/\d/);
+    expect(within(card).getByLabelText('Transport hull value')).toHaveTextContent(`${Math.ceil(transport.hp)}/${transport.maxHp}`);
+    expect(within(card).getByLabelText('Transport shield value')).toHaveTextContent(`${Math.ceil(transport.shields)}/${transport.maxShields}`);
   });
 
   it('shows a prominent capacity badge on transports and marks a full hold', () => {

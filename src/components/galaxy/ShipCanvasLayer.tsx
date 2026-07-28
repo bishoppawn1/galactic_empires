@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import type { GameState, UnitFaction } from '../../game';
+import { visibleOrbitUnits, type GameState, type UnitFaction } from '../../game';
 import { isSpaceUnit, shipDisplaySize, shipImageSource } from '../shared/ShipImage';
 import { fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, type GalaxyViewportBounds } from './geometry';
 
@@ -16,7 +16,7 @@ interface CanvasShip {
 export function inspectableShipAtPoint(state: GameState, x: number, y: number) {
   let nearest: { planetId: string; unitId: string; distance: number } | undefined;
   for (const planet of state.planets) {
-    planet.orbitUnits.forEach((ship, index) => {
+    visibleOrbitUnits(planet).forEach((ship, index) => {
       if (ship.faction === 'player' || ship.faction === 'neutral' || ship.pendingLanding || ship.pendingEmbark || !isSpaceUnit(ship.kind)) return;
       const position = shipMapPosition(planet, ship, index);
       const distance = Math.hypot(position.x - x, position.y - y);
@@ -48,7 +48,7 @@ const cachedShipImage = (kind: CanvasShip['kind']) => {
 export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number; selectedShipIds: string[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ships = useMemo(() => {
-    const orbiting = state.planets.flatMap(planet => planet.orbitUnits.flatMap((ship, index) => {
+    const orbiting = state.planets.flatMap(planet => visibleOrbitUnits(planet).flatMap((ship, index) => {
       if (ship.faction === 'player' || ship.pendingLanding || ship.pendingEmbark || !isSpaceUnit(ship.kind)) return [];
       const position = shipMapPosition(planet, ship, index);
       return pointInViewport(bounds, position.x, position.y, shipDisplaySize(ship.kind))

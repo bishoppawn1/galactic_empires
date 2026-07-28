@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { PLAYABLE_FACTIONS, PLAYABLE_FACTION_DEFINITIONS, mapPlanetCount, type EnemyDifficulty, type GameConfig, type MapSize, type PlayableFaction } from '../../game';
 
 const MAP_SIZE_DETAILS: Record<MapSize, { label: string; description: string }> = {
-  small: { label: 'Compact', description: '7 worlds · quicker conflicts' },
-  medium: { label: 'Standard', description: '11 worlds · balanced frontier' },
-  large: { label: 'Expansive', description: '15 worlds · long campaign' },
-  huge: { label: 'Colossal', description: '21 worlds · four-empire frontier' },
+  small: { label: 'Compact', description: '7 systems · quicker conflicts' },
+  medium: { label: 'Standard', description: '11 systems · balanced frontier' },
+  large: { label: 'Expansive', description: '15 systems · long campaign' },
+  huge: { label: 'Colossal', description: '21 systems · four-empire frontier' },
 };
 
 const DIFFICULTY_DETAILS: Record<EnemyDifficulty, { label: string; description: string }> = {

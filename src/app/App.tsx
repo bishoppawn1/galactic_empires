@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  applyGameCommand, createCompetitiveState, createInitialState, spaceYards, viewStateForFaction, visibleStateForPlayer, tick,
+  applyGameCommand, createCompetitiveState, createInitialState, randomMapSeed, spaceYards, viewStateForFaction, visibleStateForPlayer, tick,
   type EmpireFaction, type GameCommand, type GameConfig, type GameState, type PlayableFaction,
 } from '../game';
 import { GroundBattleView } from '../components/battle/GroundBattleView';
@@ -118,7 +118,7 @@ export default function App() {
   const beginHost = async (config: GameConfig) => {
     setConnecting(true); setConnectionError(undefined);
     try {
-      const controller = await hostMultiplayer(config, {
+      const controller = await hostMultiplayer({ ...config, mapSeed: config.mapSeed ?? randomMapSeed() }, {
         onLobby: nextLobby => setLobby(nextLobby),
         onStart: () => {},
         onState: () => {},
@@ -190,7 +190,7 @@ export default function App() {
 
   if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} onAddAi={() => controllerRef.current?.addAi()} onRemoveAi={() => controllerRef.current?.removeAi()} />;
   if (!state) return <CampaignSetup
-    onStart={config => { const next = createInitialState(config); installState(next); resetInterface(); }}
+    onStart={config => { const next = createInitialState({ ...config, mapSeed: config.mapSeed ?? randomMapSeed() }); installState(next); resetInterface(next); }}
     onHost={beginHost}
     onJoin={beginJoin}
     connecting={connecting}

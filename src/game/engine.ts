@@ -25,6 +25,7 @@ import {
   type SpaceShipTier,
   type SpaceUnitKind,
   type SpaceYardKind,
+  type SystemKind,
   type Unit,
   type UnitDefinition,
   type UnitFaction,
@@ -279,15 +280,104 @@ const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, nu
 });
 
 const planet = (id: string, name: string, x: number, y: number, color: string, owner: Faction, resourceYield: ResourcePool, mineMax: ResourcePool, industryMax = 3): Planet => ({
-  id, name, x, y, color, owner, resourceYield, buildingLimits: limits(mineMax, industryMax),
+  id, name, systemKind: 'planet', x, y, color, owner, resourceYield, buildingLimits: limits(mineMax, industryMax),
   buildings: [], groundUnits: [], orbitUnits: [], groundQueue: [], spaceQueue: [],
 });
 
 const MAP_PLANETS: Record<MapSize, number> = { small: 7, medium: 11, large: 15, huge: 21 };
+const SPECIAL_SYSTEM_COUNTS: Record<MapSize, Partial<Record<Exclude<SystemKind, 'planet'>, number>>> = {
+  small: { nebula: 1, star: 1, pirateBase: 1, ancientTemple: 1 },
+  medium: { nebula: 1, star: 1, pirateBase: 1, ancientTemple: 1 },
+  large: { nebula: 2, star: 1, pirateBase: 1, ancientTemple: 1 },
+  huge: { nebula: 2, star: 2, pirateBase: 2, ancientTemple: 1 },
+};
+const SPECIAL_SYSTEM_NAMES: Record<Exclude<SystemKind, 'planet'>, string[]> = {
+  nebula: ['The Blind Veil', 'Morrow Nebula', 'Ghostlight Cloud'],
+  star: ['Helios Pyre', 'The Cinder Star', 'Vulcan Furnace'],
+  pirateBase: ['Blackwake Anchorage', 'Corsair Hold', 'Red Jack Station'],
+  ancientTemple: ['Temple of the First Dawn', 'The Silent Reliquary', 'Orison Vault'],
+};
+const SPECIAL_SYSTEM_COLORS: Record<Exclude<SystemKind, 'planet'>, string> = {
+  nebula: '#7d6cff', star: '#ff884d', pirateBase: '#d8a24b', ancientTemple: '#79e4ff',
+};
+
+export const STELLAR_HAZARD_DAMAGE_PER_SECOND = 10;
+export const ANCIENT_RELIC_ECONOMY_MULTIPLIER = 1.5;
+export const ANCIENT_RELIC_DAMAGE_MULTIPLIER = 1.25;
+
+export const systemKind = (system: Planet): SystemKind => system.systemKind ?? 'planet';
+export const isColonizableWorld = (system: Planet) => systemKind(system) === 'planet';
+export const controlsAncientRelic = (state: GameState, faction: EmpireFaction) =>
+  state.planets.some(system => systemKind(system) === 'ancientTemple' && system.owner === faction);
+export const visibleOrbitUnits = (system: Planet, viewer: EmpireFaction = 'player') => {
+  if (systemKind(system) !== 'nebula' || system.orbitUnits.some(ship => ship.faction === viewer)) return system.orbitUnits;
+  return system.orbitUnits.filter(ship => ship.faction === viewer);
+};
+
+const seededRandom = (seed: number) => {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6d2b79f5;
+    let result = value;
+    result = Math.imul(result ^ result >>> 15, result | 1);
+    result ^= result + Math.imul(result ^ result >>> 7, result | 61);
+    return ((result ^ result >>> 14) >>> 0) / 4294967296;
+  };
+};
+const shuffle = <T,>(items: T[], random: () => number) => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+};
+const randomizeSystemPositions = (systems: Planet[], random: () => number) => {
+  const rotation = Math.floor(random() * 4);
+  const reflect = random() < .5;
+  systems.forEach(system => {
+    let x = system.x, y = system.y;
+    for (let turn = 0; turn < rotation; turn += 1) [x, y] = [100 - y, x];
+    if (reflect) x = 100 - x;
+    system.x = Math.max(4, Math.min(96, x + (random() - .5) * 4));
+    system.y = Math.max(4, Math.min(96, y + (random() - .5) * 4));
+  });
+};
+const distantHomeSystems = (systems: Planet[], count: number, random: () => number) => {
+  const available = [...systems];
+  const selected = [available.splice(Math.floor(random() * available.length), 1)[0]];
+  while (selected.length < count && available.length) {
+    const ranked = available.map(system => ({
+      system,
+      separation: Math.min(...selected.map(home => Math.hypot(system.x - home.x, system.y - home.y))),
+      tie: random(),
+    })).sort((a, b) => b.separation - a.separation || b.tie - a.tie);
+    selected.push(ranked[0].system);
+    available.splice(available.indexOf(ranked[0].system), 1);
+  }
+  return selected;
+};
+const configureSpecialSystem = (system: Planet, kind: Exclude<SystemKind, 'planet'>, nameIndex: number) => {
+  system.systemKind = kind;
+  system.name = SPECIAL_SYSTEM_NAMES[kind][nameIndex % SPECIAL_SYSTEM_NAMES[kind].length];
+  system.color = SPECIAL_SYSTEM_COLORS[kind];
+  system.owner = null;
+  system.buildings = [];
+  system.groundUnits = [];
+  system.groundQueue = [];
+  system.spaceQueue = [];
+  system.orbitUnits = kind === 'pirateBase'
+    ? [
+      unit(`pirate-${system.id}-1`, 'escortFrigate', 'neutral'),
+      unit(`pirate-${system.id}-2`, 'missileFrigate', 'neutral'),
+      unit(`pirate-${system.id}-3`, 'escortFrigate', 'neutral'),
+    ]
+    : [];
+};
 
 const seedNeutralGarrisons = (planets: Planet[]) => {
   const kinds: GroundUnitKind[] = ['infantry', 'recon', 'antiVehicle'];
-  planets.filter(p => p.owner === null && !p.groundUnits.length).forEach((p, planetIndex) => {
+  planets.filter(p => isColonizableWorld(p) && p.owner === null && !p.groundUnits.length).forEach((p, planetIndex) => {
     const count = 1 + planetIndex % 2;
     p.groundUnits = Array.from({ length: count }, (_, unitIndex) =>
       unit(`neutral-${p.id}-${unitIndex + 1}`, kinds[(planetIndex + unitIndex) % kinds.length], 'neutral'));
@@ -296,6 +386,11 @@ const seedNeutralGarrisons = (planets: Planet[]) => {
 
 export const mapPlanetCount = (size: MapSize) => MAP_PLANETS[size];
 export const enemyDifficultyMultiplier = (difficulty: EnemyDifficulty) => difficulty === 'cadet' ? .78 : difficulty === 'admiral' ? 1.38 : 1;
+export const randomMapSeed = () => {
+  const values = new Uint32Array(1);
+  globalThis.crypto?.getRandomValues?.(values);
+  return values[0] || Math.floor(Math.random() * 0xffffffff) || 1;
+};
 
 const starterBuildings = (prefix: string, faction: PlayableFaction): Building[] => {
   const kinds: BuildingKind[] = faction === 'brood'
@@ -306,12 +401,9 @@ const starterBuildings = (prefix: string, faction: PlayableFaction): Building[] 
 
 export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CONFIG, mode: GameState['mode'] = 'solo'): GameState {
   const playerFaction = requestedConfig.playerFaction ?? 'human';
-  const config = { ...requestedConfig, playerFaction };
-  const terra = planet('terra', 'Terra Nova', 22, 56, '#55d6be', 'player', pool(1, .9, .65), pool(5, 4, 3), 4);
-  terra.buildings = starterBuildings('b', playerFaction);
-
-  const cygnus = planet('cygnus', 'Cygnus Reach', 76, 30, '#e86a92', 'enemy', pool(.7, 1.2, .9), pool(3, 5, 4));
-  cygnus.buildings = starterBuildings('eb', 'human');
+  const config = { ...requestedConfig, playerFaction, mapSeed: requestedConfig.mapSeed ?? 0 };
+  const terra = planet('terra', 'Terra Nova', 22, 56, '#55d6be', null, pool(1, .9, .65), pool(5, 4, 3), 4);
+  const cygnus = planet('cygnus', 'Cygnus Reach', 76, 30, '#e86a92', null, pool(.7, 1.2, .9), pool(3, 5, 4));
 
   const draven = planet('draven', 'Draven', 62, 72, '#e86a92', null, pool(1.1, .6, 1), pool(5, 3, 4));
 
@@ -348,6 +440,23 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     planet('crown', 'Crown Reach', 98, 55, '#ffd36e', null, pool(.8, .75, 1.3), pool(4, 3, 6)),
   ];
   const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(['large', 'huge'].includes(config.mapSize) ? largePlanets : []), ...(config.mapSize === 'huge' ? hugePlanets : [])];
+  const random = seededRandom(config.mapSeed);
+  if (config.mapSeed) randomizeSystemPositions(planets, random);
+  const requestedHomes = mode === 'competitive' ? Math.min(4, planets.length) : 2;
+  const homeSystems = config.mapSeed
+    ? distantHomeSystems(planets, requestedHomes, random)
+    : ['terra', 'cygnus', 'halcyon', 'vesta'].slice(0, requestedHomes).map(id => planets.find(system => system.id === id)!).filter(Boolean);
+  const [playerHome, enemyHome] = homeSystems;
+  playerHome.owner = 'player';
+  playerHome.buildings = starterBuildings('b', playerFaction);
+  enemyHome.owner = 'enemy';
+  enemyHome.buildings = starterBuildings('eb', 'human');
+  if (config.mapSeed) {
+    const specialKinds = (Object.entries(SPECIAL_SYSTEM_COUNTS[config.mapSize]) as Array<[Exclude<SystemKind, 'planet'>, number]>)
+      .flatMap(([kind, count]) => Array.from({ length: count }, () => kind));
+    const candidates = shuffle(planets.filter(system => !homeSystems.includes(system)), random);
+    specialKinds.forEach((kind, index) => configureSpecialSystem(candidates[index], kind, index));
+  }
   seedNeutralGarrisons(planets);
   const state: GameState = {
     mode,
@@ -360,8 +469,8 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
     startingPlanetIds: { player: 'terra', enemy: 'cygnus' },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
-    elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true,
-    messages: [playerFaction === 'brood' ? 'THE BROOD AWAKENS — Terra Nova begins generating biomass.' : playerFaction === 'aegis' ? 'AEGIS COMMAND ONLINE — the Directorate shield wall is ready.' : playerFaction === 'covenant' ? 'IRON PROTOCOL ONLINE — the Covenant foundries await material.' : 'COMMAND ONLINE — Terra Nova awaits your orders.'],
+    elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true, homeSystemIds: homeSystems.map(system => system.id),
+    messages: [playerFaction === 'brood' ? `THE BROOD AWAKENS — ${playerHome.name} begins generating biomass.` : playerFaction === 'aegis' ? `AEGIS COMMAND ONLINE — ${playerHome.name} is ready.` : playerFaction === 'covenant' ? `IRON PROTOCOL ONLINE — ${playerHome.name} awaits material.` : `COMMAND ONLINE — ${playerHome.name} awaits your orders.`],
   };
   updatePlanetIntel(state);
   seedKnownEmpireHomeworldIntel(state);
@@ -392,6 +501,7 @@ export function migrateGameState(input: GameState): GameState {
   state.mode ??= 'solo';
   state.config ??= { mapSize: state.planets.length <= 7 ? 'small' : state.planets.length <= 11 ? 'medium' : state.planets.length <= 15 ? 'large' : 'huge', difficulty: 'commander', playerFaction: 'human' };
   state.config.playerFaction = PLAYABLE_FACTIONS.includes(state.config.playerFaction ?? 'human') ? state.config.playerFaction ?? 'human' : 'human';
+  state.config.mapSeed = Number.isFinite(state.config.mapSeed) ? state.config.mapSeed : 0;
   const savedCivilizations = state.empireCivilizations as Partial<Record<EmpireFaction, PlayableFaction>> | undefined;
   state.empireCivilizations = {
     player: state.config.playerFaction,
@@ -449,6 +559,7 @@ export function migrateGameState(input: GameState): GameState {
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
   for (const p of state.planets) {
+    p.systemKind ??= 'planet';
     p.buildingLimits.experimentalSpaceFactory ??= 1;
     p.buildingLimits.groundDefense = 4;
     p.buildingLimits.antiSpaceDefense = 3;
@@ -633,7 +744,7 @@ export function tradeResources(input: GameState, from: Resource, to: Resource, a
 
 export function constructBuilding(input: GameState, planetId: string, kind: BuildingKind): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = BUILDINGS[kind];
-  if (!p || p.owner !== 'player') return fail(input, 'Select one of your colonies.');
+  if (!p || !isColonizableWorld(p) || p.owner !== 'player') return fail(input, 'Select one of your colonies.');
   if (usesBiomass(state) && ['metalMine', 'crystalMine', 'goldMine'].includes(kind)) return fail(input, 'The Brood grows biomass naturally and cannot construct mineral mines.');
   const count = p.buildings.filter(b => b.kind === kind).length;
   const unlimited = hasUnlimitedBuildingCapacity(kind);
@@ -661,7 +772,7 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
 export function queueUnit(input: GameState, planetId: string, kind: UnitKind, yardIds?: string[]): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = UNITS[kind];
   if (kind === 'defenseTurret' || kind === 'spineTower' || kind === 'covenantBulwark') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
-  if (!p || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
+  if (!p || !isColonizableWorld(p) || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
   const civilization = empireCivilization(state);
   if (!unitAvailableToCivilization(kind, civilization)) return fail(input, civilization === 'brood'
     ? 'That organism is not part of the Brood genome.'
@@ -735,6 +846,7 @@ export function dockSpaceUnits(input: GameState, planetId: string, unitIds: stri
   const state = clone(input); const p = getPlanet(state, planetId);
   const ships = p?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
   if (!p || !ships.length || ships.length !== unitIds.length) return fail(input, 'Selected ships are not inside this gravity well.');
+  if (!isColonizableWorld(p)) return fail(input, `${p.name} has no planetary surface. Right-click inside the system to maneuver.`);
   const selectedIds = new Set(unitIds);
   const occupied = p.orbitUnits.filter(ship => !selectedIds.has(ship.id));
   let availableSquads = p.groundUnits.filter(unit => unit.faction === 'player').length;
@@ -924,7 +1036,7 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   const cargo = transport.cargo ?? [];
   if (transport.faction === 'neutral') return;
   const faction = transport.faction;
-  if (!UNITS[transport.kind].capacity || !cargo.length) return;
+  if (!isColonizableWorld(p) || !UNITS[transport.kind].capacity || !cargo.length) return;
   const activeBattle = state.battles.find(battle => battle.planetId === p.id);
   if (activeBattle) {
     const attackerFaction = activeBattle.attackerFaction ?? activeBattle.attackers[0]?.faction;
@@ -998,7 +1110,7 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
   const playerCivilization = slots.find(slot => slot.faction === 'player')?.civilization ?? config.playerFaction ?? 'human';
   const effectiveConfig = { ...config, playerFaction: playerCivilization, ...(slots.length > 2 && config.mapSize !== 'huge' ? { mapSize: 'huge' as const } : {}) };
   const state = createInitialState(effectiveConfig, 'competitive');
-  const homeIds = ['terra', 'cygnus', 'halcyon', 'vesta'];
+  const homeIds = state.homeSystemIds?.length ? state.homeSystemIds : ['terra', 'cygnus', 'halcyon', 'vesta'];
   const firstEmpire = state.planets.find(planet => planet.id === homeIds[0])!;
   slots.forEach(slot => {
     const civilization = slot.civilization ?? (slot.faction === 'player' ? playerCivilization : 'human');
@@ -1401,7 +1513,7 @@ export interface OrbitalCombatShot {
   attackerType: 'ship' | 'defense' | 'battery';
   targetId: string;
   targetType: 'ship' | 'defense' | 'fighter';
-  faction: EmpireFaction;
+  faction: UnitFaction;
   damage: number;
   weaponEffect: WeaponEffect;
   damageMultiplier?: number;
@@ -1414,7 +1526,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shots: OrbitalCombatShot[] = [];
   const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
   const batteries = p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building));
-  const combatants = p.orbitUnits.filter(unit => unit.faction !== 'neutral');
+  const combatants = p.orbitUnits;
   const factions = new Set(combatants.map(unit => unit.faction));
   const hasHostileInstallations = !!p.owner && combatants.some(unit => unit.faction !== p.owner) && (defenses.length > 0 || batteries.length > 0);
   if (factions.size < 2 && !hasHostileInstallations) return shots;
@@ -1428,14 +1540,14 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   };
 
   for (const attacker of combatants) {
-    const faction = attacker.faction as EmpireFaction;
+    const faction = attacker.faction;
     const hostileShips = hostileShipsByFaction.get(faction) ?? [];
     const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
     // Anti-Space Batteries are protected surface emplacements. Ships can target
     // armed orbital platforms, but cannot fire through the planet to destroy a
     // ground-based battery.
-    const hostileDefenses = p.owner && p.owner !== faction ? defenses : [];
-    const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : p.orbitFocusTargetIds?.[faction];
+    const hostileDefenses = faction !== 'neutral' && p.owner && p.owner !== faction ? defenses : [];
+    const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : faction === 'neutral' ? undefined : p.orbitFocusTargetIds?.[faction];
     const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);
     const attackerPosition = shipPosition(attacker);
     const defenseInRange = (defense: Building) => {
@@ -1545,8 +1657,9 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     if (!attackerShots.length || !salvoDamage) return;
     const hasSynapse = p.orbitUnits.some(ally => ally.faction === unit.faction && UNITS[ally.kind].ability?.kind === 'orbitalSynapse'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= 240);
-    const factionScale = (state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
-      * orbitalDamageMultiplier(empireEconomy(state, unit.faction as EmpireFaction).completedResearch);
+    const factionScale = (unit.faction !== 'neutral' && state.aiFactions?.includes(unit.faction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
+      * (unit.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, unit.faction).completedResearch))
+      * (unit.faction !== 'neutral' && controlsAncientRelic(state, unit.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
     attackerShots.forEach(shot => {
       const damage = salvoDamage * fighterScale * SPACE_COMBAT_DAMAGE_MULTIPLIER * factionScale * (shot.damageMultiplier ?? 1);
       if (shot.targetType === 'ship') {
@@ -1563,8 +1676,9 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     });
   });
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
-    const damage = shot.damage * installationScale * (state.aiFactions?.includes(shot.faction) ? enemyPower : 1)
-      * orbitalDamageMultiplier(empireEconomy(state, shot.faction).completedResearch);
+    const damage = shot.damage * installationScale * (shot.faction !== 'neutral' && state.aiFactions?.includes(shot.faction) ? enemyPower : 1)
+      * (shot.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, shot.faction).completedResearch))
+      * (shot.faction !== 'neutral' && controlsAncientRelic(state, shot.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
     const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
     current.damage += damage;
     shipDamage.set(shot.targetId, current);
@@ -1627,6 +1741,25 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
       ? `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed while attempting to embark forces at ${p.name}; waiting ground squads survived, but any existing cargo was lost.`
       : `${ship.faction === 'enemy' ? 'HOSTILE' : 'Friendly'} ${UNITS[ship.kind].label} destroyed during landing approach at ${p.name}; all embarked forces lost.`);
   }
+}
+
+function tickSpecialSystem(state: GameState, system: Planet, seconds: number) {
+  if (systemKind(system) === 'star' && system.orbitUnits.length) {
+    const before = [...system.orbitUnits];
+    system.orbitUnits = system.orbitUnits
+      .map(ship => damageUnit(ship, STELLAR_HAZARD_DAMAGE_PER_SECOND * seconds))
+      .filter(ship => ship.hp > 0);
+    const destroyed = before.filter(ship => !system.orbitUnits.some(survivor => survivor.id === ship.id));
+    if (destroyed.length) addMessage(state, `${destroyed.length} ship${destroyed.length === 1 ? '' : 's'} consumed by ${system.name}.`);
+  }
+  if (systemKind(system) !== 'ancientTemple') return;
+  const occupiers = [...new Set(system.orbitUnits.filter(ship => ship.faction !== 'neutral').map(ship => ship.faction as EmpireFaction))];
+  const nextOwner = occupiers.length === 1 ? occupiers[0] : null;
+  if (nextOwner === system.owner) return;
+  const previousOwner = system.owner;
+  system.owner = nextOwner;
+  if (nextOwner === 'player') addMessage(state, `RELIC AWAKENED — ${system.name} grants +50% income and +25% fleet damage.`);
+  else if (previousOwner === 'player') addMessage(state, `RELIC LOST — control of ${system.name} has been broken.`);
 }
 
 function tickOrbitUnitMovement(ship: Unit, seconds: number) {
@@ -1824,7 +1957,7 @@ function runEnemyStrategicAction(state: GameState) {
   const civilization = empireCivilization(state, 'enemy');
   const groundKind = (kind: GroundUnitKind) => civilizationUnitKind(civilization, kind) as GroundUnitKind;
   const spaceKind = (kind: SpaceUnitKind) => civilizationUnitKind(civilization, kind) as SpaceUnitKind;
-  const colonies = state.planets.filter(p => p.owner === 'enemy' && !state.battles.some(battle => battle.planetId === p.id));
+  const colonies = state.planets.filter(p => isColonizableWorld(p) && p.owner === 'enemy' && !state.battles.some(battle => battle.planetId === p.id));
   const forceTarget = state.config.difficulty === 'cadet' ? 4 : state.config.difficulty === 'admiral' ? 8 : 6;
   for (const p of colonies) {
     const priorities: Array<[BuildingKind, number]> = [
@@ -1872,9 +2005,9 @@ function runEnemyStrategicAction(state: GameState) {
 }
 
 function launchEnemyMission(state: GameState) {
-  const hostilePlanets = state.planets.filter(p => p.owner !== null && p.owner !== 'enemy');
+  const hostilePlanets = state.planets.filter(p => isColonizableWorld(p) && p.owner !== null && p.owner !== 'enemy');
   const reservedTargets = new Set(state.fleets.filter(fleet => fleet.faction === 'enemy').map(fleet => fleet.finalDestinationId ?? fleet.destinationId));
-  const neutralPlanets = state.planets.filter(p => p.owner === null && !reservedTargets.has(p.id) && !state.battles.some(battle => battle.planetId === p.id));
+  const neutralPlanets = state.planets.filter(p => isColonizableWorld(p) && p.owner === null && !reservedTargets.has(p.id) && !state.battles.some(battle => battle.planetId === p.id));
   if (!hostilePlanets.length && !neutralPlanets.length) return;
   const preferExpansion = neutralPlanets.length > 0 && (state.enemyMissionCount % 3 !== 2 || !hostilePlanets.length);
   const preferredTargets = preferExpansion ? neutralPlanets : hostilePlanets;
@@ -1936,12 +2069,13 @@ export function tick(input: GameState, seconds: number): GameState {
     advanceDefenseConstruction(state, p, seconds);
     ensureOrbitPositions(p);
     directAiOrbitalShips(state, p);
-    if (p.owner) {
+    if (p.owner && isColonizableWorld(p)) {
       const economy = empireEconomy(state, p.owner);
       const aiScale = state.aiFactions?.includes(p.owner) && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) * .62 : .7;
-      const incomeScale = aiScale * researchIncomeMultiplier(economy.completedResearch);
+      const relicScale = controlsAncientRelic(state, p.owner) ? ANCIENT_RELIC_ECONOMY_MULTIPLIER : 1;
+      const incomeScale = aiScale * researchIncomeMultiplier(economy.completedResearch) * relicScale;
       if (usesBiomass(state, p.owner)) {
-        economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * researchIncomeMultiplier(economy.completedResearch);
+        economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * researchIncomeMultiplier(economy.completedResearch) * relicScale;
       } else {
         for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
           const kind = `${resource}Mine` as BuildingKind;
@@ -1953,11 +2087,12 @@ export function tick(input: GameState, seconds: number): GameState {
       spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, spaceProductionMultiplier(economy.completedResearch), p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
     }
     tickOrbitMovement(p, seconds);
-    p.orbitUnits = p.orbitUnits.map(u => recoverCarrierFighters(recoverSpaceUnit(u, p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), u.faction === 'neutral' ? 1 : shieldRecoveryMultiplier(empireEconomy(state, u.faction).completedResearch)), seconds));
+    p.orbitUnits = p.orbitUnits.map(u => recoverCarrierFighters(recoverSpaceUnit(u, isColonizableWorld(p) && p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), u.faction === 'neutral' ? 1 : shieldRecoveryMultiplier(empireEconomy(state, u.faction).completedResearch)), seconds));
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     const stagedFleetIds = stageDepartingFleetsForCombat(state, p);
     tickOrbitCombat(state, p, seconds);
     restoreDepartingFleetsAfterCombat(state, p, stagedFleetIds);
+    tickSpecialSystem(state, p, seconds);
   }
 
   if (state.researchQueue.length) {

@@ -41,10 +41,30 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /Expansive/ }));
     fireEvent.click(screen.getByRole('button', { name: /Admiral/ }));
     fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
-    expect(screen.getAllByText('Terra Nova').length).toBeGreaterThan(0);
     const saved = JSON.parse(localStorage.getItem('galactic-empires-save-v5')!);
-    expect(saved.config).toEqual({ mapSize: 'large', difficulty: 'admiral', playerFaction: 'human' });
+    const playerHome = saved.planets.find((planet: { owner: string | null }) => planet.owner === 'player');
+    expect(screen.getAllByText(playerHome.name).length).toBeGreaterThan(0);
+    expect(saved.config).toMatchObject({ mapSize: 'large', difficulty: 'admiral', playerFaction: 'human' });
+    expect(saved.config.mapSeed).toEqual(expect.any(Number));
+    expect(saved.config.mapSeed).not.toBe(0);
     expect(saved.planets).toHaveLength(15);
+  });
+
+  it('shows special-system identities before they are scouted', () => {
+    const state = createInitialState({ mapSize: 'huge', difficulty: 'commander', mapSeed: 142857 });
+    saveState(state);
+    render(<App />);
+
+    const nebula = state.planets.find(planet => planet.systemKind === 'nebula')!;
+    const star = state.planets.find(planet => planet.systemKind === 'star')!;
+    const pirates = state.planets.find(planet => planet.systemKind === 'pirateBase')!;
+    const temple = state.planets.find(planet => planet.systemKind === 'ancientTemple')!;
+
+    expect(screen.getByRole('button', { name: `${nebula.name} SENSOR-DARK NEBULA` })).toHaveClass('system-nebula');
+    expect(screen.getByRole('button', { name: `${star.name} LETHAL STELLAR HAZARD` })).toHaveClass('system-star');
+    expect(screen.getByRole('button', { name: `${pirates.name} PIRATE STRONGHOLD` })).toHaveClass('system-pirateBase');
+    expect(screen.getByRole('button', { name: `${temple.name} ANCIENT RELIC` })).toHaveClass('system-ancientTemple');
+    expect(document.querySelectorAll('.system-object')).toHaveLength(7);
   });
 
   it('starts a Brood campaign with biomass instead of mineral resources', () => {

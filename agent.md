@@ -35,4 +35,6 @@ Galactic Empires is a React + TypeScript + Vite strategy prototype. Stable publi
 - Preserve the separation between the space map and planetary battlefield.
 - Do not bypass `canAfford`, research gates, per-planet building maxima, automatic transport deployment, or recovery rules in UI code.
 - Treat `spec.md` as the source of truth; update it when behavior changes.
+- Make every file change inside this repository directory or one of its subdirectories. Do not create, edit, or use working copies or Git worktrees outside the repository directory.
+- Base task branches on the latest `main`, keep unrelated changes off feature-specific branches, and integrate every completed change into `main` so it is not left only on another branch.
 - Commit and push every new change to the GitHub repository at `https://github.com/bishoppawn1/galactic_empires.git`.

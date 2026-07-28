@@ -43,6 +43,7 @@ button { color: inherit; }
 .galaxy { overflow: hidden; position: relative; background: #03060a; }
 .galaxy-scroll { position: absolute; inset: 0; overflow: auto; scrollbar-width: none; }
 .galaxy-scroll::-webkit-scrollbar { display: none; }
+.galaxy-pan-buffer { width: 1px; pointer-events: none; }
 .galaxy-canvas { position: relative; width: 12800px; height: 8800px; overflow: hidden; user-select: none; background-color: #050912; background-image: radial-gradient(circle at 15% 20%, #fff 0 1px, transparent 1.3px), radial-gradient(circle at 75% 30%, #ffffff88 0 1px, transparent 1.2px), radial-gradient(circle at 50% 80%, #ffffff88 0 1px, transparent 1.2px); background-size: 89px 89px, 137px 137px, 191px 191px; }
 .galaxy-canvas::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(ellipse at center, transparent 35%, #020408aa 100%), linear-gradient(90deg, transparent 49.9%, #ffffff07 50%, transparent 50.1%), linear-gradient(0deg, transparent 49.9%, #ffffff07 50%, transparent 50.1%); background-size: auto, 110px 110px, 110px 110px; }
 .nebula { position: absolute; width: 40%; height: 60%; filter: blur(55px); opacity: .13; border-radius: 50%; }.nebula-a { background: #3d55ff; left: 15%; top: 0; transform: rotate(25deg); }.nebula-b { background: #00b8a2; right: -5%; bottom: -15%; }

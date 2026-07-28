@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
-import { GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
+import { GALAXY_BOTTOM_PAN_BUFFER, GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
 import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { GroundUnitImage } from './components/shared/GroundUnitImage';
@@ -779,6 +779,14 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByText(`1 ship routed across ${path.length - 1} phase lanes to Vesta.`)).toBeInTheDocument();
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '1');
+  });
+
+  it('keeps extra vertical pan room beneath the galaxy canvas', () => {
+    render(<App />);
+
+    const buffer = document.querySelector('.galaxy-pan-buffer');
+    expect(buffer).toHaveStyle({ height: `${GALAXY_BOTTOM_PAN_BUFFER}px` });
+    expect(GALAXY_BOTTOM_PAN_BUFFER).toBeGreaterThan(0);
   });
 
   it('opens research as a top-level empire tab and renders a connected faction lattice', () => {

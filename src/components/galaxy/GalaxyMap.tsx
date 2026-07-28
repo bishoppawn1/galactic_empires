@@ -27,6 +27,7 @@ const planetFactionBadge = (owner: Planet['owner']) => owner === 'player' ? 'YOU
 const KEYBOARD_PAN_STEP = 22;
 const PLANET_HIT_SIZE = 190;
 const MIN_MAP_ZOOM = .02;
+export const GALAXY_BOTTOM_PAN_BUFFER = 280;
 
 const statusPercent = (value: number, maximum: number) => maximum > 0
   ? Math.min(100, Math.max(0, value / maximum * 100))
@@ -416,6 +417,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         })}
         {marquee && <div className="selection-marquee" style={marquee} />}
       </div>
+      <div className="galaxy-pan-buffer" style={{ height: GALAXY_BOTTOM_PAN_BUFFER }} aria-hidden="true" />
     </div>
     <div className="zoom-controls" aria-label="Map controls"><span className="map-pan-hint">WASD PAN</span><button onClick={() => changeZoom(zoom / 1.2)} aria-label="Zoom out">−</button><output>{Math.round(zoom * 100)}%</output><button onClick={() => changeZoom(zoom * 1.2)} aria-label="Zoom in">+</button><button className="reset-zoom" onClick={() => changeZoom(1)} aria-label="Reset zoom">1:1</button><button className="whole-map-button" title="Show Whole Map" onClick={showWholeMap}>Show Whole Map</button></div>
     <div className={`camera-controls camera-controls-left ${camera3D ? 'active' : ''}`} aria-label="Camera view controls">

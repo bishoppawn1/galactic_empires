@@ -8,16 +8,58 @@ export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.h
   ? fallback
   : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
 
-export function localPlanetConnections(planets: Planet[], maxDistance = 42): PlanetConnection[] {
-  const connections: PlanetConnection[] = [];
+export const MAX_PHASE_LANE_DISTANCE = 42;
+
+export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHASE_LANE_DISTANCE): PlanetConnection[] {
+  const candidates: PlanetConnection[] = [];
   for (let i = 0; i < planets.length; i += 1) {
     for (let j = i + 1; j < planets.length; j += 1) {
       const from = planets[i], to = planets[j];
       const distance = Math.hypot(to.x - from.x, to.y - from.y);
-      if (distance <= maxDistance) connections.push({ from, to, distance });
+      if (distance <= maxDistance) candidates.push({ from, to, distance });
     }
   }
-  return connections;
+  candidates.sort((a, b) => a.distance - b.distance
+    || a.from.id.localeCompare(b.from.id)
+    || a.to.id.localeCompare(b.to.id));
+
+  const parent = new Map(planets.map(planet => [planet.id, planet.id]));
+  const root = (id: string): string => {
+    const next = parent.get(id)!;
+    if (next === id) return id;
+    const resolved = root(next);
+    parent.set(id, resolved);
+    return resolved;
+  };
+  const connections: PlanetConnection[] = [];
+  const selected = new Set<string>();
+  const connectionKey = (connection: PlanetConnection) => `${connection.from.id}:${connection.to.id}`;
+  for (const connection of candidates) {
+    const fromRoot = root(connection.from.id), toRoot = root(connection.to.id);
+    if (fromRoot === toRoot) continue;
+    parent.set(toRoot, fromRoot);
+    connections.push(connection);
+    selected.add(connectionKey(connection));
+  }
+
+  const nearestNeighbors = new Map(planets.map(planet => [planet.id, new Set<string>()]));
+  for (const planet of planets) {
+    candidates
+      .filter(connection => connection.from.id === planet.id || connection.to.id === planet.id)
+      .slice(0, 2)
+      .forEach(connection => nearestNeighbors.get(planet.id)!.add(
+        connection.from.id === planet.id ? connection.to.id : connection.from.id,
+      ));
+  }
+  for (const connection of candidates) {
+    if (selected.has(connectionKey(connection))
+      || !nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
+      || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)) continue;
+    connections.push(connection);
+  }
+  return connections.sort((a, b) => a.distance - b.distance
+    || a.from.id.localeCompare(b.from.id)
+    || a.to.id.localeCompare(b.to.id));
 }
 
 export function findPlanetPath(planets: Planet[], originId: string, destinationId: string): string[] | undefined {

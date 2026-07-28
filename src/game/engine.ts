@@ -957,7 +957,10 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
 
 export const maneuverSpaceUnit = (input: GameState, planetId: string, unitId: string, orbitX: number, orbitY: number) => maneuverSpaceUnits(input, planetId, [unitId], orbitX, orbitY);
 
-const phaseTravelTime = (from: Planet, to: Planet) => Math.max(12, Math.hypot(to.x - from.x, to.y - from.y) * .85);
+export const PHASE_TUNNEL_MIN_SECONDS = 4;
+export const PHASE_TUNNEL_SECONDS_PER_MAP_UNIT = .28;
+export const phaseTravelTime = (from: Planet, to: Planet) =>
+  Math.max(PHASE_TUNNEL_MIN_SECONDS, Math.hypot(to.x - from.x, to.y - from.y) * PHASE_TUNNEL_SECONDS_PER_MAP_UNIT);
 
 const systemBorderOffset = (from: Planet, to: Planet) => {
   const direction = systemDirection(from, to);

@@ -1030,13 +1030,25 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
 
 export function dispatchSpaceUnits(input: GameState, originId: string, unitIds: string[], destinationId: string): GameResult {
   const state = clone(input); const origin = getPlanet(state, originId); const destination = getPlanet(state, destinationId);
-  const ships = origin?.orbitUnits.filter(u => unitIds.includes(u.id) && u.faction === 'player') ?? [];
-  if (!origin || !destination || !ships.length || ships.length !== unitIds.length || origin.id === destination.id) return fail(input, 'Selected ships must share one gravity well.');
+  const requestedIds = new Set(unitIds);
+  const orbitShips = origin?.orbitUnits.filter(unit => requestedIds.has(unit.id) && unit.faction === 'player') ?? [];
+  const interruptibleFleets = state.fleets.filter(fleet => requestedIds.has(fleet.unit.id) && fleet.faction === 'player' && fleet.originId === originId && (fleet.phase === 'exiting' || fleet.phase === 'charging'));
+  if (!origin || !destination || !requestedIds.size || orbitShips.length + interruptibleFleets.length !== requestedIds.size || origin.id === destination.id) return fail(input, 'Selected ships must share one gravity well.');
+  const reroutedFleets = interruptibleFleets.filter(fleet => (fleet.finalDestinationId ?? fleet.destinationId) !== destinationId);
+  const ships = [...orbitShips, ...reroutedFleets.map(fleet => fleet.unit)];
   if (ships.some(ship => ship.pendingEmbark)) return fail(input, 'Transports must complete embarkation before jumping.');
   const path = findPlanetPath(state.planets, originId, destinationId);
   if (!path || path.length < 2) return fail(input, 'No phase-lane route reaches that gravity well.');
-  dispatchFactionUnits(state, origin, ships, destination, 'player');
-  addMessage(state, `${ships.length} ship${ships.length === 1 ? '' : 's'} routed across ${path.length - 1} phase lane${path.length === 2 ? '' : 's'} to ${destination.name}.`);
+  if (reroutedFleets.length) {
+    const reroutedIds = new Set(reroutedFleets.map(fleet => fleet.id));
+    reroutedFleets.forEach(fleet => {
+      syncDepartingFleetPosition(state, fleet);
+      origin.orbitUnits.push(fleet.unit);
+    });
+    state.fleets = state.fleets.filter(fleet => !reroutedIds.has(fleet.id));
+  }
+  if (ships.length) dispatchFactionUnits(state, origin, ships, destination, 'player');
+  addMessage(state, `${requestedIds.size} ship${requestedIds.size === 1 ? '' : 's'} routed across ${path.length - 1} phase lane${path.length === 2 ? '' : 's'} to ${destination.name}.`);
   return pass(state);
 }
 

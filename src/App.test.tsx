@@ -592,7 +592,11 @@ describe('Galactic Empires interface', () => {
   });
 
   it('supports additive fleet selection', () => {
-    saveState(stateWithPlayerForces());
+    const state = stateWithPlayerForces();
+    const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;
+    transport.hp = transport.maxHp / 2;
+    transport.shields = transport.maxShields / 4;
+    saveState(state);
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }));
     fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }), { shiftKey: true });
@@ -603,6 +607,10 @@ describe('Galactic Empires interface', () => {
     expect(within(status).getByRole('group', { name: 'Transport status' })).toBeInTheDocument();
     expect(within(status).getByRole('group', { name: 'Escort Frigate status' })).toBeInTheDocument();
     expect(within(status).getByRole('group', { name: 'Missile Frigate status' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.orbit-ship.selected .ship-map-status')).toHaveLength(3);
+    const transportMarker = screen.getByRole('button', { name: 'Transport orbiting Terra Nova' });
+    expect(transportMarker.querySelector('.ship-map-hull > b')).toHaveStyle({ width: '50%' });
+    expect(transportMarker.querySelector('.ship-map-shields > b')).toHaveStyle({ width: '25%' });
   });
 
   it('shows visual hull and shield bars for a selected ship', () => {
@@ -619,6 +627,7 @@ describe('Galactic Empires interface', () => {
     const shields = within(card).getByRole('meter', { name: 'Transport shields' });
     expect(hull.querySelector('i')).toHaveStyle({ width: '50%' });
     expect(shields.querySelector('i')).toHaveStyle({ width: '25%' });
+    expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' }).querySelector('.ship-map-status')).toBeNull();
     expect(card).not.toHaveTextContent(/\d/);
   });
 
@@ -664,6 +673,29 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Jump canceled — 1 ship maneuvering inside Terra Nova gravity well.')).toBeInTheDocument();
     expect(document.querySelector('.transit-ship')).toBeNull();
     expect(screen.getByRole('button', { name: 'Transport orbiting Terra Nova' })).toHaveClass('selected');
+  });
+
+  it('routes orbiting and already-departing ships together through the selected phase gate', () => {
+    const state = stateWithPlayerForces(); const terra = state.planets[0], nyx = state.planets[1];
+    const transport = terra.orbitUnits.find(unit => unit.kind === 'transport')!;
+    terra.orbitUnits = terra.orbitUnits.filter(unit => unit.id !== transport.id);
+    state.fleets = [{
+      id: 'partially-departing-group', faction: 'player', originId: terra.id, destinationId: nyx.id,
+      finalDestinationId: nyx.id, unit: transport, phase: 'exiting', departureX: transport.orbitX,
+      departureY: transport.orbitY, progress: 1, travelTime: 10,
+    }];
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Transport clearing well from Terra Nova toward Nyx — jump can be canceled' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' }), { shiftKey: true });
+    expect(screen.getByText('2 SHIPS SELECTED')).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Cross phase lane from Terra Nova to Nyx' }));
+
+    expect(screen.getByText('2 ships routed across 1 phase lane to Nyx.')).toBeInTheDocument();
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-transit-count', '2');
+    expect(screen.queryByText('2 SHIPS SELECTED')).not.toBeInTheDocument();
   });
 
   it('right-clicks a distant system to take the shortest multi-lane path', () => {

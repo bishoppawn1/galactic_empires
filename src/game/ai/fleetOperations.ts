@@ -1,6 +1,6 @@
-import { UNITS, isBuildingOperational } from '../definitions';
+import { UNITS, isBuildingOperational, shipArmor, shipWeaponBatteries } from '../definitions';
 import { findPlanetPath } from '../navigation';
-import type { GameState, Planet, Unit } from '../types';
+import type { GameState, Planet, SpaceUnitKind, Unit } from '../types';
 
 export interface AiFleetOperation {
   originId: string;
@@ -10,9 +10,11 @@ export interface AiFleetOperation {
 }
 
 const combatStrength = (ship: Unit) => {
-  const definition = UNITS[ship.kind];
-  const weapon = definition.weapon;
-  return (ship.hp + ship.shields) * (weapon.damage * weapon.projectiles / weapon.cooldown);
+  const kind = ship.kind as SpaceUnitKind;
+  const damagePerSecond = shipWeaponBatteries(kind)
+    .reduce((total, weapon) => total + weapon.damage * weapon.mounts / weapon.cooldown, 0);
+  const armoredHull = ship.hp / (1 - shipArmor(kind));
+  return (armoredHull + ship.shields) * damagePerSecond;
 };
 
 const routeDistance = (state: GameState, path: string[]) => path.slice(1).reduce((total, id, index) => {

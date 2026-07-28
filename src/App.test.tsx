@@ -293,6 +293,23 @@ describe('Galactic Empires interface', () => {
     expect(infantryOrder).not.toHaveTextContent('Tri-Burst Pulse Rifle');
   });
 
+  it('shows per-mount ship damage, secondary batteries, and armor', () => {
+    const state = createInitialState();
+    state.completedResearch.push('advancedIndustry', 'orbitalEngineering', 'capitalShips');
+    state.planets[0].buildings.push({ id: 'weapon-display-yard', kind: 'experimentalSpaceFactory', spaceQueue: [] });
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    const escort = screen.getByText('Escort Frigate', { selector: '.unit-button b' }).closest('button')!;
+    expect(escort).toHaveTextContent('ARMOR 8%');
+    expect(escort).toHaveTextContent('3× Laser Emitter · 0.5 DMG');
+    const capital = screen.getByText('Battlecruiser', { selector: '.unit-button b' }).closest('button')!;
+    expect(capital).toHaveTextContent('ARMOR 24%');
+    expect(capital).toHaveTextContent('2× Capital Railgun · 8 DMG');
+    expect(capital).toHaveTextContent('4× Pulse Turret · 0.9 DMG');
+  });
+
   it('locks only the Titan order while that faction already has one in production', () => {
     const state = createInitialState();
     state.completedResearch.push('advancedIndustry', 'orbitalEngineering', 'capitalShips', 'titanEngineering');
@@ -881,7 +898,7 @@ describe('Galactic Empires interface', () => {
     const marker = screen.getByRole('button', { name: 'Escort Frigate orbiting Terra Nova' });
     expect(marker.querySelector('img.ship-image')).not.toBeNull();
     expect(marker.querySelector('.ship-range-ring')).toHaveStyle({ '--ship-range': `${UNITS.escortFrigate.range * 2}px` });
-    expect(marker).toHaveAttribute('title', expect.stringContaining('Triple Laser Array'));
+    expect(marker).toHaveAttribute('title', expect.stringContaining('3× Laser Emitter · 0.5 damage each'));
   });
 
   it('renders hull classes at distinct map scales with square player control frames', () => {
@@ -941,6 +958,20 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.fighter-orbit-ring')).toHaveAttribute('r', '100');
     expect(document.querySelector('.fighter-sortie animateTransform')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByLabelText('Ripper Spawn 6 of 10')).toHaveTextContent('FTR 6/10');
+  });
+
+  it('renders capital main guns and secondary batteries as separate weapon fire', () => {
+    const state = createInitialState();
+    state.planets[0].orbitUnits = [
+      { ...makeUnit('multi-battery-capital', 'battlecruiser', 'player'), orbitX: 0, orbitY: 0 },
+      { ...makeUnit('multi-battery-target', 'dreadnought', 'enemy'), orbitX: 100, orbitY: 0 },
+    ];
+    render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={['multi-battery-capital']} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    const playerFire = [...document.querySelectorAll<SVGGElement>('.ship-fire.player')];
+    expect(playerFire).toHaveLength(2);
+    expect(playerFire.map(effect => effect.getAttribute('data-weapon-effect'))).toEqual(['railgun', 'pulse']);
+    expect(playerFire.map(effect => effect.getAttribute('data-projectiles'))).toEqual(['2', '4']);
   });
 
   it('batches dense hostile fleets into one canvas layer', () => {

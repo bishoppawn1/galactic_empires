@@ -131,7 +131,9 @@ describe('Iron Covenant', () => {
     expect(orbitalCombatShots(world).find(shot => shot.attackerId === 'chain')?.damageMultiplier).toBe(1.5);
 
     world.orbitUnits = [makeUnit('carrier', 'covenantFabricatorCarrier', 'player'), makeUnit('target-a', 'destroyer', 'enemy', 150, 0), makeUnit('target-b', 'destroyer', 'enemy', 170, 0)];
-    expect(orbitalCombatShots(world).filter(shot => shot.attackerId === 'carrier').map(shot => shot.targetId)).toEqual(['target-a', 'target-b']);
+    expect(orbitalCombatShots(world)
+      .filter(shot => shot.attackerId === 'carrier' && shot.weaponIndex === 0 && shot.mountIndex === 0)
+      .map(shot => shot.targetId)).toEqual(['target-a', 'target-b']);
 
     world.owner = 'enemy';
     world.orbitUnits = [makeUnit('dreadforge', 'covenantDreadforge', 'player', 285, 0)];

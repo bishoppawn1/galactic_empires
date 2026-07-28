@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -36,6 +36,75 @@ describe('unit weapon definitions', () => {
     expect(missile).toMatchObject({ projectiles: 1, effect: 'missile' });
     expect(lasers.cooldown).toBeLessThan(missile.cooldown);
     expect(lasers.damage * lasers.projectiles).toBeLessThan(missile.damage);
+  });
+
+  it('gives every spaceship explicit weapon batteries and size-based hull armor', () => {
+    SPACE_KINDS.forEach(kind => {
+      const batteries = shipWeaponBatteries(kind);
+      expect(batteries.length).toBeGreaterThan(0);
+      batteries.forEach(weapon => {
+        expect(weapon.damage).toBeGreaterThan(0);
+        expect(weapon.mounts).toBeGreaterThan(0);
+        expect(weapon.cooldown).toBeGreaterThan(0);
+        expect(weapon.range).toBeGreaterThan(0);
+      });
+      expect(shipArmor(kind)).toBeGreaterThan(0);
+      expect(shipArmor(kind)).toBeLessThan(1);
+    });
+    expect(shipArmor('transport')).toBeLessThan(shipArmor('lightCruiser'));
+    expect(shipArmor('lightCruiser')).toBeLessThan(shipArmor('battlecruiser'));
+    expect(shipArmor('battlecruiser')).toBeLessThan(shipArmor('dreadnought'));
+  });
+
+  it('fires each weapon mount separately and gives capital ships independent secondary batteries', () => {
+    const state = createInitialState();
+    const terra = state.planets[0];
+    const escort = { ...makeUnit('escort-mounts', 'escortFrigate', 'player'), orbitX: 0, orbitY: 0 };
+    const capital = { ...makeUnit('capital-batteries', 'battlecruiser', 'player'), orbitX: 0, orbitY: 30 };
+    const target = { ...makeUnit('weapon-target', 'dreadnought', 'enemy'), orbitX: 120, orbitY: 0 };
+    terra.orbitUnits = [escort, capital, target];
+
+    const escortShots = orbitalCombatShots(terra).filter(shot => shot.attackerId === escort.id);
+    expect(escortShots).toHaveLength(3);
+    expect(escortShots.map(shot => shot.mountIndex)).toEqual([0, 1, 2]);
+    expect(escortShots.every(shot => shot.weaponLabel === 'Laser Emitter' && shot.damage === .5)).toBe(true);
+
+    const capitalShots = orbitalCombatShots(terra).filter(shot => shot.attackerId === capital.id);
+    expect(capitalShots.filter(shot => shot.weaponIndex === 0)).toHaveLength(2);
+    expect(capitalShots.filter(shot => shot.weaponIndex === 1)).toHaveLength(4);
+    expect(new Set(capitalShots.map(shot => shot.weaponLabel))).toEqual(new Set(['Capital Railgun', 'Pulse Turret']));
+
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 9999;
+    const fired = tick(state, .1).planets[0].orbitUnits.find(unit => unit.id === capital.id)!;
+    expect(fired.weaponCooldowns).toEqual([.9, .5]);
+    const reloaded = tick(tick(state, .1), .5).planets[0].orbitUnits.find(unit => unit.id === capital.id)!;
+    expect(reloaded.weaponCooldowns?.[0]).toBeCloseTo(.4);
+    expect(reloaded.weaponCooldowns?.[1]).toBeCloseTo(.6);
+  });
+
+  it('applies ship armor to hull damage without reducing shield damage', () => {
+    const combatResult = (shields: number) => {
+      const state = createInitialState();
+      state.enemyActionClock = 9999;
+      state.enemyAttackClock = 9999;
+      const target = {
+        ...makeUnit('armored-target', 'dreadnought', 'enemy'),
+        hp: 2_000, maxHp: 2_000, shields, maxShields: shields,
+        orbitX: 100, orbitY: 0, weaponCooldown: 999,
+      };
+      state.planets[0].orbitUnits = [
+        { ...makeUnit('armor-tester', 'missileFrigate', 'player'), orbitX: 0, orbitY: 0 },
+        target,
+      ];
+      return tick(state, .1).planets[0].orbitUnits.find(unit => unit.id === target.id)!;
+    };
+    const unshielded = combatResult(0);
+    const rawDamage = UNITS.missileFrigate.weapon.damage * SPACE_COMBAT_DAMAGE_MULTIPLIER;
+    expect(2_000 - unshielded.hp).toBeCloseTo(rawDamage * (1 - shipArmor('dreadnought')));
+    const shielded = combatResult(100);
+    expect(100 - shielded.shields).toBeCloseTo(rawDamage);
+    expect(shielded.hp).toBe(2_000);
   });
 
   it('assigns every spaceship to one of three tiers and gives every faction exactly one Titan', () => {
@@ -517,7 +586,8 @@ describe('starter faction foundations', () => {
     const clusteredA = { ...makeUnit('cluster-a', 'escortFrigate', 'enemy'), orbitX: 300, orbitY: 0 };
     const clusteredB = { ...makeUnit('cluster-b', 'escortFrigate', 'enemy'), orbitX: 320, orbitY: 0 };
     planet.orbitUnits = [sovereign, clusteredA, clusteredB];
-    const barrage = orbitalCombatShots(planet).filter(shot => shot.attackerId === sovereign.id);
+    const barrage = orbitalCombatShots(planet).filter(shot =>
+      shot.attackerId === sovereign.id && shot.weaponIndex === 0 && shot.mountIndex === 0);
     expect(barrage.map(shot => shot.targetId)).toEqual([clusteredA.id, clusteredB.id]);
     expect(barrage[1].damageMultiplier).toBe(.35);
   });

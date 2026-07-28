@@ -51,7 +51,7 @@ import {
   civilizationUnitKind, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
-  researchRequirementForCivilization, researchTime, researchTreeForCivilization, unitAvailableToCivilization,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipWeaponBatteries, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -1271,6 +1271,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     const restored = { ...unit, hp: unit.maxHp, shields: unit.maxShields };
     delete restored.battleX; delete restored.battleY;
     delete restored.weaponCooldown; delete restored.weaponFlash;
+    delete restored.weaponCooldowns; delete restored.weaponFlashes;
     delete restored.battleTargetX; delete restored.battleTargetY;
     delete restored.battleRetaliationTargetId;
     delete restored.corrodedFor;
@@ -1338,7 +1339,8 @@ function damageUnit(target: Unit, damage: number): Unit {
   const ability = UNITS[target.kind].ability?.kind;
   const reducedDamage = damage * (ability === 'evasiveChitin' ? .7 : ability === 'phaseCarapace' ? .65 : ability === 'ironcladArmor' ? .75 : ability === 'ablativePlating' && target.hp > target.maxHp / 2 ? .7 : 1);
   const shieldDamage = Math.min(target.shields, reducedDamage);
-  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - (reducedDamage - shieldDamage) };
+  const armor = UNITS[target.kind].factory === 'space' ? shipArmor(target.kind as SpaceUnitKind) : 0;
+  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - (reducedDamage - shieldDamage) * (1 - armor) };
 }
 
 function damageUnitPiercing(target: Unit, damage: number, piercingFraction = 0): Unit {
@@ -1347,7 +1349,9 @@ function damageUnitPiercing(target: Unit, damage: number, piercingFraction = 0):
   const directHullDamage = reducedDamage * piercingFraction;
   const shieldedDamage = reducedDamage - directHullDamage;
   const shieldDamage = Math.min(target.shields, shieldedDamage);
-  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - directHullDamage - (shieldedDamage - shieldDamage) };
+  const armor = UNITS[target.kind].factory === 'space' ? shipArmor(target.kind as SpaceUnitKind) : 0;
+  const hullDamage = (directHullDamage + shieldedDamage - shieldDamage) * (1 - armor);
+  return { ...target, shields: target.shields - shieldDamage, hp: target.hp - hullDamage };
 }
 
 function damageBuilding(target: Building, damage: number): Building {
@@ -1400,6 +1404,47 @@ function tickUnitWeapon(unit: Unit, seconds: number, firing: boolean) {
   const flashDuration = Math.max(.45, Math.min(.9, weapon.cooldown * .5));
   unit.weaponFlash = Math.max(0, flashDuration - timeSinceLastVolley);
   return (followupVolleys + 1) * weapon.damage * weapon.projectiles;
+}
+
+function tickShipWeapon(unit: Unit, weaponIndex: number, seconds: number, firing: boolean) {
+  const weapon = shipWeaponBatteries(unit.kind as SpaceUnitKind)[weaponIndex];
+  const cooldowns = unit.weaponCooldowns ?? shipWeaponBatteries(unit.kind as SpaceUnitKind).map(() => unit.weaponCooldown ?? 0);
+  const flashes = unit.weaponFlashes ?? shipWeaponBatteries(unit.kind as SpaceUnitKind).map(() => unit.weaponFlash ?? 0);
+  flashes[weaponIndex] = Math.max(0, (flashes[weaponIndex] ?? 0) - seconds);
+  const cooldown = Math.max(0, cooldowns[weaponIndex] ?? 0);
+  if (!firing || seconds <= 0) {
+    cooldowns[weaponIndex] = Math.max(0, cooldown - seconds);
+    unit.weaponCooldowns = cooldowns;
+    unit.weaponFlashes = flashes;
+    if (weaponIndex === 0) {
+      unit.weaponCooldown = cooldowns[weaponIndex];
+      unit.weaponFlash = flashes[weaponIndex];
+    }
+    return 0;
+  }
+  if (cooldown > seconds) {
+    cooldowns[weaponIndex] = cooldown - seconds;
+    unit.weaponCooldowns = cooldowns;
+    unit.weaponFlashes = flashes;
+    if (weaponIndex === 0) {
+      unit.weaponCooldown = cooldowns[weaponIndex];
+      unit.weaponFlash = flashes[weaponIndex];
+    }
+    return 0;
+  }
+  const activeTime = seconds - cooldown;
+  const followupVolleys = Math.floor((activeTime + 1e-9) / weapon.cooldown);
+  const timeSinceLastVolley = Math.max(0, activeTime - followupVolleys * weapon.cooldown);
+  cooldowns[weaponIndex] = Math.max(0, weapon.cooldown - timeSinceLastVolley);
+  const flashDuration = Math.max(.45, Math.min(.9, weapon.cooldown * .5));
+  flashes[weaponIndex] = Math.max(0, flashDuration - timeSinceLastVolley);
+  unit.weaponCooldowns = cooldowns;
+  unit.weaponFlashes = flashes;
+  if (weaponIndex === 0) {
+    unit.weaponCooldown = cooldowns[weaponIndex];
+    unit.weaponFlash = flashes[weaponIndex];
+  }
+  return (followupVolleys + 1) * weapon.damage;
 }
 
 const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number) => {
@@ -1647,6 +1692,11 @@ export interface OrbitalCombatShot {
   faction: UnitFaction;
   damage: number;
   weaponEffect: WeaponEffect;
+  weaponIndex?: number;
+  weaponLabel?: string;
+  mountIndex?: number;
+  mountCount?: number;
+  weaponRange?: number;
   damageMultiplier?: number;
   piercingFraction?: number;
 }
@@ -1665,15 +1715,10 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   for (const faction of factions) hostileShipsByFaction.set(faction, combatants.filter(unit => unit.faction !== faction));
   const defensePosition = (defense: Building) => orbitalDefenseOffset(defenses.findIndex(item => item.id === defense.id), defenses.length);
   const shipPosition = (ship: Unit) => ({ x: ship.orbitX ?? 0, y: ship.orbitY ?? 0 });
-  const shipInRange = (attacker: Unit, target: Unit) => {
-    const from = shipPosition(attacker), to = shipPosition(target);
-    return orbitDistance(from.x, from.y, to.x, to.y) <= UNITS[attacker.kind].range;
-  };
 
   for (const attacker of combatants) {
     const faction = attacker.faction;
     const hostileShips = hostileShipsByFaction.get(faction) ?? [];
-    const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(attacker, target));
     // Anti-Space Batteries are protected surface emplacements. Ships can target
     // armed orbital platforms, but cannot fire through the planet to destroy a
     // ground-based battery.
@@ -1681,61 +1726,78 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const focusId = faction === 'player' ? p.orbitFocusTargetId : faction === 'enemy' ? p.enemyOrbitFocusTargetId : faction === 'neutral' ? undefined : p.orbitFocusTargetIds?.[faction];
     const preferredDefense = hostileDefenses.find(defense => defense.id === focusId);
     const attackerPosition = shipPosition(attacker);
-    const defenseInRange = (defense: Building) => {
-      const target = defensePosition(defense);
-      return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= UNITS[attacker.kind].range;
-    };
-    const defenseTarget = preferredDefense && defenseInRange(preferredDefense)
-      ? preferredDefense
-      : hostileDefenses.find(defenseInRange);
-    const initialShipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(target => shipInRange(attacker, target)));
-    const ward = initialShipTarget && hostileShips.find(target => target.id !== initialShipTarget.id
-      && target.faction === initialShipTarget.faction
-      && UNITS[target.kind].ability?.kind === 'wardInterception'
-      && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, initialShipTarget.orbitX ?? 0, initialShipTarget.orbitY ?? 0) <= AEGIS_WARD_INTERCEPTION_RANGE
-      && shipInRange(attacker, target));
-    const shipTarget = ward ?? initialShipTarget;
-    const weapon = UNITS[attacker.kind].weapon;
     const ability = UNITS[attacker.kind].ability?.kind;
     const fighterWing = UNITS[attacker.kind].fighterWing;
-    const fighterScale = fighterWing ? carrierFighterCount(attacker) / fighterWing.capacity : 1;
-    if (fighterWing && fighterScale <= 0) continue;
-    const salvoDamage = weapon.damage * weapon.projectiles * fighterScale;
-    const fighterTarget = ability === 'antiFighterCannons'
-      ? hostileShips.find(target => carrierFighterCount(target) > 0 && shipInRange(attacker, target))
-      : undefined;
-    if (fighterTarget) {
-      shots.push({
-        attackerId: attacker.id,
-        attackerType: 'ship',
-        targetId: fighterTarget.id,
-        targetType: 'fighter',
-        faction,
-        damage: salvoDamage,
-        weaponEffect: weapon.effect,
-        damageMultiplier: ANTI_FIGHTER_DAMAGE_MULTIPLIER,
-      });
-      continue;
-    }
-    if (shipTarget) {
-      const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
-      const targetPosition = shipPosition(shipTarget);
-      const distance = orbitDistance(attackerPosition.x, attackerPosition.y, targetPosition.x, targetPosition.y);
-      const rangeMultiplier = ability === 'rangeCalibration' ? 1 + .7 * Math.min(1, distance / UNITS[attacker.kind].range) : 1;
-      const focusMultiplier = ability === 'focusFire' && shipTarget.hp < shipTarget.maxHp ? 1.5 : 1;
-      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: shipTarget.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: transportMultiplier * rangeMultiplier * focusMultiplier, piercingFraction: ability === 'shieldPiercing' ? .5 : 0 });
-      if (ability === 'spawnCloud' || ability === 'fabricatorSwarm') {
-        const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(attacker, target));
-        if (secondary) shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: secondary.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .5 });
+    shipWeaponBatteries(attacker.kind as SpaceUnitKind).forEach((weapon, weaponIndex) => {
+      const weaponRange = weapon.range;
+      const shipInRange = (target: Unit) => {
+        const to = shipPosition(target);
+        return orbitDistance(attackerPosition.x, attackerPosition.y, to.x, to.y) <= weaponRange;
+      };
+      const defenseInRange = (defense: Building) => {
+        const target = defensePosition(defense);
+        return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= weaponRange;
+      };
+      const emit = (targetId: string, targetType: OrbitalCombatShot['targetType'], damageMultiplier = 1, piercingFraction = 0) => {
+        for (let mountIndex = 0; mountIndex < weapon.mounts; mountIndex += 1) {
+          shots.push({
+            attackerId: attacker.id,
+            attackerType: 'ship',
+            targetId,
+            targetType,
+            faction,
+            damage: weapon.damage,
+            weaponEffect: weapon.effect,
+            weaponIndex,
+            weaponLabel: weapon.label,
+            mountIndex,
+            mountCount: weapon.mounts,
+            weaponRange,
+            damageMultiplier,
+            ...(piercingFraction ? { piercingFraction } : {}),
+          });
+        }
+      };
+      const fighterWeapon = !!fighterWing && weaponIndex === 0;
+      if (fighterWeapon && carrierFighterCount(attacker) <= 0) return;
+      const vulnerableTarget = hostileShips.find(target => (target.pendingLanding || target.pendingEmbark) && shipInRange(target));
+      const defenseTarget = preferredDefense && defenseInRange(preferredDefense)
+        ? preferredDefense
+        : hostileDefenses.find(defenseInRange);
+      const initialShipTarget = vulnerableTarget ?? (defenseTarget ? undefined : hostileShips.find(shipInRange));
+      const ward = initialShipTarget && hostileShips.find(target => target.id !== initialShipTarget.id
+        && target.faction === initialShipTarget.faction
+        && UNITS[target.kind].ability?.kind === 'wardInterception'
+        && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, initialShipTarget.orbitX ?? 0, initialShipTarget.orbitY ?? 0) <= AEGIS_WARD_INTERCEPTION_RANGE
+        && shipInRange(target));
+      const shipTarget = ward ?? initialShipTarget;
+      const fighterTarget = ability === 'antiFighterCannons' && weaponIndex === 0
+        ? hostileShips.find(target => carrierFighterCount(target) > 0 && shipInRange(target))
+        : undefined;
+      if (fighterTarget) {
+        emit(fighterTarget.id, 'fighter', ANTI_FIGHTER_DAMAGE_MULTIPLIER);
+        return;
       }
-      if (ability === 'sovereignBarrage') {
-        hostileShips.filter(target => target.id !== shipTarget.id && target.faction === shipTarget.faction && shipInRange(attacker, target)
-          && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, targetPosition.x, targetPosition.y) <= 140)
-          .forEach(target => shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: target.id, targetType: 'ship', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: .35 }));
+      if (shipTarget) {
+        const transportMultiplier = ability === 'transportHunter' && (shipTarget.cargo?.length ?? 0) > 0 ? 1.5 : 1;
+        const targetPosition = shipPosition(shipTarget);
+        const distance = orbitDistance(attackerPosition.x, attackerPosition.y, targetPosition.x, targetPosition.y);
+        const rangeMultiplier = ability === 'rangeCalibration' && weaponIndex === 0 ? 1 + .7 * Math.min(1, distance / weaponRange) : 1;
+        const focusMultiplier = ability === 'focusFire' && weaponIndex === 0 && shipTarget.hp < shipTarget.maxHp ? 1.5 : 1;
+        emit(shipTarget.id, 'ship', transportMultiplier * rangeMultiplier * focusMultiplier, ability === 'shieldPiercing' && weaponIndex === 0 ? .5 : 0);
+        if ((ability === 'spawnCloud' || ability === 'fabricatorSwarm') && weaponIndex === 0) {
+          const secondary = hostileShips.find(target => target.id !== shipTarget.id && shipInRange(target));
+          if (secondary) emit(secondary.id, 'ship', .5);
+        }
+        if (ability === 'sovereignBarrage' && weaponIndex === 0) {
+          hostileShips.filter(target => target.id !== shipTarget.id && target.faction === shipTarget.faction && shipInRange(target)
+            && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, targetPosition.x, targetPosition.y) <= 140)
+            .forEach(target => emit(target.id, 'ship', .35));
+        }
+      } else if (defenseTarget) {
+        emit(defenseTarget.id, 'defense', weaponIndex === 0 && (ability === 'planetCracker' || ability === 'dismantlerBeam') ? 2 : 1);
       }
-    } else if (defenseTarget) {
-      shots.push({ attackerId: attacker.id, attackerType: 'ship', targetId: defenseTarget.id, targetType: 'defense', faction, damage: salvoDamage, weaponEffect: weapon.effect, damageMultiplier: ability === 'planetCracker' || ability === 'dismantlerBeam' ? 2 : 1 });
-    }
+    });
   }
 
   if (!p.owner) return shots;
@@ -1765,7 +1827,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   defenses.forEach(ensureOrbitalDefenseHealth);
   const shots = orbitalCombatShots(p);
   if (!shots.length) {
-    p.orbitUnits.forEach(unit => tickUnitWeapon(unit, seconds, false));
+    p.orbitUnits.forEach(unit => shipWeaponBatteries(unit.kind as SpaceUnitKind)
+      .forEach((_, weaponIndex) => tickShipWeapon(unit, weaponIndex, seconds, false)));
     return;
   }
   const combatantsBefore = [...p.orbitUnits];
@@ -1782,28 +1845,31 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   p.orbitUnits.forEach(unit => {
     const attackerShots = shipShots.get(unit.id) ?? [];
     const fighterWing = UNITS[unit.kind].fighterWing;
-    const fighterScale = fighterWing ? carrierFighterCount(unit) / fighterWing.capacity : 1;
-    const salvoDamage = tickUnitWeapon(unit, seconds, attackerShots.length > 0);
-    if (fighterWing && attackerShots.length) applyCarrierFighterAttrition(unit, seconds);
-    if (!attackerShots.length || !salvoDamage) return;
     const hasSynapse = p.orbitUnits.some(ally => ally.faction === unit.faction && UNITS[ally.kind].ability?.kind === 'orbitalSynapse'
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= 240);
     const factionScale = (unit.faction !== 'neutral' && state.aiFactions?.includes(unit.faction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
       * (unit.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, unit.faction).completedResearch))
       * (unit.faction !== 'neutral' && controlsAncientRelic(state, unit.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
-    attackerShots.forEach(shot => {
-      const damage = salvoDamage * fighterScale * SPACE_COMBAT_DAMAGE_MULTIPLIER * factionScale * (shot.damageMultiplier ?? 1);
-      if (shot.targetType === 'ship') {
-        const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
-        current.damage += damage;
-        current.piercingDamage += damage * (shot.piercingFraction ?? 0);
-        shipDamage.set(shot.targetId, current);
-      } else if (shot.targetType === 'defense') {
-        defenseDamage.set(shot.targetId, (defenseDamage.get(shot.targetId) ?? 0) + damage);
-      } else {
-        fighterDamage.set(shot.targetId, (fighterDamage.get(shot.targetId) ?? 0) + damage);
-      }
-      if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
+    shipWeaponBatteries(unit.kind as SpaceUnitKind).forEach((_, weaponIndex) => {
+      const weaponShots = attackerShots.filter(shot => shot.weaponIndex === weaponIndex);
+      const perMountDamage = tickShipWeapon(unit, weaponIndex, seconds, weaponShots.length > 0);
+      if (!weaponShots.length || !perMountDamage) return;
+      const fighterScale = fighterWing && weaponIndex === 0 ? carrierFighterCount(unit) / fighterWing.capacity : 1;
+      if (fighterWing && weaponIndex === 0) applyCarrierFighterAttrition(unit, seconds);
+      weaponShots.forEach(shot => {
+        const damage = perMountDamage * fighterScale * SPACE_COMBAT_DAMAGE_MULTIPLIER * factionScale * (shot.damageMultiplier ?? 1);
+        if (shot.targetType === 'ship') {
+          const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
+          current.damage += damage;
+          current.piercingDamage += damage * (shot.piercingFraction ?? 0);
+          shipDamage.set(shot.targetId, current);
+        } else if (shot.targetType === 'defense') {
+          defenseDamage.set(shot.targetId, (defenseDamage.get(shot.targetId) ?? 0) + damage);
+        } else {
+          fighterDamage.set(shot.targetId, (fighterDamage.get(shot.targetId) ?? 0) + damage);
+        }
+        if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
+      });
     });
   });
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {

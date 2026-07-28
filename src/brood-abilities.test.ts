@@ -90,7 +90,8 @@ describe('Brood organism abilities', () => {
       makeUnit('target-a', 'destroyer', 'enemy', 150, 0),
       makeUnit('target-b', 'destroyer', 'enemy', 170, 0),
     ];
-    const carrierShots = orbitalCombatShots(carrierWorld).filter(shot => shot.attackerId === 'carrier');
+    const carrierShots = orbitalCombatShots(carrierWorld).filter(shot =>
+      shot.attackerId === 'carrier' && shot.weaponIndex === 0 && shot.mountIndex === 0);
     expect(carrierShots.map(shot => shot.targetId)).toEqual(['target-a', 'target-b']);
     const swarmed = tick(carrierState, .1).planets[0].orbitUnits;
     expect(swarmed.find(unit => unit.id === 'target-a')!.shields).toBeLessThan(UNITS.destroyer.shields);

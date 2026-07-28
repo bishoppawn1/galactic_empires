@@ -1,8 +1,8 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  ANCIENT_RELIC_DAMAGE_MULTIPLIER, ANCIENT_RELIC_ECONOMY_MULTIPLIER, BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isColonizableWorld, isDefenseBuildingKind, isTitanKind, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier, systemKind, visibleOrbitUnits,
+  ANCIENT_RELIC_DAMAGE_MULTIPLIER, ANCIENT_RELIC_ECONOMY_MULTIPLIER, BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isColonizableWorld, isDefenseBuildingKind, isTitanKind, shipArmor, shipWeaponBatteries, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier, systemKind, visibleOrbitUnits,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
-  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type SpaceShipTier, type Unit, type UnitKind,
+  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type SpaceShipTier, type SpaceUnitKind, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
 import { buildingIcon, factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -174,16 +174,22 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
 function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) {
   const definition = UNITS[kind];
   const spaceUnit = isSpaceUnit(kind);
+  const shipSystems = spaceUnit ? shipWeaponBatteries(kind as SpaceUnitKind)
+    .map(weapon => `${weapon.mounts}× ${weapon.label} · ${weapon.damage} DMG · ${weapon.cooldown}s · RNG ${weapon.range}`)
+    .join(' + ') : '';
   const details = spaceUnit
-    ? `TIER ${definition.spaceTier}${isTitanKind(kind) ? ' · UNIQUE TITAN' : ''} · ${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · RNG ${definition.range} · ${definition.weapon.label} · ${definition.weapon.cooldown}s${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
+    ? `TIER ${definition.spaceTier}${isTitanKind(kind) ? ' · UNIQUE TITAN' : ''} · ${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · ARMOR ${Math.round(shipArmor(kind as SpaceUnitKind) * 100)}% · ${shipSystems}${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
     : `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
   return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? details}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
 }
 function UnitRow({ unit }: { unit: Unit }) {
   const definition = UNITS[unit.kind];
   const spaceUnit = isSpaceUnit(unit.kind);
+  const shipSystems = spaceUnit ? shipWeaponBatteries(unit.kind as SpaceUnitKind)
+    .map(weapon => `${weapon.mounts}× ${weapon.label} ${weapon.damage} DMG/${weapon.cooldown}s`)
+    .join(' + ') : '';
   const details = spaceUnit
-    ? `${unit.faction.toUpperCase()} · ${definition.weapon.label} · ${definition.weapon.projectiles}× / ${definition.weapon.cooldown}s · RNG ${definition.range}${definition.fighterWing ? ` · FTR ${carrierFighterCount(unit)}/${definition.fighterWing.capacity}` : ''}${definition.ability ? ` · ${definition.ability.label}` : ''}`
+    ? `${unit.faction.toUpperCase()} · ARMOR ${Math.round(shipArmor(unit.kind as SpaceUnitKind) * 100)}% · ${shipSystems}${definition.fighterWing ? ` · FTR ${carrierFighterCount(unit)}/${definition.fighterWing.capacity}` : ''}${definition.ability ? ` · ${definition.ability.label}` : ''}`
     : `${unit.faction.toUpperCase()} · HP ${Math.ceil(unit.hp)}/${unit.maxHp} · SH ${Math.ceil(unit.shields)}/${unit.maxShields} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label}` : ''}${unit.corrodedFor ? ' · CORRODED' : ''}`;
   return <div className="unit-row"><span>{spaceUnit ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{details}</small></div></div>;
 }

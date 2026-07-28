@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ANTI_FIGHTER_DAMAGE_MULTIPLIER, FIGHTER_HIT_POINTS, SPACE_COMBAT_DAMAGE_MULTIPLIER, UNITS, carrierFighterCount, civilizationUnitKind, createInitialState,
-  isFlakFrigateKind, migrateGameState, orbitalCombatShots, recoverCarrierFighters, spaceUnitKindsForCivilization, tick,
+  isFlakFrigateKind, migrateGameState, orbitalCombatShots, recoverCarrierFighters, shipWeaponBatteries, spaceUnitKindsForCivilization, tick,
   type PlayableFaction, type SpaceUnitKind, type Unit,
 } from './game';
 
@@ -59,8 +59,11 @@ describe('carrier fighter wings', () => {
     const reduced = tick(combatState(fullCount / 2), .1).planets[0].orbitUnits.find(unit => unit.id === 'target')!;
     const fullDamage = UNITS.destroyer.shields - full.shields;
     const reducedDamage = UNITS.destroyer.shields - reduced.shields;
-    expect(fullDamage).toBeCloseTo(UNITS.assaultCarrier.weapon.damage * UNITS.assaultCarrier.weapon.projectiles * SPACE_COMBAT_DAMAGE_MULTIPLIER);
-    expect(reducedDamage).toBeCloseTo(fullDamage / 2);
+    const fighterDamage = UNITS.assaultCarrier.weapon.damage * UNITS.assaultCarrier.weapon.projectiles * SPACE_COMBAT_DAMAGE_MULTIPLIER;
+    const secondaryDamage = shipWeaponBatteries('assaultCarrier').slice(1)
+      .reduce((total, weapon) => total + weapon.damage * weapon.mounts * SPACE_COMBAT_DAMAGE_MULTIPLIER, 0);
+    expect(fullDamage).toBeCloseTo(fighterDamage + secondaryDamage);
+    expect(reducedDamage).toBeCloseTo(fighterDamage / 2 + secondaryDamage);
   });
 
   it('loses deployed fighters to combat attrition before rebuilding replacements', () => {
@@ -114,7 +117,7 @@ describe('carrier fighter wings', () => {
     const targets = orbitalCombatShots(state.planets[0])
       .filter(shot => shot.attackerId === flakFrigate.id && shot.targetType === 'fighter')
       .map(shot => shot.targetId);
-    expect(targets).toEqual([first.id]);
+    expect(targets).toEqual(Array(UNITS.flakFrigate.weapon.projectiles).fill(first.id));
   });
 
   it('migrates legacy flagship hulls into the corresponding flak frigates', () => {

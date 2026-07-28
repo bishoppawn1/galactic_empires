@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, isColonizableWorld, localPlanetConnections, orbitalCombatShots, ownerLabel, spaceYards, spaceYardTier,
-  systemKind, visibleOrbitUnits, type GameState, type Planet, type Unit,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, isBuildingOperational, isColonizableWorld, localPlanetConnections, orbitalCombatShots, ownerLabel, shipArmor, shipWeaponBatteries, spaceYards, spaceYardTier,
+  systemKind, visibleOrbitUnits, type GameState, type Planet, type SpaceUnitKind, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
@@ -267,9 +267,10 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const shipIndexes = new Map(p.orbitUnits.map((ship, index) => [ship.id, index]));
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
             const allCombatShots = orbitalCombatShots(p);
+            const visualCombatShots = allCombatShots.filter(shot => shot.attackerType !== 'ship' || (shot.mountIndex ?? 0) === 0);
             const combatShots = largeFleetRendering
-              ? evenlySampleVisuals(allCombatShots, MAX_LARGE_FLEET_VISUAL_SHOTS)
-              : allCombatShots;
+              ? evenlySampleVisuals(visualCombatShots, MAX_LARGE_FLEET_VISUAL_SHOTS)
+              : visualCombatShots;
             function mapPosition(id: string, type: 'ship' | 'defense' | 'battery' | 'fighter'): { x: number; y: number } | undefined {
               if (type === 'battery') return { x: GALAXY_CANVAS_WIDTH * p.x / 100, y: GALAXY_CANVAS_HEIGHT * p.y / 100 };
               if (type === 'defense') {
@@ -288,16 +289,22 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const phase = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * .071 + state.elapsed * 1.65;
               return { x: center.x + Math.cos(phase) * 24, y: center.y + Math.sin(phase) * 24 };
             }
-            const carrierShotTotals = new Map<string, number>();
-            combatShots.forEach(shot => {
+            const firingShots = combatShots.filter(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
-              const carrier = firingShip && UNITS[firingShip.kind].fighterWing ? firingShip : undefined;
+              if (!firingShip || shot.weaponIndex === undefined) return true;
+              const flash = firingShip.weaponFlashes?.[shot.weaponIndex] ?? (shot.weaponIndex === 0 ? firingShip.weaponFlash : undefined);
+              return typeof flash !== 'number' || flash > 0;
+            });
+            const carrierShotTotals = new Map<string, number>();
+            firingShots.forEach(shot => {
+              const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
+              const carrier = firingShip && shot.weaponIndex === 0 && UNITS[firingShip.kind].fighterWing ? firingShip : undefined;
               if (carrier) carrierShotTotals.set(carrier.id, (carrierShotTotals.get(carrier.id) ?? 0) + 1);
             });
             const carrierShotIndexes = new Map<string, number>();
-            const allFighterSorties = combatShots.flatMap(shot => {
+            const allFighterSorties = firingShots.flatMap(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
-              const carrier = firingShip && UNITS[firingShip.kind].fighterWing ? firingShip : undefined;
+              const carrier = firingShip && shot.weaponIndex === 0 && UNITS[firingShip.kind].fighterWing ? firingShip : undefined;
               if (!carrier) return [];
               const source = mapPosition(shot.attackerId, 'ship'), target = mapPosition(shot.targetId, shot.targetType);
               if (!source || !target) return [];
@@ -308,20 +315,19 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const allocated = Math.floor(wingCount / sortieCount) + (sortieIndex < wingCount % sortieCount ? 1 : 0);
               return allocated > 0 ? [{ shot, carrier, source, target, allocated }] : [];
             });
-            const firingShots = combatShots.filter(shot => {
+            const directFireShots = firingShots.filter(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
-              return !firingShip || (!UNITS[firingShip.kind].fighterWing && (typeof firingShip.weaponFlash !== 'number' || firingShip.weaponFlash > 0));
+              return !firingShip || shot.weaponIndex !== 0 || !UNITS[firingShip.kind].fighterWing;
             });
             return [
               ...allFighterSorties.map(({ shot, carrier, source, target, allocated }) => <CarrierFighterWing key={`${shot.attackerId}-fighters-${shot.targetId}`} id={`${carrier.id}-${shot.targetId}`} faction={carrier.faction} count={largeFleetRendering ? Math.min(allocated, MAX_LARGE_FLEET_FIGHTERS_PER_SORTIE) : allocated} source={source} target={target} underFire={combatShots.some(incoming => incoming.targetType === 'fighter' && incoming.targetId === carrier.id)} />),
-              ...firingShots.flatMap((shot, index) => {
-                const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
+              ...directFireShots.flatMap((shot, index) => {
                 const source = mapPosition(shot.attackerId, shot.attackerType);
                 const target = mapPosition(shot.targetId, shot.targetType);
                 if (!source || !target) return [];
-                const weaponProjectiles = firingShip ? UNITS[firingShip.kind].weapon.projectiles : 1;
+                const weaponProjectiles = shot.mountCount ?? 1;
                 const projectiles = largeFleetRendering ? Math.min(weaponProjectiles, MAX_LARGE_FLEET_PROJECTILES_PER_SALVO) : weaponProjectiles;
-                return <WeaponFire key={`${shot.attackerId}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={ORBITAL_PROJECTILE_SIZE} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
+                return <WeaponFire key={`${shot.attackerId}-w${shot.weaponIndex ?? 'installation'}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={ORBITAL_PROJECTILE_SIZE} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
               }),
             ];
           })}
@@ -381,12 +387,13 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const capacity = UNITS[ship.kind].capacity;
           const approach = ship.pendingLanding ? ' landing approach' : ship.pendingEmbark ? ' embark approach' : ship.phaseArrival ? ' phase arrival' : ship.docked ? ' docked at' : ' orbiting';
           const cargoCount = ship.cargo?.length ?? 0;
-          const weapon = UNITS[ship.kind].weapon;
+          const weapons = shipWeaponBatteries(ship.kind as SpaceUnitKind);
+          const systems = weapons.map(weapon => `${weapon.mounts}× ${weapon.label} · ${weapon.damage} damage each · ${weapon.cooldown}s reload · range ${weapon.range}`).join(' + ');
           const displaySize = shipDisplaySize(ship.kind);
           const ability = UNITS[ship.kind].ability;
           const repairRange = ability?.kind === 'assemblyLine' ? COVENANT_ASSEMBLY_REPAIR_RANGE : ability?.kind === 'foundryAura' ? COVENANT_FOUNDRY_REPAIR_RANGE : 0;
           const selected = selectedShipIds.includes(ship.id);
-          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`${weapon.label} · ${weapon.projectiles} projectile${weapon.projectiles === 1 ? '' : 's'} · ${weapon.cooldown}s reload${ability ? ` · ${ability.label}: ${ability.description}` : ''}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selected ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px`, '--ship-status-offset': `${displaySize / 2 + 7}px`, '--ship-status-width': `${Math.min(68, Math.max(48, displaySize * .55))}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{ability?.kind === 'shieldProjection' && <i className="ship-ability-ring" aria-label="Shield Projection radius" style={{ '--ship-ability-range': `${AEGIS_SHIELD_PROJECTION_RANGE * 2}px` } as React.CSSProperties} />}{repairRange > 0 && <i className="ship-ability-ring covenant-repair" aria-label={`${ability!.label} radius`} style={{ '--ship-ability-range': `${repairRange * 2}px` } as React.CSSProperties} />}{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} volumetric={camera3D && !largeFleetRendering} /><ShipMapStatusBars ship={ship} visible={selected} />{capacity && <small className={`transport-capacity camera-billboard ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
+          return <button key={ship.id} aria-label={`${UNITS[ship.kind].label}${approach} ${p.name}`} title={`Armor ${Math.round(shipArmor(ship.kind as SpaceUnitKind) * 100)}% · ${systems}${ability ? ` · ${ability.label}: ${ability.description}` : ''}`} className={`orbit-ship ${ship.faction} ${ship.phaseArrival ? 'phase-arrival' : ''} ${ship.pendingLanding ? 'landing-approach' : ''} ${ship.pendingEmbark ? 'embark-approach' : ''} ${ship.docked ? 'docked' : ''} ${selected ? 'selected' : ''}`} style={{ left: position.x, top: position.y, '--ship-heading': `${orbitShipHeading(ship)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 8}px`, '--ship-status-offset': `${displaySize / 2 + 7}px`, '--ship-status-width': `${Math.min(68, Math.max(48, displaySize * .55))}px` } as React.CSSProperties} onClick={event => { event.stopPropagation(); onSelectShip(p.id, ship.id, selectable && event.shiftKey); }}><i className="ship-range-ring" style={{ '--ship-range': `${UNITS[ship.kind].range * 2}px` } as React.CSSProperties} />{ability?.kind === 'shieldProjection' && <i className="ship-ability-ring" aria-label="Shield Projection radius" style={{ '--ship-ability-range': `${AEGIS_SHIELD_PROJECTION_RANGE * 2}px` } as React.CSSProperties} />}{repairRange > 0 && <i className="ship-ability-ring covenant-repair" aria-label={`${ability!.label} radius`} style={{ '--ship-ability-range': `${repairRange * 2}px` } as React.CSSProperties} />}{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipImage kind={ship.kind} volumetric={camera3D && !largeFleetRendering} /><ShipMapStatusBars ship={ship} visible={selected} />{capacity && <small className={`transport-capacity camera-billboard ${cargoCount >= capacity ? 'full' : ''}`} aria-label={`Cargo ${cargoCount} of ${capacity}`}>{ship.pendingLanding ? 'LANDING · ' : ship.pendingEmbark ? 'EMBARKING · ' : ship.docked ? 'DOCKED · ' : ''}{cargoCount}/{capacity}</small>}</button>;
         }))}
         {state.fleets.flatMap(fleet => {
           if (!camera3D && fleet.faction !== 'player') return [];

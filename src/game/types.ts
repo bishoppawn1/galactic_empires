@@ -86,6 +86,8 @@ export interface Unit {
   cargo?: Unit[];
   weaponCooldown?: number;
   weaponFlash?: number;
+  weaponCooldowns?: number[];
+  weaponFlashes?: number[];
   corrodedFor?: number;
   fighterCount?: number;
   fighterBuildProgress?: number;
@@ -205,6 +207,24 @@ export interface Definition {
   requires?: ResearchId;
 }
 
+export interface WeaponDefinition {
+  label: string;
+  damage: number;
+  cooldown: number;
+  projectiles: number;
+  effect: WeaponEffect;
+  range?: number;
+}
+
+export interface ShipWeaponBattery {
+  label: string;
+  damage: number;
+  cooldown: number;
+  mounts: number;
+  effect: WeaponEffect;
+  range: number;
+}
+
 export interface UnitDefinition extends Definition {
   factory: 'ground' | 'space';
   spaceTier?: SpaceShipTier;
@@ -212,13 +232,7 @@ export interface UnitDefinition extends Definition {
   shields: number;
   range: number;
   moveSpeed: number;
-  weapon: {
-    label: string;
-    damage: number;
-    cooldown: number;
-    projectiles: number;
-    effect: WeaponEffect;
-  };
+  weapon: WeaponDefinition;
   advancedFactory?: boolean;
   capacity?: number;
   fighterWing?: {

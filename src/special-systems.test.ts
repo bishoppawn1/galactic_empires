@@ -56,7 +56,7 @@ describe('seeded special-system generation', () => {
     });
     state.planets.filter(system => systemKind(system) === 'pirateBase').forEach(system => {
       expect(isColonizableWorld(system)).toBe(true);
-      expect(system.orbitUnits).toHaveLength(9);
+      expect(system.orbitUnits).toHaveLength(48);
       expect(system.orbitUnits.every(ship => ship.faction === 'neutral')).toBe(true);
       expect(system.groundUnits).toHaveLength(12);
       expect(system.groundUnits.every(unit => unit.faction === 'neutral')).toBe(true);
@@ -87,10 +87,16 @@ describe('seeded special-system generation', () => {
   });
 
   it('places exactly one star on every generated map size', () => {
-    for (const mapSize of ['small', 'medium', 'large', 'huge'] as const) {
+    for (const mapSize of ['small', 'medium', 'large', 'huge', 'massive', 'galactic'] as const) {
       for (let seed = 1; seed <= 20; seed += 1) {
         const state = createInitialState({ mapSize, difficulty: 'commander', mapSeed: seed });
+        const [star] = state.planets.filter(system => systemKind(system) === 'star');
+        expect(star).toBeDefined();
         expect(state.planets.filter(system => systemKind(system) === 'star')).toHaveLength(1);
+        const eligibleDistances = state.planets
+          .filter(system => !state.homeSystemIds!.includes(system.id))
+          .map(system => Math.hypot(system.x - 50, system.y - 50));
+        expect(Math.hypot(star.x - 50, star.y - 50)).toBeCloseTo(Math.min(...eligibleDistances));
         expect(state.homeSystemIds!.every(id => systemKind(state.planets.find(system => system.id === id)!) === 'planet')).toBe(true);
       }
     }
@@ -109,6 +115,17 @@ describe('seeded special-system generation', () => {
       expect(state.planets.filter(system => system.owner === 'player').map(system => system.id)).toEqual([homes[0].id]);
       expect(visibleStateForPlayer(state).planets.filter(system => system.owner === 'player').map(system => system.id)).toEqual([homes[0].id]);
       expect(state.planets.filter(system => systemKind(system) === 'star')).toHaveLength(1);
+    }
+  });
+
+  it('keeps Galactic maps connected with unique system identities', () => {
+    for (let seed = 1; seed <= 10; seed += 1) {
+      const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed: seed });
+      const first = state.planets[0];
+      expect(state.planets).toHaveLength(45);
+      expect(new Set(state.planets.map(system => system.id)).size).toBe(45);
+      expect(new Set(state.planets.map(system => system.name)).size).toBe(45);
+      state.planets.forEach(system => expect(findPlanetPath(state.planets, first.id, system.id)).toBeDefined());
     }
   });
 

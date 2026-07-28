@@ -313,8 +313,9 @@ button { color: inherit; }
 .army.rival3 .unit-core > span { color: #a98bff; text-shadow: 0 0 12px #a98bff; }
 .battle-unit.rival2,.battle-unit.rival3 { cursor: crosshair; }
 .setup-options { grid-template-columns: repeat(4,1fr); }
+.setup-options.map-size-options { grid-template-columns: repeat(3,1fr); }
 .ai-slot-controls { display: flex; gap: 8px; margin: -10px 0 18px; }
 .ai-slot-controls button { flex: 1; min-height: 34px; border: 1px solid #806d36; background: #241f10; color: var(--gold); font: 600 11px Inter; letter-spacing: .1em; cursor: pointer; }
 .lobby-player.ai { border-color: #806d36; background: #1b180e; }
 .lobby-player.ai > i { background: var(--gold); box-shadow: 0 0 10px var(--gold); }
-@media (max-width: 760px) { .setup-options { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .setup-options,.setup-options.map-size-options { grid-template-columns: 1fr; } }

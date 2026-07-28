@@ -11,6 +11,9 @@ export function MultiplayerLobby({ lobby, isHost, onStart, onLeave, onAddAi, onR
   onRemoveAi: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const effectiveMapSize = lobby.players.length > 2 && ['small', 'medium', 'large'].includes(lobby.config.mapSize)
+    ? 'huge'
+    : lobby.config.mapSize;
   const copyCode = async () => {
     await navigator.clipboard?.writeText(lobby.code);
     setCopied(true);
@@ -26,7 +29,7 @@ export function MultiplayerLobby({ lobby, isHost, onStart, onLeave, onAddAi, onR
         return <div className={`lobby-player faction-${player.civilization} ${player.ai ? 'ai' : ''}`} key={player.id}><i style={{ background: profile.color, boxShadow: `0 0 10px ${profile.color}` }} /><span><b>{player.label}</b><small>EMPIRE {['player', 'enemy', 'rival2', 'rival3'].indexOf(player.faction) + 1} · {player.ai ? 'AI' : player.host ? 'HOST' : 'HUMAN'} · {profile.shortLabel.toUpperCase()}</small></span><em>READY</em></div>;
       })}</div>
       {isHost && <div className="ai-slot-controls"><button disabled={lobby.players.length >= 4} onClick={onAddAi}>ADD AI EMPIRE</button><button disabled={!lobby.players.some(player => player.ai)} onClick={onRemoveAi}>REMOVE AI</button></div>}
-      <div className="setup-summary"><span><small>HOST FACTION</small><b>{PLAYABLE_FACTION_DEFINITIONS[lobby.config.playerFaction ?? 'human'].shortLabel.toUpperCase()}</b></span><span><small>STAR SYSTEMS</small><b>{lobby.players.length > 2 ? 21 : mapPlanetCount(lobby.config.mapSize)}</b></span><span><small>FORMAT</small><b>FREE-FOR-ALL</b></span></div>
+      <div className="setup-summary"><span><small>HOST FACTION</small><b>{PLAYABLE_FACTION_DEFINITIONS[lobby.config.playerFaction ?? 'human'].shortLabel.toUpperCase()}</b></span><span><small>STAR SYSTEMS</small><b>{mapPlanetCount(effectiveMapSize)}</b></span><span><small>FORMAT</small><b>FREE-FOR-ALL</b></span></div>
       <div className="lobby-actions">{isHost ? <button className="launch-campaign" disabled={lobby.players.length < 2} onClick={onStart}>{lobby.players.length < 2 ? 'ADD A RIVAL OR AI' : 'START GAME'} <span>→</span></button> : <div className="waiting-pulse"><i /> WAITING FOR HOST</div>}<button className="leave-lobby" onClick={onLeave}>LEAVE LOBBY</button></div>
     </section>
   </main>;

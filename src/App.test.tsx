@@ -38,6 +38,8 @@ describe('Galactic Empires interface', () => {
     localStorage.clear();
     render(<App />);
     expect(screen.getByRole('main', { name: 'New campaign setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Massive.*31 systems/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Galactic.*45 systems/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Expansive/ }));
     fireEvent.click(screen.getByRole('button', { name: /Admiral/ }));
     fireEvent.click(screen.getByRole('button', { name: /Start single player/i }));
@@ -70,7 +72,7 @@ describe('Galactic Empires interface', () => {
 
     fireEvent.click(pirateButton);
     expect(screen.getByRole('heading', { name: 'Static pirate garrison' })).toBeInTheDocument();
-    expect(screen.getByText(/habitable planet held by a large pirate fleet and ground army/i)).toBeInTheDocument();
+    expect(screen.getByText(/habitable planet held by a 48-ship pirate armada and ground army/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'construction' })).toBeInTheDocument();
     expect(screen.queryByText(/abandoned anchorage/i)).not.toBeInTheDocument();
   });

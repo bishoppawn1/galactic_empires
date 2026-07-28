@@ -51,7 +51,7 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
     <div className="special-system-icon">☠</div>
     <p>{planet.owner
       ? 'This conquered pirate world can be developed, defended, and used for production like any other colony.'
-      : 'This is a habitable planet held by a large pirate fleet and ground army. The garrison never builds units or receives reinforcements: clear its orbit, land troops, and conquer the surface to claim the world.'}</p>
+      : 'This is a habitable planet held by a 48-ship pirate armada and ground army. The garrison never builds units or receives reinforcements: clear its orbit, land troops, and conquer the surface to claim the world.'}</p>
   </section> : null;
   if (planet.intelStatus === 'unscouted') return <>{pirateBrief}<section><SectionTitle kicker="PLANETARY COMMAND" title="No reconnaissance data" /><Locked text="Bring one of your ships into this system to identify its controller, structures, and ground forces." /></section></>;
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);

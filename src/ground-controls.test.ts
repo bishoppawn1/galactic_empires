@@ -19,7 +19,7 @@ describe('manual ground controls', () => {
     expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: Number.NaN, battleY: 57 })).toBe(false);
   });
 
-  it('moves selected troops toward separate formation positions and holds them there', () => {
+  it('moves selected troops toward separate formation positions', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'infantry', 'player', 12), combatUnit('a2', 'infantry', 'player', 14)], defenders: [combatUnit('d1', 'defenseTurret', 'enemy', 98)] }];
     const ordered = maneuverGroundUnits(state, 'draven', ['a1', 'a2'], 36, 32);
@@ -35,7 +35,7 @@ describe('manual ground controls', () => {
     expect(arrived.battles[0].attackers[0].battleY).toBeCloseTo(arrived.battles[0].attackers[0].battleTargetY!);
   });
 
-  it('automatically fires at hostiles in range before continuing a move order', () => {
+  it('abandons a move order and automatically fires when a hostile is already in range', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'infantry', 'player', 40)], defenders: [combatUnit('d1', 'infantry', 'enemy', 52)] }];
     const ordered = maneuverGroundUnits(state, 'draven', ['a1'], 20, 30);
@@ -43,8 +43,27 @@ describe('manual ground controls', () => {
     if (!ordered.ok) return;
     const fired = tick(ordered.state, 1);
     expect(fired.battles[0].attackers[0].battleX).toBe(40);
-    expect(fired.battles[0].attackers[0].battleTargetX).toBe(20);
+    expect(fired.battles[0].attackers[0].battleTargetX).toBeUndefined();
+    expect(fired.battles[0].attackers[0].battleRetaliationTargetId).toBe('d1');
     expect(fired.battles[0].defenders[0].shields).toBeLessThan(UNITS.infantry.shields);
+  });
+
+  it('abandons a move order to pursue a hostile that enters sight range', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [combatUnit('scout', 'infantry', 'player', 40)],
+      defenders: [{ ...combatUnit('spotted', 'infantry', 'enemy', 64), weaponCooldown: 999 }],
+    }];
+    const ordered = maneuverGroundUnits(state, 'draven', ['scout'], 20, 50);
+    expect(ordered.ok).toBe(true);
+    if (!ordered.ok) return;
+
+    const pursuing = tick(ordered.state, 1);
+    expect(pursuing.battles[0].attackers[0].battleX).toBeGreaterThan(40);
+    expect(pursuing.battles[0].attackers[0].battleRetaliationTargetId).toBe('spotted');
+    expect(pursuing.battles[0].attackers[0].battleTargetX).toBeUndefined();
+    expect(pursuing.battles[0].attackers[0].battleTargetY).toBeUndefined();
   });
 
   it('pursues an out-of-range artillery unit after taking fire and retaliates in range', () => {

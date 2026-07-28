@@ -38,7 +38,7 @@ import { seedKnownEmpireHomeworldIntel, updatePlanetIntel } from './visibility';
 import { planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
-  nearestOpenGroundPosition, separateGroundUnits,
+  GROUND_UNIT_SIGHT_RANGE, nearestOpenGroundPosition, separateGroundUnits,
 } from './ground/collision';
 import {
   BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTIONS, biomassCost, empireCivilization,
@@ -1551,8 +1551,19 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
 
 function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
-  const retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
+  let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
+  const followingOrder = typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number';
+  if (!retaliationTarget && followingOrder) {
+    const visibleEnemies = enemies.filter(enemy => battleDistance(unit, enemy) <= Math.max(GROUND_UNIT_SIGHT_RANGE, definition.range));
+    const spottedTarget = nearestBattleTarget(unit, visibleEnemies, preferredId);
+    if (spottedTarget) {
+      unit.battleRetaliationTargetId = spottedTarget.id;
+      delete unit.battleTargetX;
+      delete unit.battleTargetY;
+      retaliationTarget = spottedTarget;
+    }
+  }
   if (retaliationTarget) {
     if (battleDistance(unit, retaliationTarget) <= definition.range) {
       fireGroundWeapon(unit, allies, enemies, retaliationTarget, seconds, hits, power);

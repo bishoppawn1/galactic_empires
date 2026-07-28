@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { UNITS, type GameState, type GroundBattle, type Unit } from '../../game';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  GROUND_BATTLEFIELD_HEIGHT, GROUND_BATTLEFIELD_WIDTH, UNITS,
+  type GameState, type GroundBattle, type Unit,
+} from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
 import { GROUND_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 
 type SelectionBox = { left: number; top: number; width: number; height: number };
+type TerrainKind = 'crater' | 'rocks' | 'ridge' | 'scrub';
+type TerrainPiece = { kind: TerrainKind; x: number; y: number; size: number; rotation: number };
 type DragSelection = {
   pointerId: number;
   startX: number;
@@ -11,6 +16,27 @@ type DragSelection = {
   additive: boolean;
   selectedAtStart: string[];
   moved: boolean;
+};
+
+const terrainForPlanet = (planetId: string): TerrainPiece[] => {
+  let seed = 2166136261;
+  for (const character of planetId) {
+    seed ^= character.charCodeAt(0);
+    seed = Math.imul(seed, 16777619);
+  }
+  const random = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 2246822519);
+    seed = Math.imul(seed ^ (seed >>> 13), 3266489917);
+    return ((seed ^= seed >>> 16) >>> 0) / 0xffffffff;
+  };
+  const kinds: TerrainKind[] = ['rocks', 'crater', 'ridge', 'scrub'];
+  return Array.from({ length: 14 }, (_, index) => ({
+    kind: kinds[index % kinds.length],
+    x: 7 + random() * 86,
+    y: 8 + random() * 84,
+    size: 100 + random() * 150,
+    rotation: -35 + random() * 70,
+  }));
 };
 
 export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }: {
@@ -31,8 +57,13 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   useEffect(() => {
     const viewport = scrollRef.current;
     if (!viewport) return;
-    if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ left: 0, top: 320 });
-    else { viewport.scrollLeft = 0; viewport.scrollTop = 320; }
+    const playerUnits = allUnits.filter(unit => unit.faction === 'player');
+    const focusX = (playerUnits.reduce((sum, unit) => sum + (unit.battleX ?? 12), 0) / Math.max(1, playerUnits.length)) / 100 * GROUND_BATTLEFIELD_WIDTH;
+    const focusY = (playerUnits.reduce((sum, unit) => sum + (unit.battleY ?? 50), 0) / Math.max(1, playerUnits.length)) / 100 * GROUND_BATTLEFIELD_HEIGHT;
+    const left = Math.max(0, focusX - viewport.clientWidth * .35);
+    const top = Math.max(0, focusY - viewport.clientHeight * .5);
+    if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ left, top });
+    else { viewport.scrollLeft = left; viewport.scrollTop = top; }
   }, [battle.planetId]);
   useEffect(() => {
     const available = new Set(allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId).map(unit => unit.id));
@@ -43,6 +74,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   const attackerFaction = battle.attackerFaction ?? battle.attackers[0]?.faction ?? 'player';
   const defenderFaction = battle.defenders[0]?.faction ?? (attackerFaction === 'player' ? 'enemy' : 'player');
   const activeDefenses = allUnits.filter(unit => unit.sourceBuildingId).length;
+  const terrain = useMemo(() => terrainForPlanet(battle.planetId), [battle.planetId]);
   const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player');
   const playerOrbitalSupport = allUnits.some(unit => unit.faction === 'player') && playerShips.length > 0
     && !planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral');
@@ -81,9 +113,9 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
-    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Select friendly troops by dragging over them, then right-click the ground to move. Shift adds units; troops automatically fire in range.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
+    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Left-drag to box-select troops, then right-click to move. Units pursue enemies they spot and retaliate when attacked.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">
-      <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} onPointerDown={event => {
+      <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} style={{ '--battlefield-width': `${GROUND_BATTLEFIELD_WIDTH}px`, '--battlefield-height': `${GROUND_BATTLEFIELD_HEIGHT}px` } as React.CSSProperties} onPointerDown={event => {
         if (event.button !== 0) return;
         const point = selectionPoint(event);
         dragSelectionRef.current = { pointerId: event.pointerId, startX: point.x, startY: point.y, additive: event.shiftKey, selectedAtStart: selectedUnitIds, moved: false };
@@ -118,6 +150,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
         onManeuver(battle.planetId, selectedUnits.map(unit => unit.id), battleX, battleY);
       }}>
         <div className="terrain-grid" />
+        <div className="battle-terrain-layer" aria-hidden="true">{terrain.map((piece, index) => <i key={`${piece.kind}-${index}`} className={`battle-terrain terrain-${piece.kind}`} style={{ '--terrain-x': `${piece.x}%`, '--terrain-y': `${piece.y}%`, '--terrain-size': `${piece.size}px`, '--terrain-rotation': `${piece.rotation}deg` } as React.CSSProperties} />)}</div>
         {selectionBox && <div className="battle-selection-box" style={selectionBox} aria-hidden="true" />}
         <svg className="battle-orders" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{selectedUnits.filter(unit => typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number').map(unit => <g key={`order-${unit.id}`}><line x1={unit.battleX} y1={unit.battleY} x2={unit.battleTargetX} y2={unit.battleTargetY} /><circle cx={unit.battleTargetX} cy={unit.battleTargetY} r=".8" /></g>)}</svg>
         <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <WeaponFire key={unit.id} id={unit.id} x1={unit.battleX!} y1={unit.battleY!} x2={target!.battleX!} y2={target!.battleY!} effect={UNITS[unit.kind].weapon.effect} projectiles={UNITS[unit.kind].weapon.projectiles} faction={faction} size={GROUND_PROJECTILE_SIZE} />)}</svg>
@@ -127,8 +160,8 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
       </div>
     </div>
     <div className="battle-selection-status">{selectedUnits.length ? `${selectedUnits.length} UNIT${selectedUnits.length === 1 ? '' : 'S'} SELECTED · RIGHT-CLICK TO MOVE` : 'DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS'}</div>
-    <div className="battle-scale">2,600 × 1,600 TACTICAL ZONE <span>DRAG SCROLLBARS TO REPOSITION CAMERA</span></div>
-    <div className="battle-help">← EXIT BATTLEFIELD <span>Battle continues while viewing the galaxy map · Troops hold manual destinations and engage targets in range</span></div>
+    <div className="battle-scale">{GROUND_BATTLEFIELD_WIDTH.toLocaleString()} × {GROUND_BATTLEFIELD_HEIGHT.toLocaleString()} TACTICAL ZONE <span>DRAG SCROLLBARS TO REPOSITION CAMERA</span></div>
+    <div className="battle-help">← EXIT BATTLEFIELD <span>Battle continues while viewing the galaxy map · Troops automatically pursue spotted enemies</span></div>
   </div>;
 }
 

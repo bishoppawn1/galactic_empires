@@ -1201,7 +1201,7 @@ describe('Galactic Empires interface', () => {
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
-    expect(screen.getByText(/Select friendly troops/)).toBeInTheDocument();
+    expect(screen.getByText(/Left-drag to box-select troops/)).toBeInTheDocument();
     expect(screen.getAllByText('Infantry')).toHaveLength(2);
     expect(screen.queryByText(/RNG 14/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tri-Burst Pulse Rifle/)).not.toBeInTheDocument();
@@ -1213,8 +1213,9 @@ describe('Galactic Empires interface', () => {
     expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(.9);
     expect(Number(document.querySelector('.battle-fire .weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(.08);
     expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
-    expect(screen.getByText(/2,600 × 1,600 TACTICAL ZONE/)).toBeInTheDocument();
+    expect(screen.getByText(/5,200 × 3,200 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
+    expect(document.querySelectorAll('.battle-terrain')).toHaveLength(14);
   });
 
   it('shows uncontested orbital support on the ground battlefield', () => {
@@ -1238,8 +1239,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('1 UNIT SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
 
     const canvas = document.querySelector('.battle-canvas') as HTMLElement;
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 2600, height: 1600, right: 2600, bottom: 1600, x: 0, y: 0, toJSON: () => ({}) });
-    fireEvent.contextMenu(canvas, { clientX: 1300, clientY: 800 });
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 5200, height: 3200, right: 5200, bottom: 3200, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.contextMenu(canvas, { clientX: 2600, clientY: 1600 });
     expect(document.querySelector('.battle-orders circle')).not.toBeNull();
   });
 
@@ -1258,18 +1259,18 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
 
     const canvas = document.querySelector('.battle-canvas') as HTMLElement;
-    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 2600, height: 1600, right: 2600, bottom: 1600, x: 0, y: 0, toJSON: () => ({}) });
-    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 390, clientY: 560 });
-    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 830, clientY: 900 });
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 5200, height: 3200, right: 5200, bottom: 3200, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(canvas, { button: 0, pointerId: 1, clientX: 780, clientY: 1120 });
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 1660, clientY: 1800 });
     expect(document.querySelector('.battle-selection-box')).not.toBeNull();
-    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 830, clientY: 900 });
+    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 1660, clientY: 1800 });
 
     expect(document.querySelector('.battle-selection-box')).toBeNull();
     expect(screen.getByText('2 UNITS SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select Infantry attacker-1' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Select Anti-Vehicle Infantry attacker-2' })).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.contextMenu(canvas, { clientX: 1300, clientY: 800 });
+    fireEvent.contextMenu(canvas, { clientX: 2600, clientY: 1600 });
     expect(document.querySelectorAll('.battle-orders circle')).toHaveLength(2);
   });
 

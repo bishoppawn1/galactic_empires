@@ -13,6 +13,7 @@ import {
 import { CarrierFighterWing } from './CarrierFighterWing';
 import { FleetSelectionHud } from './FleetSelectionHud';
 import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
+import { ShipExplosionLayer } from './ShipExplosionLayer';
 import {
   DEFAULT_GALAXY_CANVAS_DIMENSIONS, defenseMapPosition, fleetHeading, fleetMapPosition, orbitShipHeading, pointInViewport, shipMapPosition, yardMapPosition,
 } from './geometry';
@@ -264,6 +265,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           })}
         </svg>
         {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} />}
+        <ShipExplosionLayer state={state} />
         <svg className="orbital-fire" viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} preserveAspectRatio="none" aria-hidden="true">
           {effectPlanets.flatMap(p => {
             if (systemKind(p) === 'nebula' && !p.orbitUnits.some(ship => ship.faction === 'player')) return [];
@@ -410,7 +412,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           const destination = state.planets.find(planet => planet.id === fleet.destinationId)!;
           const className = `transit-ship ${fleet.faction} ${position.phase} ${selectable ? 'interruptible' : 'committed'} ${selectedShipIds.includes(fleet.unit.id) ? 'selected' : ''}`;
           const style = { left: position.x, top: position.y, '--ship-heading': `${fleetHeading(fleet, state.planets, dimensions)}deg`, '--ship-display-size': `${displaySize}px`, '--ship-label-offset': `${displaySize / 2 + 7}px`, '--ship-status-offset': `${displaySize / 2 + 7}px`, '--ship-status-width': `${Math.min(68, Math.max(48, displaySize * .55))}px` } as React.CSSProperties;
-          const content = <><ShipImage kind={fleet.unit.kind} volumetric={camera3D && !largeFleetRendering} /><i className="ship-control-frame" aria-hidden="true" /><ShipMapStatusBars ship={fleet.unit} visible={selectedShipIds.includes(fleet.unit.id)} /></>;
+          const content = <><ShipImage kind={fleet.unit.kind} volumetric={camera3D && !largeFleetRendering} />{selectable && <i className="ship-control-frame" aria-hidden="true" />}<ShipMapStatusBars ship={fleet.unit} visible={selectedShipIds.includes(fleet.unit.id)} /></>;
           return selectable || inspectable
             ? <button key={fleet.id} aria-label={selectable ? `${UNITS[fleet.unit.kind].label} ${fleetPhaseLabel(fleet).toLowerCase()} from ${origin.name} toward ${destination.name} — jump can be canceled` : `Inspect ${factionName(fleet.faction)} ${UNITS[fleet.unit.kind].label} in phase transit from ${origin.name} toward ${destination.name}`} aria-pressed={selectedShipIds.includes(fleet.unit.id)} className={className} style={style} onClick={event => { event.stopPropagation(); onSelectShip(origin.id, fleet.unit.id, selectable && event.shiftKey); }}>{content}</button>
             : <div key={fleet.id} role="img" aria-label={`${UNITS[fleet.unit.kind].label} in phase transit from ${origin.name} toward ${destination.name}`} className={className} style={style}>{content}</div>;

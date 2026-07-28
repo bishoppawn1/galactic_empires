@@ -569,11 +569,18 @@ export const isSpaceYard = (building: Building): building is Building & { kind: 
 export const spaceYards = (planet: Planet) => planet.buildings.filter(isSpaceYard);
 export const spaceYardTier = (yard: Building): SpaceShipTier | undefined => isSpaceYard(yard) ? SPACE_YARD_TIER[yard.kind] : undefined;
 export const spaceYardCanProduce = (yard: Building, kind: UnitKind) => isSpaceYard(yard) && yard.kind === requiredSpaceYardKind(kind);
-export const factionHasTitan = (state: GameState, faction: EmpireFaction) =>
-  state.planets.some(planet =>
-    planet.orbitUnits.some(unit => unit.faction === faction && isTitanKind(unit.kind))
-    || (planet.owner === faction && spaceYards(planet).some(yard => (yard.spaceQueue ?? []).some(item => isTitanKind(item.kind)))))
-  || state.fleets.some(fleet => fleet.faction === faction && isTitanKind(fleet.unit.kind));
+export type TitanStatus = 'deployed' | 'under-construction';
+export const factionTitanStatus = (state: GameState, faction: EmpireFaction): TitanStatus | undefined => {
+  const deployed = state.planets.some(planet =>
+    planet.orbitUnits.some(unit => unit.faction === faction && isTitanKind(unit.kind)))
+    || state.fleets.some(fleet => fleet.faction === faction && isTitanKind(fleet.unit.kind));
+  if (deployed) return 'deployed';
+  return state.planets.some(planet =>
+    planet.owner === faction && spaceYards(planet).some(yard => (yard.spaceQueue ?? []).some(item => isTitanKind(item.kind))))
+    ? 'under-construction'
+    : undefined;
+};
+export const factionHasTitan = (state: GameState, faction: EmpireFaction) => factionTitanStatus(state, faction) !== undefined;
 export function rebalanceSpaceYardQueues(planet: Planet) {
   const yards = spaceYards(planet);
   if (yards.length < 2) return 0;
@@ -681,7 +688,9 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   const targets = requestedIds.map(id => yards.find(yard => yard.id === id));
   if (targets.some(yard => !yard)) return fail(input, 'Select a friendly Space Yard at this colony.');
   if (targets.some(yard => yard?.kind !== requiredYard)) return fail(input, `Tier ${tier} hulls require a ${yardLabel}.`);
-  if (isTitanKind(kind) && (targets.length > 1 || factionHasTitan(input, 'player'))) return fail(input, 'Only one Titan may be active or under construction for each faction.');
+  if (isTitanKind(kind) && targets.length > 1) return fail(input, 'A Titan may only be commissioned at one Experimental Space Yard.');
+  const titanStatus = isTitanKind(kind) ? factionTitanStatus(input, 'player') : undefined;
+  if (titanStatus) return fail(input, `This faction already has a Titan ${titanStatus === 'deployed' ? 'deployed' : 'under construction'}.`);
   const totalCost = pool(def.cost.metal * targets.length, def.cost.crystal * targets.length, def.cost.gold * targets.length);
   if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
   spendPlayerResources(state, totalCost);

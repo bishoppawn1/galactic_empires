@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
-  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, factionHasTitan, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isTitanKind, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier,
+  BROOD_BIOMASS_PER_PLANET, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isTitanKind, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type SpaceShipTier, type Unit, type UnitKind,
 } from '../../game';
@@ -102,7 +102,10 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   const lockReason = (kind: UnitKind) => {
     const def = UNITS[kind];
     if (def.requires && !state.completedResearch.includes(def.requires)) return 'RESEARCH REQUIRED';
-    if (isTitanKind(kind) && factionHasTitan(state, 'player')) return 'TITAN ALREADY ACTIVE';
+    const titanStatus = isTitanKind(kind) ? factionTitanStatus(state, 'player') : undefined;
+    if (titanStatus === 'under-construction') return 'TITAN ALREADY IN PRODUCTION';
+    if (titanStatus === 'deployed') return 'TITAN ALREADY DEPLOYED';
+    if (isTitanKind(kind) && groupedYards.length > 1) return 'SELECT ONE YARD FOR TITAN';
     if (def.factory === 'ground' && def.advancedFactory && !hasAdvancedGroundFactory) return 'ADVANCED FACTORY REQUIRED';
     if (def.factory === 'space') {
       const tier = spaceTierForUnit(kind)!;

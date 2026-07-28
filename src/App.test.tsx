@@ -262,6 +262,25 @@ describe('Galactic Empires interface', () => {
     expect(infantryOrder).not.toHaveTextContent('Tri-Burst Pulse Rifle');
   });
 
+  it('locks only the Titan order while that faction already has one in production', () => {
+    const state = createInitialState();
+    state.completedResearch.push('advancedIndustry', 'orbitalEngineering', 'capitalShips', 'titanEngineering');
+    state.planets[0].buildings.push({
+      id: 'experimental-yard-with-titan',
+      kind: 'experimentalSpaceFactory',
+      spaceQueue: [{ id: 'queued-titan', kind: 'dreadnought', remaining: 100, total: 120 }],
+    });
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    const titanOrder = screen.getByText('Titan Dreadnought', { selector: '.unit-button b' }).closest('button')!;
+    const battlecruiserOrder = screen.getByText('Battlecruiser', { selector: '.unit-button b' }).closest('button')!;
+    expect(titanOrder).toBeDisabled();
+    expect(titanOrder).toHaveTextContent('TITAN ALREADY IN PRODUCTION');
+    expect(battlecruiserOrder).toBeEnabled();
+  });
+
   it('shows the dedicated Aegis roster and faction-specific research unlocks', () => {
     const state = createInitialState({ mapSize: 'medium', difficulty: 'commander', playerFaction: 'aegis' });
     saveState(state);

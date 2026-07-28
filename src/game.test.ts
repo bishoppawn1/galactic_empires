@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, findPlanetPath, groundProductionMultiplier, headingForVector, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -805,19 +805,52 @@ describe('production and research', () => {
     const capital = queueUnit(state, 'terra', 'battlecruiser', ['experimental-yard-a']); expectOk(capital);
     state = capital.state;
     expect(spaceYards(state.planets[0]).find(yard => yard.id === 'experimental-yard-a')!.spaceQueue![0].kind).toBe('battlecruiser');
+    const secondCapital = queueUnit(state, 'terra', 'battlecruiser', ['experimental-yard-b']); expectOk(secondCapital);
+    state = secondCapital.state;
+    expect(spaceYards(state.planets[0]).flatMap(yard => yard.spaceQueue ?? []).filter(item => item.kind === 'battlecruiser')).toHaveLength(2);
 
+    expect(queueUnit(state, 'terra', 'dreadnought', ['experimental-yard-a', 'experimental-yard-b'])).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('one Experimental Space Yard'),
+    });
+    expect(factionTitanStatus(state, 'player')).toBeUndefined();
     const titan = queueUnit(state, 'terra', 'dreadnought', ['experimental-yard-b']); expectOk(titan);
+    expect(factionTitanStatus(titan.state, 'player')).toBe('under-construction');
     expect(queueUnit(titan.state, 'terra', 'dreadnought', ['experimental-yard-a'])).toMatchObject({
       ok: false,
-      error: expect.stringContaining('one Titan'),
+      error: expect.stringContaining('under construction'),
     });
     const rebuilt = titan.state;
     const titanYard = spaceYards(rebuilt.planets[0]).find(yard => yard.id === 'experimental-yard-b')!;
     titanYard.spaceQueue = titanYard.spaceQueue!.filter(item => item.kind !== 'dreadnought');
     rebuilt.planets[0].orbitUnits.push(makeUnit('active-titan', 'dreadnought', 'player'));
+    expect(factionTitanStatus(rebuilt, 'player')).toBe('deployed');
     expect(queueUnit(rebuilt, 'terra', 'dreadnought', ['experimental-yard-b']).ok).toBe(false);
     rebuilt.planets[0].orbitUnits = rebuilt.planets[0].orbitUnits.filter(unit => unit.id !== 'active-titan');
     expect(queueUnit(rebuilt, 'terra', 'dreadnought', ['experimental-yard-b']).ok).toBe(true);
+  });
+
+  it('limits only Titans faction-wide while leaving other Tier 3 ships unrestricted', () => {
+    const state = createInitialState();
+    state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    state.completedResearch.push('advancedIndustry', 'orbitalEngineering', 'capitalShips', 'titanEngineering');
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const secondColony = state.planets.find(planet => planet.id !== 'terra')!;
+    secondColony.owner = 'player';
+    terra.buildings.push({ id: 'terra-experimental', kind: 'experimentalSpaceFactory', spaceQueue: [] });
+    secondColony.buildings.push({ id: 'colony-experimental', kind: 'experimentalSpaceFactory', spaceQueue: [] });
+
+    const firstTitan = queueUnit(state, terra.id, 'dreadnought', ['terra-experimental']); expectOk(firstTitan);
+    expect(queueUnit(firstTitan.state, secondColony.id, 'dreadnought', ['colony-experimental'])).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('under construction'),
+    });
+
+    const firstBattlecruiser = queueUnit(firstTitan.state, terra.id, 'battlecruiser', ['terra-experimental']); expectOk(firstBattlecruiser);
+    const secondBattlecruiser = queueUnit(firstBattlecruiser.state, secondColony.id, 'battlecruiser', ['colony-experimental']); expectOk(secondBattlecruiser);
+    expect(secondBattlecruiser.state.planets.flatMap(planet =>
+      spaceYards(planet).flatMap(yard => yard.spaceQueue ?? []))
+      .filter(item => item.kind === 'battlecruiser')).toHaveLength(2);
   });
 
   it('lets an Atlas Mega Carrier embark eight squads', () => {

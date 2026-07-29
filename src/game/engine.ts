@@ -1206,18 +1206,22 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   const cargo = transport.cargo ?? [];
   if (transport.faction === 'neutral') return false;
   const faction = transport.faction;
+  const deployedCargo = cargo.map(unit => ({
+    ...unit,
+    ...(state.aiFactions?.includes(faction) ? {} : { battleHoldPosition: true }),
+  }));
   if (!isColonizableWorld(p) || !UNITS[transport.kind].capacity || !cargo.length) return false;
   const activeBattle = state.battles.find(battle => battle.planetId === p.id);
   if (activeBattle) {
     const attackerFaction = activeBattle.attackerFaction ?? activeBattle.attackers[0]?.faction;
     const reinforcements = faction === attackerFaction ? activeBattle.attackers : activeBattle.defenders;
-    reinforcements.push(...cargo, groundTransport(p, transport));
+    reinforcements.push(...deployedCargo, groundTransport(p, transport));
     ensureBattlePositions(activeBattle);
     addMessage(state, `${cargo.length} ${faction === attackerFaction ? 'attacking' : 'defending'} squad${cargo.length === 1 ? '' : 's'} and their transport reinforced the ground battle on ${p.name}.`);
     return true;
   }
   if (p.owner === null && p.groundUnits.length) {
-    const battle: GroundBattle = { planetId: p.id, attackers: [...cargo, groundTransport(p, transport)], defenders: [...p.groundUnits], attackerFaction: faction, groundDefenseBuildingIds: [] };
+    const battle: GroundBattle = { planetId: p.id, attackers: [...deployedCargo, groundTransport(p, transport)], defenders: [...p.groundUnits], attackerFaction: faction, groundDefenseBuildingIds: [] };
     ensureBattlePositions(battle);
     state.battles.push(battle);
     p.groundUnits = [];
@@ -1230,7 +1234,7 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
     const defenses = p.buildings.filter(building => building.kind === 'groundDefense' && isBuildingOperational(building));
     const fortifications = defenses.map(building => groundDefenseUnit(state, building, p.owner!));
     if (p.groundUnits.length || fortifications.length) {
-      const battle: GroundBattle = { planetId: p.id, attackers: [...cargo, groundTransport(p, transport)], defenders: [...p.groundUnits, ...fortifications], attackerFaction: faction, groundDefenseBuildingIds: defenses.map(building => building.id) };
+      const battle: GroundBattle = { planetId: p.id, attackers: [...deployedCargo, groundTransport(p, transport)], defenders: [...p.groundUnits, ...fortifications], attackerFaction: faction, groundDefenseBuildingIds: defenses.map(building => building.id) };
       ensureBattlePositions(battle);
       state.battles.push(battle);
       p.groundUnits = [];
@@ -1318,6 +1322,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     delete restored.weaponCooldowns; delete restored.weaponFlashes;
     delete restored.battleTargetX; delete restored.battleTargetY;
     delete restored.battleRetaliationTargetId;
+    delete restored.battleHoldPosition;
     delete restored.corrodedFor;
     return restored;
   });
@@ -1616,7 +1621,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
       fireGroundWeapon(unit, allies, enemies, retaliationTarget, seconds, hits, power);
     } else {
       tickUnitWeapon(unit, seconds, false);
-      moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds);
+      if (!unit.battleHoldPosition) moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds);
     }
     return;
   }
@@ -1627,6 +1632,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
     return;
   }
   tickUnitWeapon(unit, seconds, false);
+  if (unit.battleHoldPosition) return;
   if (typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number') {
     moveBattleUnitToward(unit, unit.battleTargetX, unit.battleTargetY, seconds);
     return;
@@ -1668,6 +1674,7 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
     unit.battleTargetY = position.battleY;
     occupied.push({ id: unit.id, ...position });
     delete unit.battleRetaliationTargetId;
+    delete unit.battleHoldPosition;
   });
   return pass(state);
 }

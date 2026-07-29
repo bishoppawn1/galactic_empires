@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   GROUND_BATTLEFIELD_HEIGHT, GROUND_BATTLEFIELD_WIDTH, UNITS,
   type GameState, type GroundBattle, type Unit,
@@ -19,6 +19,15 @@ type DragSelection = {
   moved: boolean;
 };
 
+const GROUND_KEYBOARD_PAN_STEP = 24;
+const MIN_GROUND_BATTLE_ZOOM = .04;
+const MAX_GROUND_BATTLE_ZOOM = 1.25;
+
+export const groundBattleFitZoom = (viewportWidth: number, viewportHeight: number) => Math.min(1, Math.max(
+  MIN_GROUND_BATTLE_ZOOM,
+  Math.floor(Math.min(viewportWidth / GROUND_BATTLEFIELD_WIDTH, viewportHeight / GROUND_BATTLEFIELD_HEIGHT) * 1000) / 1000,
+));
+
 const terrainForPlanet = (planetId: string): TerrainPiece[] => {
   let seed = 2166136261;
   for (const character of planetId) {
@@ -30,12 +39,12 @@ const terrainForPlanet = (planetId: string): TerrainPiece[] => {
     seed = Math.imul(seed ^ (seed >>> 13), 3266489917);
     return ((seed ^= seed >>> 16) >>> 0) / 0xffffffff;
   };
-  const kinds: TerrainKind[] = ['rocks', 'crater', 'ridge', 'scrub'];
-  return Array.from({ length: 14 }, (_, index) => ({
+  const kinds: TerrainKind[] = ['rocks', 'crater', 'rocks', 'ridge', 'scrub', 'rocks'];
+  return Array.from({ length: 36 }, (_, index) => ({
     kind: kinds[index % kinds.length],
-    x: 7 + random() * 86,
-    y: 8 + random() * 84,
-    size: 100 + random() * 150,
+    x: 5 + random() * 90,
+    y: 6 + random() * 88,
+    size: 150 + random() * 260,
     rotation: -35 + random() * 70,
   }));
 };
@@ -49,23 +58,69 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
 }) {
   const planet = state.planets.find(p => p.id === battle.planetId)!;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pressedPanKeysRef = useRef(new Set<string>());
   const dragSelectionRef = useRef<DragSelection | undefined>(undefined);
   const suppressClickRef = useRef(false);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox>();
+  const [fitZoom, setFitZoom] = useState(.2);
+  const [battleZoom, setBattleZoom] = useState(.2);
   const allUnits = [...battle.attackers, ...battle.defenders];
   const selectedUnits = allUnits.filter(unit => unit.faction === 'player' && !unit.landedTransport && selectedUnitIds.includes(unit.id));
-  useEffect(() => {
+  const fitBattlefield = () => {
     const viewport = scrollRef.current;
     if (!viewport) return;
-    const playerUnits = allUnits.filter(unit => unit.faction === 'player');
-    const focusX = (playerUnits.reduce((sum, unit) => sum + (unit.battleX ?? 12), 0) / Math.max(1, playerUnits.length)) / 100 * GROUND_BATTLEFIELD_WIDTH;
-    const focusY = (playerUnits.reduce((sum, unit) => sum + (unit.battleY ?? 50), 0) / Math.max(1, playerUnits.length)) / 100 * GROUND_BATTLEFIELD_HEIGHT;
-    const left = Math.max(0, focusX - viewport.clientWidth * .35);
-    const top = Math.max(0, focusY - viewport.clientHeight * .5);
-    if (typeof viewport.scrollTo === 'function') viewport.scrollTo({ left, top });
-    else { viewport.scrollLeft = left; viewport.scrollTop = top; }
+    const nextFit = groundBattleFitZoom(viewport.clientWidth || window.innerWidth, viewport.clientHeight || window.innerHeight);
+    setFitZoom(nextFit);
+    setBattleZoom(nextFit);
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  };
+  useLayoutEffect(() => {
+    fitBattlefield();
+    window.addEventListener('resize', fitBattlefield);
+    return () => window.removeEventListener('resize', fitBattlefield);
   }, [battle.planetId]);
+  useEffect(() => {
+    const panKeys = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+    const panFromPressedKeys = () => {
+      const viewport = scrollRef.current;
+      if (!viewport) return;
+      const keys = pressedPanKeysRef.current;
+      const x = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+      const y = Number(keys.has('KeyS')) - Number(keys.has('KeyW'));
+      if (!x && !y) return;
+      const magnitude = Math.max(1, Math.hypot(x, y));
+      viewport.scrollLeft += x / magnitude * GROUND_KEYBOARD_PAN_STEP;
+      viewport.scrollTop += y / magnitude * GROUND_KEYBOARD_PAN_STEP;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!panKeys.has(event.code)) return;
+      const target = event.target;
+      if (target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      if (!pressedPanKeysRef.current.has(event.code)) {
+        pressedPanKeysRef.current.add(event.code);
+        panFromPressedKeys();
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!panKeys.has(event.code)) return;
+      pressedPanKeysRef.current.delete(event.code);
+      event.preventDefault();
+    };
+    const clearPanKeys = () => pressedPanKeysRef.current.clear();
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', clearPanKeys);
+    const timer = window.setInterval(panFromPressedKeys, 16);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', clearPanKeys);
+    };
+  }, []);
   useEffect(() => {
     const available = new Set(allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport).map(unit => unit.id));
     setSelectedUnitIds(current => current.filter(id => available.has(id)));
@@ -88,12 +143,28 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   };
   const selectionPoint = (event: React.PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
+    const logicalWidth = rect.width / battleZoom;
+    const logicalHeight = rect.height / battleZoom;
     return {
-      x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-      y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-      width: rect.width,
-      height: rect.height,
+      x: Math.max(0, Math.min(logicalWidth, (event.clientX - rect.left) / battleZoom)),
+      y: Math.max(0, Math.min(logicalHeight, (event.clientY - rect.top) / battleZoom)),
+      width: logicalWidth,
+      height: logicalHeight,
     };
+  };
+  const changeBattleZoom = (requested: number) => {
+    const next = Math.min(MAX_GROUND_BATTLE_ZOOM, Math.max(fitZoom, Math.round(requested * 1000) / 1000));
+    const viewport = scrollRef.current;
+    if (!viewport || next === battleZoom) return;
+    const anchorX = viewport.clientWidth / 2;
+    const anchorY = viewport.clientHeight / 2;
+    const logicalX = (viewport.scrollLeft + anchorX) / battleZoom;
+    const logicalY = (viewport.scrollTop + anchorY) / battleZoom;
+    setBattleZoom(next);
+    window.requestAnimationFrame(() => {
+      viewport.scrollLeft = logicalX * next - anchorX;
+      viewport.scrollTop = logicalY * next - anchorY;
+    });
   };
   const finishDragSelection = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragSelectionRef.current;
@@ -116,9 +187,10 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
-    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Left-drag to box-select troops, then right-click to move. Units pursue enemies they spot and retaliate when attacked.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
+    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Left-drag to box-select troops, then right-click to move. Newly landed troops hold position until ordered.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">
-      <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} style={{ '--battlefield-width': `${GROUND_BATTLEFIELD_WIDTH}px`, '--battlefield-height': `${GROUND_BATTLEFIELD_HEIGHT}px` } as React.CSSProperties} onPointerDown={event => {
+      <div className="battle-stage" style={{ width: `${GROUND_BATTLEFIELD_WIDTH * battleZoom}px`, height: `${GROUND_BATTLEFIELD_HEIGHT * battleZoom}px` }}>
+      <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} style={{ '--battlefield-width': `${GROUND_BATTLEFIELD_WIDTH}px`, '--battlefield-height': `${GROUND_BATTLEFIELD_HEIGHT}px`, transform: `scale(${battleZoom})` } as React.CSSProperties} onPointerDown={event => {
         if (event.button !== 0) return;
         const point = selectionPoint(event);
         dragSelectionRef.current = { pointerId: event.pointerId, startX: point.x, startY: point.y, additive: event.shiftKey, selectedAtStart: selectedUnitIds, moved: false };
@@ -161,10 +233,12 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
         <div className="front-line"><i /><span>CONTESTED ZONE</span><i /></div>
         <div className={`army defenders ${defenderFaction}`}>{battle.defenders.map(combatant)}</div>
       </div>
+      </div>
     </div>
+    <div className="battle-camera-controls" role="group" aria-label="Ground map controls"><span>WASD PAN</span><button onClick={() => changeBattleZoom(battleZoom / 1.2)} aria-label="Ground zoom out">−</button><output>{Math.round(battleZoom * 100)}%</output><button onClick={() => changeBattleZoom(battleZoom * 1.2)} aria-label="Ground zoom in">+</button><button onClick={fitBattlefield} aria-label="Fit ground map">FIT</button></div>
     <div className="battle-selection-status">{selectedUnits.length ? `${selectedUnits.length} UNIT${selectedUnits.length === 1 ? '' : 'S'} SELECTED · RIGHT-CLICK TO MOVE` : 'DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS'}</div>
-    <div className="battle-scale">{GROUND_BATTLEFIELD_WIDTH.toLocaleString()} × {GROUND_BATTLEFIELD_HEIGHT.toLocaleString()} TACTICAL ZONE <span>DRAG SCROLLBARS TO REPOSITION CAMERA</span></div>
-    <div className="battle-help">← EXIT BATTLEFIELD <span>Battle continues while viewing the galaxy map · Troops automatically pursue spotted enemies</span></div>
+    <div className="battle-scale">{GROUND_BATTLEFIELD_WIDTH.toLocaleString()} × {GROUND_BATTLEFIELD_HEIGHT.toLocaleString()} TACTICAL ZONE <span>WASD PAN · +/− ZOOM · FIT FOR WHOLE MAP</span></div>
+    <div className="battle-help">← EXIT BATTLEFIELD <span>Battle continues while viewing the galaxy map · Ordered troops pursue spotted enemies</span></div>
   </div>;
 }
 

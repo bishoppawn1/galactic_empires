@@ -35,6 +35,21 @@ describe('manual ground controls', () => {
     expect(arrived.battles[0].attackers[0].battleY).toBeCloseTo(arrived.battles[0].attackers[0].battleTargetY!);
   });
 
+  it('keeps newly landed player troops still until their first order', () => {
+    const state = createInitialState();
+    const landed = { ...combatUnit('landed-squad', 'infantry', 'player', 12), battleHoldPosition: true };
+    state.battles = [{ planetId: 'draven', attackers: [landed], defenders: [combatUnit('defender', 'infantry', 'enemy', 88)] }];
+
+    const holding = tick(state, 3);
+    expect(holding.battles[0].attackers[0]).toMatchObject({ battleX: 12, battleY: 50, battleHoldPosition: true });
+
+    const ordered = maneuverGroundUnits(holding, 'draven', [landed.id], 45, 50);
+    expect(ordered.ok).toBe(true);
+    if (!ordered.ok) return;
+    expect(ordered.state.battles[0].attackers[0].battleHoldPosition).toBeUndefined();
+    expect(tick(ordered.state, 1).battles[0].attackers[0].battleX).toBeGreaterThan(12);
+  });
+
   it('abandons a move order and automatically fires when a hostile is already in range', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'infantry', 'player', 40)], defenders: [combatUnit('d1', 'infantry', 'enemy', 52)] }];

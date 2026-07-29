@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
+import { groundBattleFitZoom } from './components/battle/GroundBattleView';
 import { GALAXY_BOTTOM_PAN_BUFFER, GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
 import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
@@ -435,6 +436,13 @@ describe('Galactic Empires interface', () => {
     expect(viewport.scrollLeft).toBe(0);
     expect(viewport.scrollTop).toBe(0);
     expect(screen.getByRole('button', { name: 'Show Whole Map' })).toHaveAttribute('title', 'Show Whole Map');
+  });
+
+  it('renders space without the old decorative galaxy backdrop', () => {
+    render(<App />);
+    const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;
+    expect(canvas.querySelector(':scope > .nebula')).toBeNull();
+    expect(getComputedStyle(canvas).backgroundImage).toBe('none');
   });
 
   it('calculates whole-map zoom from both viewport dimensions', () => {
@@ -1332,7 +1340,32 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
     expect(screen.getByText(/5,200 × 3,200 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
-    expect(document.querySelectorAll('.battle-terrain')).toHaveLength(14);
+    expect(document.querySelectorAll('.battle-terrain')).toHaveLength(36);
+    expect(document.querySelectorAll('.terrain-rocks')).toHaveLength(18);
+    const expectedFit = groundBattleFitZoom(window.innerWidth, window.innerHeight);
+    expect(document.querySelector('.battle-canvas')).toHaveStyle({ transform: `scale(${expectedFit})` });
+    expect(within(screen.getByRole('group', { name: 'Ground map controls' })).getByText(`${Math.round(expectedFit * 100)}%`)).toBeInTheDocument();
+  });
+
+  it('zooms and pans the ground battlefield with its camera controls', () => {
+    const state = createInitialState();
+    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+    const viewport = document.querySelector('.battle-scroll') as HTMLElement;
+    Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 0 });
+    fireEvent.click(screen.getByRole('button', { name: 'Ground zoom in' }));
+    fireEvent.keyDown(window, { code: 'KeyD', key: 'd' });
+    fireEvent.keyUp(window, { code: 'KeyD', key: 'd' });
+    fireEvent.keyDown(window, { code: 'KeyS', key: 's' });
+    fireEvent.keyUp(window, { code: 'KeyS', key: 's' });
+    expect(viewport.scrollLeft).toBeGreaterThan(0);
+    expect(viewport.scrollTop).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Fit ground map' }));
+    expect(viewport.scrollLeft).toBe(0);
+    expect(viewport.scrollTop).toBe(0);
   });
 
   it('shows uncontested orbital support on the ground battlefield', () => {

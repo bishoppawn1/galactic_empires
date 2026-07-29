@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -1939,8 +1939,13 @@ describe('transport and colonization', () => {
     expect(landed.planets.find(p => p.id === nyx.id)!.owner).toBe('enemy');
     expect(turret).toMatchObject({ sourceBuildingId: 'nyx-ground-defense', battleX: 88, faction: 'enemy' });
     expect(battle.groundDefenseBuildingIds).toEqual(['nyx-ground-defense']);
+    const landedSquads = battle.attackers.filter(unit => !unit.landedTransport);
+    expect(landedSquads.every(unit => unit.battleHoldPosition)).toBe(true);
 
-    const closedDistance = tick(landed, 10);
+    const ordered = maneuverGroundUnits(landed, nyx.id, landedSquads.map(unit => unit.id), 75, 50);
+    expectOk(ordered);
+    expect(ordered.state.battles[0].attackers.filter(unit => !unit.landedTransport).every(unit => !unit.battleHoldPosition)).toBe(true);
+    const closedDistance = tick(ordered.state, 10);
     const underFire = tick(closedDistance, 1);
     expect(underFire.battles[0].attackers.some(unit => unit.shields < unit.maxShields)).toBe(true);
     expect(underFire.battles[0].defenders.find(unit => unit.kind === 'defenseTurret')?.battleX).toBe(88);

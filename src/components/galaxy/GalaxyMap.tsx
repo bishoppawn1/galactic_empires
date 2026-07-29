@@ -257,7 +257,6 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         }
         setDragStart(undefined); setDragEnd(undefined);
       }} onMouseLeave={() => { cameraDragRef.current = undefined; setDragStart(undefined); setDragEnd(undefined); }}>
-        <div className="nebula nebula-a" /><div className="nebula nebula-b" />
         <svg className="routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {connections.map(({ from, to }) => {
             const active = state.fleets.some(fleet => (fleet.originId === from.id && fleet.destinationId === to.id) || (fleet.originId === to.id && fleet.destinationId === from.id));

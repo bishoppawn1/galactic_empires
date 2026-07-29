@@ -1323,6 +1323,7 @@ export function recoverGroundUnits(units: Unit[]): Unit[] {
     delete restored.battleTargetX; delete restored.battleTargetY;
     delete restored.battleRetaliationTargetId;
     delete restored.battleHoldPosition;
+    delete restored.battleForceMove;
     delete restored.corrodedFor;
     return restored;
   });
@@ -1603,9 +1604,20 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
     tickUnitWeapon(unit, seconds, false);
     return;
   }
+  const followingOrder = typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number';
+  if (unit.battleForceMove && followingOrder) {
+    tickUnitWeapon(unit, seconds, false);
+    moveBattleUnitToward(unit, unit.battleTargetX!, unit.battleTargetY!, seconds);
+    if (Math.hypot(unit.battleTargetX! - (unit.battleX ?? 0), unit.battleTargetY! - (unit.battleY ?? 0)) <= .05) {
+      delete unit.battleTargetX;
+      delete unit.battleTargetY;
+      delete unit.battleForceMove;
+    }
+    return;
+  }
+  if (unit.battleForceMove) delete unit.battleForceMove;
   let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
-  const followingOrder = typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number';
   if (!retaliationTarget && followingOrder) {
     const visibleEnemies = enemies.filter(enemy => battleDistance(unit, enemy) <= Math.max(GROUND_UNIT_SIGHT_RANGE, definition.range));
     const spottedTarget = nearestBattleTarget(unit, visibleEnemies, preferredId);
@@ -1646,7 +1658,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   unit.battleY = (unit.battleY ?? 0) + ((target.battleY ?? 0) - (unit.battleY ?? 0)) / distance * travel;
 }
 
-export function maneuverGroundUnits(input: GameState, planetId: string, unitIds: string[], battleX: number, battleY: number): GameResult {
+export function maneuverGroundUnits(input: GameState, planetId: string, unitIds: string[], battleX: number, battleY: number, forceMove = false): GameResult {
   const state = clone(input);
   const battle = state.battles.find(candidate => candidate.planetId === planetId);
   const requested = new Set(unitIds);
@@ -1675,6 +1687,24 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
     occupied.push({ id: unit.id, ...position });
     delete unit.battleRetaliationTargetId;
     delete unit.battleHoldPosition;
+    if (forceMove) unit.battleForceMove = true;
+    else delete unit.battleForceMove;
+  });
+  return pass(state);
+}
+
+export function holdGroundUnits(input: GameState, planetId: string, unitIds: string[]): GameResult {
+  const state = clone(input);
+  const battle = state.battles.find(candidate => candidate.planetId === planetId);
+  const requested = new Set(unitIds);
+  const units = battle ? [...battle.attackers, ...battle.defenders]
+    .filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport) : [];
+  if (!battle || !units.length || units.length !== requested.size) return fail(input, 'Select mobile ground units in the active battle.');
+  units.forEach(unit => {
+    unit.battleHoldPosition = true;
+    delete unit.battleTargetX;
+    delete unit.battleTargetY;
+    delete unit.battleForceMove;
   });
   return pass(state);
 }
@@ -1734,8 +1764,10 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
     if (!hit) return unit;
     if (!hit.retaliationTargetId) return { ...damageUnit(unit, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
     const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
-    delete retaliating.battleTargetX;
-    delete retaliating.battleTargetY;
+    if (!retaliating.battleForceMove) {
+      delete retaliating.battleTargetX;
+      delete retaliating.battleTargetY;
+    }
     return { ...damageUnit(retaliating, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
   };
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);

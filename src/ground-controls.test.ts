@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
+import { createInitialState, holdGroundUnits, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
 
 const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy', battleX: number): Unit => ({
   id,
@@ -16,7 +16,10 @@ const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy
 describe('manual ground controls', () => {
   it('serializes finite multiplayer maneuver orders', () => {
     expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: 42, battleY: 57 })).toBe(true);
+    expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: 42, battleY: 57, forceMove: true })).toBe(true);
     expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: Number.NaN, battleY: 57 })).toBe(false);
+    expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: 42, battleY: 57, forceMove: 'yes' })).toBe(false);
+    expect(isGameCommand({ type: 'battleHold', planetId: 'terra', unitIds: ['u1'] })).toBe(true);
   });
 
   it('moves selected troops toward separate formation positions', () => {
@@ -48,6 +51,51 @@ describe('manual ground controls', () => {
     if (!ordered.ok) return;
     expect(ordered.state.battles[0].attackers[0].battleHoldPosition).toBeUndefined();
     expect(tick(ordered.state, 1).battles[0].attackers[0].battleX).toBeGreaterThan(12);
+  });
+
+  it('holds selected troops in place with H semantics while still returning fire in range', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [combatUnit('holding-infantry', 'infantry', 'player', 40)],
+      defenders: [combatUnit('attacking-artillery', 'artillery', 'enemy', 70)],
+    }];
+
+    const held = holdGroundUnits(state, 'draven', ['holding-infantry']);
+    expect(held.ok).toBe(true);
+    if (!held.ok) return;
+    const attacked = tick(held.state, 1);
+    const unit = attacked.battles[0].attackers[0];
+    expect(unit).toMatchObject({ battleX: 40, battleY: 50, battleHoldPosition: true, battleRetaliationTargetId: 'attacking-artillery' });
+
+    const attackerInRange = attacked.battles[0].defenders[0];
+    attackerInRange.battleX = 53;
+    const shieldsBefore = attackerInRange.shields;
+    const returnedFire = tick(attacked, 1);
+    expect(returnedFire.battles[0].attackers[0].battleX).toBe(40);
+    expect(returnedFire.battles[0].defenders[0].shields).toBeLessThan(shieldsBefore);
+  });
+
+  it('accepts a repeated destination as a forced move that ignores attackers until arrival', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [combatUnit('forced-infantry', 'infantry', 'player', 40)],
+      defenders: [combatUnit('interceptor', 'infantry', 'enemy', 52)],
+    }];
+
+    const first = maneuverGroundUnits(state, 'draven', ['forced-infantry'], 70, 50);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const repeated = maneuverGroundUnits(first.state, 'draven', ['forced-infantry'], 70, 50, true);
+    expect(repeated.ok).toBe(true);
+    if (!repeated.ok) return;
+    expect(repeated.state.battles[0].attackers[0]).toMatchObject({ battleTargetX: 70, battleTargetY: 50, battleForceMove: true });
+
+    const advancing = tick(repeated.state, 1);
+    expect(advancing.battles[0].attackers[0].battleX).toBeGreaterThan(40);
+    expect(advancing.battles[0].attackers[0].battleForceMove).toBe(true);
+    expect(advancing.battles[0].defenders[0].shields).toBe(UNITS.infantry.shields);
   });
 
   it('abandons a move order and automatically fires when a hostile is already in range', () => {

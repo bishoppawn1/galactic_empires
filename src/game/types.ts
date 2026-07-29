@@ -90,6 +90,7 @@ export interface Unit {
   battleTargetY?: number;
   battleRetaliationTargetId?: string;
   battleHoldPosition?: boolean;
+  battleForceMove?: boolean;
   landedTransport?: boolean;
   sourceBuildingId?: string;
   loadedUnitIds?: string[];

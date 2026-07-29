@@ -18,8 +18,11 @@ type DragSelection = {
   selectedAtStart: string[];
   moved: boolean;
 };
+type RecentManeuver = { time: number; battleX: number; battleY: number; selectionKey: string };
 
 const GROUND_KEYBOARD_PAN_STEP = 24;
+const FORCE_MOVE_DOUBLE_CLICK_MS = 500;
+const FORCE_MOVE_SAME_SPOT_TOLERANCE = 1.5;
 const MIN_GROUND_BATTLE_ZOOM = .04;
 const MAX_GROUND_BATTLE_ZOOM = 1.25;
 
@@ -49,11 +52,12 @@ const terrainForPlanet = (planetId: string): TerrainPiece[] => {
   }));
 };
 
-export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }: {
+export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, onExit }: {
   state: GameState;
   battle: GroundBattle;
   onFocus: (planetId: string, targetId: string) => void;
-  onManeuver: (planetId: string, unitIds: string[], battleX: number, battleY: number) => void;
+  onManeuver: (planetId: string, unitIds: string[], battleX: number, battleY: number, forceMove: boolean) => void;
+  onHold: (planetId: string, unitIds: string[]) => void;
   onExit: () => void;
 }) {
   const planet = state.planets.find(p => p.id === battle.planetId)!;
@@ -61,7 +65,12 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
   const pressedPanKeysRef = useRef(new Set<string>());
   const dragSelectionRef = useRef<DragSelection | undefined>(undefined);
   const suppressClickRef = useRef(false);
+  const recentManeuverRef = useRef<RecentManeuver | undefined>(undefined);
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
+  const selectedUnitIdsRef = useRef(selectedUnitIds);
+  const onHoldRef = useRef(onHold);
+  selectedUnitIdsRef.current = selectedUnitIds;
+  onHoldRef.current = onHold;
   const [selectionBox, setSelectionBox] = useState<SelectionBox>();
   const [fitZoom, setFitZoom] = useState(.2);
   const [battleZoom, setBattleZoom] = useState(.2);
@@ -95,9 +104,16 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
       viewport.scrollTop += y / magnitude * GROUND_KEYBOARD_PAN_STEP;
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!panKeys.has(event.code)) return;
       const target = event.target;
       if (target instanceof Element && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.code === 'KeyH') {
+        const unitIds = selectedUnitIdsRef.current;
+        if (!unitIds.length) return;
+        event.preventDefault();
+        if (!event.repeat) onHoldRef.current(battle.planetId, unitIds);
+        return;
+      }
+      if (!panKeys.has(event.code)) return;
       event.preventDefault();
       if (!pressedPanKeysRef.current.has(event.code)) {
         pressedPanKeysRef.current.add(event.code);
@@ -120,7 +136,7 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', clearPanKeys);
     };
-  }, []);
+  }, [battle.planetId]);
   useEffect(() => {
     const available = new Set(allUnits.filter(unit => unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport).map(unit => unit.id));
     setSelectedUnitIds(current => current.filter(id => available.has(id)));
@@ -183,11 +199,11 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
     const selected = selectedUnitIds.includes(unit.id);
     const definition = UNITS[unit.kind];
     const action = selectable ? 'Select' : friendly ? 'Landed' : 'Target';
-    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? 'SELECTED' : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${unit.corrodedFor ? ' · CORRODED' : ''}`}</small></button>;
+    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
-    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Left-drag to box-select troops, then right-click to move. Newly landed troops hold position until ordered.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
+    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Right-click to attack-move · double right-click to force movement · H to hold position.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">
       <div className="battle-stage" style={{ width: `${GROUND_BATTLEFIELD_WIDTH * battleZoom}px`, height: `${GROUND_BATTLEFIELD_HEIGHT * battleZoom}px` }}>
       <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} style={{ '--battlefield-width': `${GROUND_BATTLEFIELD_WIDTH}px`, '--battlefield-height': `${GROUND_BATTLEFIELD_HEIGHT}px`, transform: `scale(${battleZoom})` } as React.CSSProperties} onPointerDown={event => {
@@ -222,7 +238,16 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
         const rect = event.currentTarget.getBoundingClientRect();
         const battleX = Math.max(0, Math.min(100, (event.clientX - rect.left) / rect.width * 100));
         const battleY = Math.max(0, Math.min(100, (event.clientY - rect.top) / rect.height * 100));
-        onManeuver(battle.planetId, selectedUnits.map(unit => unit.id), battleX, battleY);
+        const unitIds = selectedUnits.map(unit => unit.id);
+        const selectionKey = [...unitIds].sort().join(':');
+        const now = performance.now();
+        const previous = recentManeuverRef.current;
+        const forceMove = !!previous
+          && now - previous.time <= FORCE_MOVE_DOUBLE_CLICK_MS
+          && previous.selectionKey === selectionKey
+          && Math.hypot(previous.battleX - battleX, previous.battleY - battleY) <= FORCE_MOVE_SAME_SPOT_TOLERANCE;
+        recentManeuverRef.current = { time: now, battleX, battleY, selectionKey };
+        onManeuver(battle.planetId, unitIds, battleX, battleY, forceMove);
       }}>
         <div className="terrain-grid" />
         <div className="battle-terrain-layer" aria-hidden="true">{terrain.map((piece, index) => <i key={`${piece.kind}-${index}`} className={`battle-terrain terrain-${piece.kind}`} style={{ '--terrain-x': `${piece.x}%`, '--terrain-y': `${piece.y}%`, '--terrain-size': `${piece.size}px`, '--terrain-rotation': `${piece.rotation}deg` } as React.CSSProperties} />)}</div>
@@ -236,9 +261,9 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onExit }:
       </div>
     </div>
     <div className="battle-camera-controls" role="group" aria-label="Ground map controls"><span>WASD PAN</span><button onClick={() => changeBattleZoom(battleZoom / 1.2)} aria-label="Ground zoom out">−</button><output>{Math.round(battleZoom * 100)}%</output><button onClick={() => changeBattleZoom(battleZoom * 1.2)} aria-label="Ground zoom in">+</button><button onClick={fitBattlefield} aria-label="Fit ground map">FIT</button></div>
-    <div className="battle-selection-status">{selectedUnits.length ? `${selectedUnits.length} UNIT${selectedUnits.length === 1 ? '' : 'S'} SELECTED · RIGHT-CLICK TO MOVE` : 'DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS'}</div>
+    <div className="battle-selection-status">{selectedUnits.length ? `${selectedUnits.length} UNIT${selectedUnits.length === 1 ? '' : 'S'} SELECTED · H HOLD · DOUBLE RIGHT-CLICK FORCE MOVE` : 'DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS'}</div>
     <div className="battle-scale">{GROUND_BATTLEFIELD_WIDTH.toLocaleString()} × {GROUND_BATTLEFIELD_HEIGHT.toLocaleString()} TACTICAL ZONE <span>WASD PAN · +/− ZOOM · FIT FOR WHOLE MAP</span></div>
-    <div className="battle-help">← EXIT BATTLEFIELD <span>Battle continues while viewing the galaxy map · Ordered troops pursue spotted enemies</span></div>
+    <div className="battle-help">← EXIT BATTLEFIELD <span>Units retaliate when attacked · hold-position units fire without chasing</span></div>
   </div>;
 }
 

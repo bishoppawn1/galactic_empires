@@ -5,6 +5,7 @@ import {
   dockSpaceUnits,
   maneuverSpaceUnits,
   maneuverGroundUnits,
+  holdGroundUnits,
   queueUnit,
   setBattleFocus,
   setOrbitFocusTarget,
@@ -21,7 +22,8 @@ export type GameCommand =
   | { type: 'trade'; from: Resource; to: Resource; amount: number }
   | { type: 'dock'; planetId: string; unitIds: string[] }
   | { type: 'maneuver'; planetId: string; unitIds: string[]; orbitX: number; orbitY: number }
-  | { type: 'battleManeuver'; planetId: string; unitIds: string[]; battleX: number; battleY: number }
+  | { type: 'battleManeuver'; planetId: string; unitIds: string[]; battleX: number; battleY: number; forceMove?: boolean }
+  | { type: 'battleHold'; planetId: string; unitIds: string[] }
   | { type: 'dispatch'; originId: string; unitIds: string[]; destinationId: string }
   | { type: 'battleFocus'; planetId: string; targetId?: string }
   | { type: 'orbitFocus'; planetId: string; targetId?: string };
@@ -43,7 +45,9 @@ export function isGameCommand(value: unknown): value is GameCommand {
       && Number.isSafeInteger(value.amount) && Number(value.amount) >= RESOURCE_TRADE_RATE && Number(value.amount) <= RESOURCE_TRADE_MAX_SPEND;
     case 'dock': return isString(value.planetId) && isStringArray(value.unitIds);
     case 'maneuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.orbitX) && Number.isFinite(value.orbitY);
-    case 'battleManeuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.battleX) && Number.isFinite(value.battleY);
+    case 'battleManeuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.battleX) && Number.isFinite(value.battleY)
+      && (value.forceMove === undefined || typeof value.forceMove === 'boolean');
+    case 'battleHold': return isString(value.planetId) && isStringArray(value.unitIds);
     case 'dispatch': return isString(value.originId) && isStringArray(value.unitIds) && isString(value.destinationId);
     case 'battleFocus':
     case 'orbitFocus': return isString(value.planetId) && isOptionalString(value.targetId);
@@ -59,7 +63,8 @@ export function applyGameCommand(state: GameState, command: GameCommand): GameRe
     case 'trade': return tradeResources(state, command.from, command.to, command.amount);
     case 'dock': return dockSpaceUnits(state, command.planetId, command.unitIds);
     case 'maneuver': return maneuverSpaceUnits(state, command.planetId, command.unitIds, command.orbitX, command.orbitY);
-    case 'battleManeuver': return maneuverGroundUnits(state, command.planetId, command.unitIds, command.battleX, command.battleY);
+    case 'battleManeuver': return maneuverGroundUnits(state, command.planetId, command.unitIds, command.battleX, command.battleY, command.forceMove);
+    case 'battleHold': return holdGroundUnits(state, command.planetId, command.unitIds);
     case 'dispatch': return dispatchSpaceUnits(state, command.originId, command.unitIds, command.destinationId);
     case 'battleFocus': return { ok: true, state: setBattleFocus(state, command.planetId, command.targetId) };
     case 'orbitFocus': return { ok: true, state: setOrbitFocusTarget(state, command.planetId, command.targetId) };

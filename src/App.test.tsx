@@ -1324,7 +1324,7 @@ describe('Galactic Empires interface', () => {
     localStorage.setItem('galactic-empires-save-v5', JSON.stringify(state));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
-    expect(screen.getByText(/Left-drag to box-select troops/)).toBeInTheDocument();
+    expect(screen.getByText(/double right-click to force movement/)).toBeInTheDocument();
     expect(screen.getAllByText('Infantry')).toHaveLength(2);
     expect(screen.queryByText(/RNG 14/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tri-Burst Pulse Rifle/)).not.toBeInTheDocument();
@@ -1410,7 +1410,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Select Infantry attacker' }));
-    expect(screen.getByText('1 UNIT SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
+    expect(screen.getByText('1 UNIT SELECTED · H HOLD · DOUBLE RIGHT-CLICK FORCE MOVE')).toBeInTheDocument();
 
     const canvas = document.querySelector('.battle-canvas') as HTMLElement;
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 5200, height: 3200, right: 5200, bottom: 3200, x: 0, y: 0, toJSON: () => ({}) });
@@ -1440,7 +1440,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 1660, clientY: 1800 });
 
     expect(document.querySelector('.battle-selection-box')).toBeNull();
-    expect(screen.getByText('2 UNITS SELECTED · RIGHT-CLICK TO MOVE')).toBeInTheDocument();
+    expect(screen.getByText('2 UNITS SELECTED · H HOLD · DOUBLE RIGHT-CLICK FORCE MOVE')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select Infantry attacker-1' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Select Anti-Vehicle Infantry attacker-2' })).toHaveAttribute('aria-pressed', 'true');
 

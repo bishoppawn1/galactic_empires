@@ -124,7 +124,7 @@ Three end-branch capstones can be researched without a level limit. Industrial I
 - Interactive map and planet selection.
 - Symmetric one-world, zero-unit starts for player and AI.
 - Pre-campaign starter-faction, map-size, and enemy-difficulty selection with persistent configuration and materially different generated campaigns.
-- Seeded random layouts with connected phase lanes, maximum-separation random homeworlds, and synchronized multiplayer generation.
+- Seeded organic oval layouts without square-grid silhouettes, with nonintersecting gravity wells, connected phase lanes, maximum-separation random homeworlds, and synchronized multiplayer generation.
 - Randomly assigned nebula, lethal-star, pirate-world, and ancient-temple systems with distinct presentation and deterministic visibility, hazard, neutral-combat, conquest, and relic-control rules.
 - An unobstructed black-space galaxy view without the old tiled star, grid, vignette, or decorative nebula background layers.
 - Per-empire Human, Brood, Aegis, and Iron Covenant identities, with complete exclusive Brood and Aegis rosters for human or AI empires, including distinct economies or doctrine mechanics, research unlocks, combat stats, and presentation.

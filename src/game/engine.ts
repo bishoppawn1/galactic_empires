@@ -358,36 +358,51 @@ const shuffle = <T,>(items: T[], random: () => number) => {
   }
   return result;
 };
+const ORGANIC_SYSTEM_ROW_COUNTS: Record<MapSize, number[]> = {
+  small: [2, 3, 2],
+  medium: [3, 5, 3],
+  large: [4, 7, 4],
+  huge: [3, 5, 5, 5, 3],
+  massive: [5, 7, 7, 7, 5],
+  galactic: [7, 10, 11, 10, 7],
+};
 const randomizeSystemPositions = (systems: Planet[], random: () => number, mapSize: MapSize) => {
   const { width, height } = galaxyCanvasDimensions(mapSize);
-  const edgePadding = GRAVITY_WELL_RADIUS + 120;
+  const edgePadding = GRAVITY_WELL_RADIUS;
   const usableWidth = width - edgePadding * 2;
   const usableHeight = height - edgePadding * 2;
-  const rows = Math.max(1, Math.ceil(Math.sqrt(systems.length * usableHeight / usableWidth)));
-  const columns = Math.ceil(systems.length / rows);
-  const horizontalStep = columns <= 1 ? 0 : Math.min(usableWidth / (columns - 1), width * .28);
-  const verticalStep = rows <= 1 ? 0 : Math.min(usableHeight / (rows - 1), height * .28);
-  const closestGridStep = Math.min(
-    horizontalStep || Number.POSITIVE_INFINITY,
-    verticalStep || Number.POSITIVE_INFINITY,
+  const rowCounts = ORGANIC_SYSTEM_ROW_COUNTS[mapSize];
+  const widestRow = Math.max(...rowCounts);
+  const horizontalStep = widestRow <= 1 ? 0 : Math.min(
+    (usableWidth - 400) / (widestRow - 1),
+    width * .24,
   );
-  const jitter = Math.min(180, Math.max(0, (closestGridStep - MIN_SYSTEM_CENTER_SEPARATION) * .45));
-  const baseColumns = Math.floor(systems.length / rows);
-  const widerRows = systems.length % rows;
-  const positions = Array.from({ length: rows }, (_, row) => {
-    const rowColumns = baseColumns + (row < widerRows ? 1 : 0);
+  const verticalStep = rowCounts.length <= 1 ? 0 : Math.min(
+    (usableHeight - 240) / (rowCounts.length - 1),
+    height * .28,
+  );
+  const verticalJitter = Math.min(140, Math.max(0, (verticalStep - MIN_SYSTEM_CENTER_SEPARATION) * .4));
+  const widestRowSideRoom = Math.max(0, (usableWidth - (widestRow - 1) * horizontalStep) / 2);
+  const rowDrift = Math.min(120, widestRowSideRoom * .45);
+  const horizontalJitter = Math.min(
+    140,
+    Math.max(0, (horizontalStep - MIN_SYSTEM_CENTER_SEPARATION) * .4),
+    Math.max(0, widestRowSideRoom - rowDrift - 1),
+  );
+  const positions = rowCounts.flatMap((rowColumns, row) => {
+    const rowOffset = (random() - .5) * rowDrift * 2;
     return Array.from({ length: rowColumns }, (_, column) => ({
-      x: width / 2 + (column - (rowColumns - 1) / 2) * horizontalStep,
-      y: height / 2 + (row - (rows - 1) / 2) * verticalStep,
+      x: width / 2 + rowOffset + (column - (rowColumns - 1) / 2) * horizontalStep
+        + (random() - .5) * horizontalJitter * 2,
+      y: height / 2 + (row - (rowCounts.length - 1) / 2) * verticalStep
+        + (random() - .5) * verticalJitter * 2,
     }));
-  }).flat();
+  });
 
   shuffle(positions, random).forEach((position, index) => {
     const system = systems[index];
-    const x = Math.max(edgePadding, Math.min(width - edgePadding, position.x + (random() - .5) * jitter * 2));
-    const y = Math.max(edgePadding, Math.min(height - edgePadding, position.y + (random() - .5) * jitter * 2));
-    system.x = x / width * 100;
-    system.y = y / height * 100;
+    system.x = position.x / width * 100;
+    system.y = position.y / height * 100;
   });
 };
 const addFrontierPlanets = (systems: Planet[], count: number) => {
@@ -422,7 +437,17 @@ const addFrontierPlanets = (systems: Planet[], count: number) => {
 };
 const distantHomeSystems = (systems: Planet[], count: number, random: () => number) => {
   const available = [...systems];
-  const selected = [available.splice(Math.floor(random() * available.length), 1)[0]];
+  const widestPair = systems.flatMap((first, index) => systems.slice(index + 1).map(second => ({
+    first,
+    second,
+    separation: Math.hypot(second.x - first.x, second.y - first.y),
+  }))).sort((a, b) => b.separation - a.separation
+    || a.first.id.localeCompare(b.first.id)
+    || a.second.id.localeCompare(b.second.id))[0];
+  const firstHome = widestPair
+    ? (random() < .5 ? widestPair.first : widestPair.second)
+    : available[Math.floor(random() * available.length)];
+  const selected = [available.splice(available.indexOf(firstHome), 1)[0]];
   while (selected.length < count && available.length) {
     const ranked = available.map(system => ({
       system,

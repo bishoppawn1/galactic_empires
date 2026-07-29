@@ -111,6 +111,13 @@ describe('seeded special-system generation', () => {
       const { width, height } = galaxyCanvasDimensions(mapSize);
       for (let seed = 1; seed <= 20; seed += 1) {
         const systems = createInitialState({ mapSize, difficulty: 'commander', mapSeed: seed }).planets;
+        systems.forEach(system => {
+          const x = system.x / 100 * width, y = system.y / 100 * height;
+          expect(x).toBeGreaterThanOrEqual(GRAVITY_WELL_RADIUS);
+          expect(x).toBeLessThanOrEqual(width - GRAVITY_WELL_RADIUS);
+          expect(y).toBeGreaterThanOrEqual(GRAVITY_WELL_RADIUS);
+          expect(y).toBeLessThanOrEqual(height - GRAVITY_WELL_RADIUS);
+        });
         systems.forEach((system, index) => systems.slice(index + 1).forEach(other => {
           const separation = Math.hypot(
             (other.x - system.x) / 100 * width,
@@ -120,6 +127,23 @@ describe('seeded special-system generation', () => {
           expect(separation).toBeGreaterThan(GRAVITY_WELL_RADIUS * 2);
         }));
       }
+    }
+  });
+
+  it('shapes Galactic layouts as irregular ovals instead of square grids', () => {
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const { height } = galaxyCanvasDimensions('galactic');
+      const systems = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed: seed }).planets;
+      const yPositions = systems.map(system => system.y / 100 * height).sort((a, b) => a - b);
+      const rows = yPositions.reduce<number[][]>((groups, y) => {
+        const current = groups.at(-1);
+        if (!current || y - current.at(-1)! > MIN_SYSTEM_CENTER_SEPARATION / 2) groups.push([y]);
+        else current.push(y);
+        return groups;
+      }, []);
+
+      expect(rows.map(row => row.length)).toEqual([7, 10, 11, 10, 7]);
+      expect(new Set(systems.map(system => Math.round(system.x * 100))).size).toBeGreaterThan(20);
     }
   });
 

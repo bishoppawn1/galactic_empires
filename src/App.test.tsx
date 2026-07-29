@@ -247,6 +247,25 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
+  it('separates player-controlled and enemy ships in the selected planet command overview', () => {
+    const state = createInitialState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    terra.orbitUnits = [
+      makeUnit('command-player-1', 'escortFrigate', 'player'),
+      makeUnit('command-player-2', 'transport', 'player'),
+      makeUnit('command-enemy-1', 'missileFrigate', 'enemy'),
+      { ...makeUnit('command-enemy-2', 'escortFrigate', 'enemy'), faction: 'rival2' },
+      { ...makeUnit('command-pirate', 'escortFrigate', 'enemy'), faction: 'neutral' },
+    ];
+    saveState(state);
+    render(<App />);
+
+    expect(screen.getByText('Player ships').parentElement).toHaveTextContent('02Player ships');
+    expect(screen.getByText('Enemy ships').parentElement).toHaveTextContent('03Enemy ships');
+    expect(screen.queryByText('Ships in orbit')).not.toBeInTheDocument();
+    expect(screen.getByText('Active queues').parentElement).toHaveClass('wide');
+  });
+
   it('identifies the rival homeworld while withholding its details before scouting', () => {
     render(<App />);
     const hiddenHome = screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' });

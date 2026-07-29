@@ -55,12 +55,15 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
   </section> : null;
   if (planet.intelStatus === 'unscouted') return <>{pirateBrief}<section><SectionTitle kicker="PLANETARY COMMAND" title="No reconnaissance data" /><Locked text="Bring one of your ships into this system to identify its controller, structures, and ground forces." /></section></>;
   const activeQueues = planet.groundQueue.length + spaceYards(planet).reduce((sum, yard) => sum + (yard.spaceQueue?.length ?? 0), 0);
+  const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player').length;
+  const enemyShips = planet.orbitUnits.length - playerShips;
   const brood = empireCivilization(state) === 'brood';
   return <>{pirateBrief}<section>
     <SectionTitle kicker="PLANETARY COMMAND" title="Colony overview" />
     <div className="stat-grid">
       <Stat label="Structures" value={planet.buildings.length} /><Stat label="Ground forces" value={planet.groundUnits.length} />
-      <Stat label="Ships in orbit" value={planet.orbitUnits.length} /><Stat label="Active queues" value={activeQueues} />
+      <Stat label="Player ships" value={playerShips} /><Stat label="Enemy ships" value={enemyShips} />
+      <Stat label="Active queues" value={activeQueues} wide />
     </div>
     <h3>{brood ? 'Living planetary yield' : 'Unlimited resource output'}</h3>
     {brood ? <div className="deposit biomass"><span>biomass</span><div><i style={{ width: '100%' }} /></div><b>{planet.owner === 'player' ? `+${BROOD_BIOMASS_PER_PLANET}/s` : 'DORMANT'} · ∞</b></div> : (['metal', 'crystal', 'gold'] as const).map(resource => {
@@ -194,5 +197,5 @@ function UnitRow({ unit }: { unit: Unit }) {
   return <div className="unit-row"><span>{spaceUnit ? <ShipImage kind={unit.kind} /> : <GroundUnitImage kind={unit.kind} />}</span><div><b>{definition.label}</b><small>{details}</small></div></div>;
 }
 function SectionTitle({ kicker, title }: { kicker: string; title: string }) { return <header className="section-title"><small>{kicker}</small><h2>{title}</h2></header>; }
-function Stat({ label, value }: { label: string; value: number }) { return <div className="stat"><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }
+function Stat({ label, value, wide = false }: { label: string; value: number; wide?: boolean }) { return <div className={`stat ${wide ? 'wide' : ''}`}><b>{value.toString().padStart(2, '0')}</b><small>{label}</small></div>; }
 function Locked({ text }: { text: string }) { return <div className="locked"><span>⌾</span><p>{text}</p></div>; }

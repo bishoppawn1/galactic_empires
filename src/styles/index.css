@@ -44,7 +44,7 @@ button { color: inherit; }
 .galaxy-scroll { position: absolute; inset: 0; overflow: auto; scrollbar-width: none; }
 .galaxy-scroll::-webkit-scrollbar { display: none; }
 .galaxy-pan-buffer { width: 1px; pointer-events: none; }
-.galaxy-canvas { position: relative; width: 12800px; height: 8800px; overflow: hidden; user-select: none; background: none; }
+.galaxy-canvas { position: relative; width: 12800px; height: 8800px; overflow: hidden; user-select: none; background-color: #02050a; background-image: linear-gradient(rgba(1,4,9,.42),rgba(1,4,9,.58)),url('../assets/galaxy-nebula.jpg'); background-position: center; background-size: cover; background-repeat: no-repeat; }
 .galaxy-canvas::after { display: none; }
 .routes { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; overflow: visible; }
 .routes .local-route { stroke: #91a6b575; stroke-width: 1px; stroke-dasharray: 18 14; vector-effect: non-scaling-stroke; }.routes .local-route.active { stroke: #bffef2; stroke-width: 1.5px; filter: drop-shadow(0 0 3px #55d6be); animation: lane-flow 1.4s linear infinite; }

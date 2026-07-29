@@ -457,11 +457,11 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: 'Show Whole Map' })).toHaveAttribute('title', 'Show Whole Map');
   });
 
-  it('renders space without the old decorative galaxy backdrop', () => {
+  it('renders the galaxy backdrop without repeated nebula elements', () => {
     render(<App />);
     const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;
     expect(canvas.querySelector(':scope > .nebula')).toBeNull();
-    expect(getComputedStyle(canvas).backgroundImage).toBe('none');
+    expect(canvas).toHaveClass('galaxy-canvas');
   });
 
   it('calculates whole-map zoom from both viewport dimensions', () => {

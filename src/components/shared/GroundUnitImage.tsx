@@ -1,3 +1,4 @@
+import { type CSSProperties } from 'react';
 import antiVehicle from '../../assets/ground/anti-vehicle.png';
 import artillery from '../../assets/ground/artillery.png';
 import defenseTurret from '../../assets/ground/defense-turret.png';
@@ -67,9 +68,53 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
 
 const BROOD_GROUND_IMAGES = new Set<GroundUnitKind>([...BROOD_GROUND_KINDS, 'spineTower']);
 
+export const GROUND_UNIT_DISPLAY_SCALES = {
+  infantry: .72,
+  antiVehicle: .78,
+  recon: .86,
+  lightTank: .98,
+  artillery: 1.06,
+  shockTrooper: .82,
+  railgunTank: 1.1,
+  plasmaTank: 1.16,
+  siegeWalker: 1.28,
+  defenseTurret: 1.18,
+  broodling: .66,
+  acidSpitter: .75,
+  skitterer: .84,
+  carapaceBeast: 1.02,
+  sporeLobber: .94,
+  synapseGuard: .88,
+  crusherBeast: 1.14,
+  acidBehemoth: 1.22,
+  siegeCrawler: 1.3,
+  spineTower: 1.2,
+  aegisWarden: .76,
+  aegisBastionTank: 1,
+  aegisRampartArtillery: 1.08,
+  aegisPaladinGuard: .9,
+  aegisFortressWalker: 1.26,
+  covenantCohort: .74,
+  covenantRepairDrone: .68,
+  covenantBastionStrider: .96,
+  covenantFurnaceArtillery: 1.07,
+  covenantJuggernaut: 1.24,
+  covenantBulwark: 1.19,
+} satisfies Record<GroundUnitKind, number>;
+
 export const isGroundUnit = (kind: UnitKind): kind is GroundUnitKind => kind in GROUND_UNIT_IMAGES;
 
 export function GroundUnitImage({ kind, className = '' }: { kind: UnitKind; className?: string }) {
   if (!isGroundUnit(kind)) return null;
-  return <img className={`ground-unit-image ${BROOD_GROUND_IMAGES.has(kind) ? 'brood-organic' : ''} ${className}`} src={GROUND_UNIT_IMAGES[kind]} alt="" aria-hidden="true" draggable={false} />;
+  const displayScale = GROUND_UNIT_DISPLAY_SCALES[kind];
+  return <img
+    className={`ground-unit-image ground-unit-sprite ${BROOD_GROUND_IMAGES.has(kind) ? 'brood-organic' : ''} ${className}`}
+    src={GROUND_UNIT_IMAGES[kind]}
+    alt=""
+    aria-hidden="true"
+    draggable={false}
+    data-unit-kind={kind}
+    data-display-scale={displayScale}
+    style={{ '--ground-unit-scale': displayScale } as CSSProperties}
+  />;
 }

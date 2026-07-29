@@ -7,7 +7,7 @@ import { GALAXY_BOTTOM_PAN_BUFFER, GalaxyMap, wholeMapZoom } from './components/
 import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
-import { GroundUnitImage } from './components/shared/GroundUnitImage';
+import { GROUND_UNIT_DISPLAY_SCALES, GroundUnitImage } from './components/shared/GroundUnitImage';
 import { ShipImage } from './components/shared/ShipImage';
 import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
@@ -114,6 +114,23 @@ describe('Galactic Empires interface', () => {
     expect(broodGroundArt).toHaveLength(10);
     expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(10);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
+  });
+
+  it('renders ground classes as sprites with distinct physical display scales', () => {
+    const kinds = ['infantry', 'recon', 'lightTank', 'artillery', 'siegeWalker'] as const;
+    const { container } = render(<>{kinds.map(kind => <GroundUnitImage key={kind} kind={kind} />)}</>);
+    const sprites = [...container.querySelectorAll<HTMLImageElement>('.ground-unit-sprite')];
+
+    expect(sprites).toHaveLength(kinds.length);
+    expect(new Set(sprites.map(sprite => sprite.src)).size).toBe(kinds.length);
+    expect(new Set(sprites.map(sprite => sprite.dataset.displayScale)).size).toBe(kinds.length);
+    expect(new Set(Object.values(GROUND_UNIT_DISPLAY_SCALES)).size).toBe(Object.keys(GROUND_UNIT_DISPLAY_SCALES).length);
+    kinds.forEach((kind, index) => {
+      expect(sprites[index]).toHaveAttribute('data-unit-kind', kind);
+      expect(sprites[index].style.getPropertyValue('--ground-unit-scale')).toBe(String(GROUND_UNIT_DISPLAY_SCALES[kind]));
+    });
+    expect(GROUND_UNIT_DISPLAY_SCALES.infantry).toBeLessThan(GROUND_UNIT_DISPLAY_SCALES.lightTank);
+    expect(GROUND_UNIT_DISPLAY_SCALES.lightTank).toBeLessThan(GROUND_UNIT_DISPLAY_SCALES.siegeWalker);
   });
 
   it('uses dedicated Brood artwork while Tier 2 counterparts retain their recognizable silhouettes', () => {
@@ -1275,6 +1292,8 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByText(/Tri-Burst Pulse Rifle/)).not.toBeInTheDocument();
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
+    expect(document.querySelector('.unit-core .ground-unit-image')).toHaveClass('ground-unit-sprite');
+    expect(document.querySelector('.unit-core .ground-unit-image')).toHaveAttribute('data-display-scale', String(GROUND_UNIT_DISPLAY_SCALES.infantry));
     expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
     expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
     expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.3');

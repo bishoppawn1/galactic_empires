@@ -45,7 +45,7 @@ import {
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
 import {
-  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION,
+  ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
@@ -353,15 +353,36 @@ const shuffle = <T,>(items: T[], random: () => number) => {
   }
   return result;
 };
-const randomizeSystemPositions = (systems: Planet[], random: () => number) => {
-  const rotation = Math.floor(random() * 4);
-  const reflect = random() < .5;
-  systems.forEach(system => {
-    let x = system.x, y = system.y;
-    for (let turn = 0; turn < rotation; turn += 1) [x, y] = [100 - y, x];
-    if (reflect) x = 100 - x;
-    system.x = Math.max(4, Math.min(96, x + (random() - .5) * 4));
-    system.y = Math.max(4, Math.min(96, y + (random() - .5) * 4));
+const randomizeSystemPositions = (systems: Planet[], random: () => number, mapSize: MapSize) => {
+  const { width, height } = galaxyCanvasDimensions(mapSize);
+  const edgePadding = GRAVITY_WELL_RADIUS + 120;
+  const usableWidth = width - edgePadding * 2;
+  const usableHeight = height - edgePadding * 2;
+  const rows = Math.max(1, Math.ceil(Math.sqrt(systems.length * usableHeight / usableWidth)));
+  const columns = Math.ceil(systems.length / rows);
+  const horizontalStep = columns <= 1 ? 0 : Math.min(usableWidth / (columns - 1), width * .28);
+  const verticalStep = rows <= 1 ? 0 : Math.min(usableHeight / (rows - 1), height * .28);
+  const closestGridStep = Math.min(
+    horizontalStep || Number.POSITIVE_INFINITY,
+    verticalStep || Number.POSITIVE_INFINITY,
+  );
+  const jitter = Math.min(180, Math.max(0, (closestGridStep - MIN_SYSTEM_CENTER_SEPARATION) * .45));
+  const baseColumns = Math.floor(systems.length / rows);
+  const widerRows = systems.length % rows;
+  const positions = Array.from({ length: rows }, (_, row) => {
+    const rowColumns = baseColumns + (row < widerRows ? 1 : 0);
+    return Array.from({ length: rowColumns }, (_, column) => ({
+      x: width / 2 + (column - (rowColumns - 1) / 2) * horizontalStep,
+      y: height / 2 + (row - (rows - 1) / 2) * verticalStep,
+    }));
+  }).flat();
+
+  shuffle(positions, random).forEach((position, index) => {
+    const system = systems[index];
+    const x = Math.max(edgePadding, Math.min(width - edgePadding, position.x + (random() - .5) * jitter * 2));
+    const y = Math.max(edgePadding, Math.min(height - edgePadding, position.y + (random() - .5) * jitter * 2));
+    system.x = x / width * 100;
+    system.y = y / height * 100;
   });
 };
 const addFrontierPlanets = (systems: Planet[], count: number) => {
@@ -507,7 +528,11 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   const planets = [...corePlanets, ...(config.mapSize === 'small' ? [] : mediumPlanets), ...(includesLarge ? largePlanets : []), ...(includesHuge ? hugePlanets : [])];
   addFrontierPlanets(planets, MAP_PLANETS[config.mapSize] - planets.length);
   const random = seededRandom(config.mapSeed);
-  if (config.mapSeed) randomizeSystemPositions(planets, random);
+  if (config.mapSeed) {
+    randomizeSystemPositions(planets, seededRandom(config.mapSeed ^ 0x9e3779b9), config.mapSize);
+    // Preserve the established homeworld and special-system rolls for existing serialized seeds.
+    for (let index = 0; index < planets.length * 2 + 2; index += 1) random();
+  }
   const requestedHomes = mode === 'competitive' ? Math.min(4, planets.length) : 2;
   const homeSystems = config.mapSeed
     ? distantHomeSystems(planets, requestedHomes, random)
@@ -2361,8 +2386,8 @@ export function tick(input: GameState, seconds: number): GameState {
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     const stagedFleetIds = stageDepartingFleetsForCombat(state, p);
     tickOrbitCombat(state, p, seconds);
-    restoreDepartingFleetsAfterCombat(state, p, stagedFleetIds);
     tickSpecialSystem(state, p, seconds);
+    restoreDepartingFleetsAfterCombat(state, p, stagedFleetIds);
   }
 
   if (state.researchQueue.length) {

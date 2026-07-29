@@ -4,6 +4,7 @@ import {
   MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT,
   PHASE_TUNNEL_MIN_SECONDS,
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
+  STAR_PHASE_LANE_DISTANCE,
   createInitialState,
   findPlanetPath,
   galaxyCanvasDimensions,
@@ -28,7 +29,10 @@ describe('sparse phase-lane navigation', () => {
         expect(connections.length).toBeGreaterThanOrEqual(state.planets.length - 1);
         expect(connections.length).toBeLessThanOrEqual(nearbyPairs);
         expect(connections.every(connection => connection.distance <= MAX_PHASE_LANE_DISTANCE)).toBe(true);
-        expect(state.planets.every(planet => findPlanetPath(state.planets, state.planets[0].id, planet.id))).toBe(true);
+        expect(
+          state.planets.every(planet => findPlanetPath(state.planets, state.planets[0].id, planet.id)),
+          `${mapSize} map seed ${mapSeed} should remain connected`,
+        ).toBe(true);
         if (!state.planets.some(system => system.systemKind === 'star') && nearbyPairs > state.planets.length - 1) {
           expect(connections.length).toBeLessThan(nearbyPairs);
         }
@@ -36,19 +40,25 @@ describe('sparse phase-lane navigation', () => {
     }
   });
 
-  it('gives the star a lane to every nearby system', () => {
+  it('keeps star lanes local instead of making the star a wide phase-lane hub', () => {
+    let omittedWideApproach = false;
     for (let mapSeed = 1; mapSeed <= 20; mapSeed += 1) {
       const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed });
       const star = state.planets.find(system => system.systemKind === 'star')!;
-      const nearby = state.planets.filter(system =>
-        system.id !== star.id && Math.hypot(system.x - star.x, system.y - star.y) <= MAX_PHASE_LANE_DISTANCE);
       const connections = localPlanetConnections(state.planets);
+      const starConnections = connections.filter(connection =>
+        connection.from.id === star.id || connection.to.id === star.id);
+      const formerlyNearby = state.planets.filter(system => {
+        const distance = Math.hypot(system.x - star.x, system.y - star.y);
+        return system.id !== star.id && distance > STAR_PHASE_LANE_DISTANCE && distance <= MAX_PHASE_LANE_DISTANCE;
+      });
 
-      expect(nearby.length).toBeGreaterThan(0);
-      expect(nearby.every(system => connections.some(connection =>
-        (connection.from.id === star.id && connection.to.id === system.id)
-        || (connection.to.id === star.id && connection.from.id === system.id)))).toBe(true);
+      expect(starConnections.length).toBeGreaterThan(0);
+      expect(starConnections.every(connection => connection.distance <= STAR_PHASE_LANE_DISTANCE)).toBe(true);
+      omittedWideApproach ||= formerlyNearby.some(system => !starConnections.some(connection =>
+        connection.from.id === system.id || connection.to.id === system.id));
     }
+    expect(omittedWideApproach).toBe(true);
   });
 
   it('makes Galactic maps physically wider without shrinking their height', () => {

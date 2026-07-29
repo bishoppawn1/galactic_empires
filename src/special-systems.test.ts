@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   ANCIENT_RELIC_ECONOMY_MULTIPLIER,
+  GRAVITY_WELL_RADIUS,
+  MIN_SYSTEM_CENTER_SEPARATION,
   STELLAR_HAZARD_DAMAGE_PER_SECOND,
   UNITS,
   constructBuilding,
   controlsAncientRelic,
   createCompetitiveState,
   createInitialState,
+  dispatchSpaceUnit,
   dockSpaceUnit,
   findPlanetPath,
+  galaxyCanvasDimensions,
   isColonizableWorld,
   orbitalCombatShots,
   systemKind,
@@ -102,6 +106,23 @@ describe('seeded special-system generation', () => {
     }
   });
 
+  it('keeps every generated gravity well physically separated', () => {
+    for (const mapSize of ['small', 'medium', 'large', 'huge', 'massive', 'galactic'] as const) {
+      const { width, height } = galaxyCanvasDimensions(mapSize);
+      for (let seed = 1; seed <= 20; seed += 1) {
+        const systems = createInitialState({ mapSize, difficulty: 'commander', mapSeed: seed }).planets;
+        systems.forEach((system, index) => systems.slice(index + 1).forEach(other => {
+          const separation = Math.hypot(
+            (other.x - system.x) / 100 * width,
+            (other.y - system.y) / 100 * height,
+          );
+          expect(separation).toBeGreaterThanOrEqual(MIN_SYSTEM_CENTER_SEPARATION);
+          expect(separation).toBeGreaterThan(GRAVITY_WELL_RADIUS * 2);
+        }));
+      }
+    }
+  });
+
   it('keeps every seeded map connected and places solo rivals far apart', () => {
     for (let seed = 1; seed <= 50; seed += 1) {
       const state = createInitialState(config(seed));
@@ -182,6 +203,38 @@ describe('special-system simulation rules', () => {
     expect(advanced.planets.find(system => system.id === star.id)!.orbitUnits[0].shields)
       .toBe(before - STELLAR_HAZARD_DAMAGE_PER_SECOND);
     expect(dockSpaceUnit(state, star.id, ship.id)).toMatchObject({ ok: false });
+  });
+
+  it('continues star damage while a ship exits and charges, then stops it in the tunnel', () => {
+    const state = quiet(createInitialState(config(142857)));
+    const star = state.planets.find(system => systemKind(system) === 'star')!;
+    const destinationId = findPlanetPath(state.planets, star.id, state.planets.find(system => system.id !== star.id)!.id)![1];
+    const ship = makeUnit('departing-star-test', 'escortFrigate', 'player');
+    star.orbitUnits = [ship];
+    const dispatched = dispatchSpaceUnit(state, star.id, ship.id, destinationId);
+    expect(dispatched.ok).toBe(true);
+    if (!dispatched.ok) return;
+
+    dispatched.state.fleets[0].travelTime = 100;
+    const exiting = tick(quiet(dispatched.state), 1);
+    expect(exiting.fleets[0].phase).toBe('exiting');
+    expect(exiting.fleets[0].unit.shields).toBe(ship.maxShields - STELLAR_HAZARD_DAMAGE_PER_SECOND);
+
+    exiting.fleets[0].phase = 'charging';
+    exiting.fleets[0].progress = 0;
+    exiting.fleets[0].travelTime = 100;
+    exiting.fleets[0].unit.shields = exiting.fleets[0].unit.maxShields;
+    const charging = tick(quiet(exiting), 1);
+    expect(charging.fleets[0].phase).toBe('charging');
+    expect(charging.fleets[0].unit.shields).toBe(ship.maxShields - STELLAR_HAZARD_DAMAGE_PER_SECOND);
+
+    charging.fleets[0].phase = 'tunnel';
+    charging.fleets[0].progress = 0;
+    charging.fleets[0].travelTime = 100;
+    charging.fleets[0].unit.shields = charging.fleets[0].unit.maxShields;
+    const tunnel = tick(quiet(charging), 1);
+    expect(tunnel.fleets[0].phase).toBe('tunnel');
+    expect(tunnel.fleets[0].unit.shields).toBe(ship.maxShields);
   });
 
   it('makes pirate defenders exchange fire with any arriving empire', () => {

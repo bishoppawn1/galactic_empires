@@ -9,6 +9,7 @@ export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.h
   : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
 
 export const MAX_PHASE_LANE_DISTANCE = 42;
+export const STAR_PHASE_LANE_DISTANCE = 32;
 export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 3;
 
 export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHASE_LANE_DISTANCE): PlanetConnection[] {
@@ -17,7 +18,10 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
     for (let j = i + 1; j < planets.length; j += 1) {
       const from = planets[i], to = planets[j];
       const distance = Math.hypot(to.x - from.x, to.y - from.y);
-      if (distance <= maxDistance) candidates.push({ from, to, distance });
+      const connectionRange = from.systemKind === 'star' || to.systemKind === 'star'
+        ? Math.min(maxDistance, STAR_PHASE_LANE_DISTANCE)
+        : maxDistance;
+      if (distance <= connectionRange) candidates.push({ from, to, distance });
     }
   }
   candidates.sort((a, b) => a.distance - b.distance
@@ -54,9 +58,8 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   }
   for (const connection of candidates) {
     if (selected.has(connectionKey(connection))
-      || (!(connection.from.systemKind === 'star' || connection.to.systemKind === 'star')
-        && (!nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
-          || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)))) continue;
+      || !nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
+      || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)) continue;
     connections.push(connection);
   }
   return connections.sort((a, b) => a.distance - b.distance

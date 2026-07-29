@@ -16,15 +16,21 @@ const snapshotPlanet = (planet: Planet, observedAt: number): PlanetIntel => ({
 });
 
 /**
- * A commander has live system intelligence while they control the planet or
- * have a ship physically inside its gravity well. Ships clearing the well or
- * charging their gate still count as being in the origin system.
+ * A commander has live system intelligence while they control the planet, have
+ * forces on its surface, or have a ship physically inside its gravity well.
+ * Ground combatants include landed transports while an invasion is active.
+ * Ships clearing the well or charging their gate still count as being in the
+ * origin system.
  */
 export function isSystemVisibleToFaction(state: GameState, planetId: string, faction: EmpireFaction): boolean {
   const planet = state.planets.find(candidate => candidate.id === planetId);
   if (!planet) return false;
   return planet.owner === faction
+    || planet.groundUnits.some(unit => unit.faction === faction)
     || planet.orbitUnits.some(unit => unit.faction === faction)
+    || state.battles.some(battle => battle.planetId === planetId
+      && (battle.attackers.some(unit => unit.faction === faction)
+        || battle.defenders.some(unit => unit.faction === faction)))
     || state.fleets.some(fleet => fleet.faction === faction
       && fleet.originId === planetId
       && (fleet.phase === 'exiting' || fleet.phase === 'charging'));

@@ -99,6 +99,45 @@ describe('fog of war', () => {
     expect(stale.orbitUnits).toEqual([]);
   });
 
+  it('keeps live surface and orbital intelligence while friendly ground forces remain', () => {
+    let canonical = createInitialState();
+    const cygnus = planet(canonical, 'cygnus');
+    cygnus.groundUnits = [
+      unit('friendly-occupier', 'infantry', 'player'),
+      unit('hostile-garrison', 'antiVehicle', 'enemy'),
+    ];
+    cygnus.orbitUnits = [unit('hostile-orbit', 'missileFrigate', 'enemy')];
+    canonical = refreshPlanetIntel(canonical);
+
+    const visible = planet(visibleStateForPlayer(canonical), 'cygnus');
+    expect(visible.intelStatus).toBe('current');
+    expect(visible.groundUnits.map(candidate => candidate.id)).toEqual(['friendly-occupier', 'hostile-garrison']);
+    expect(visible.orbitUnits.map(candidate => candidate.id)).toEqual(['hostile-orbit']);
+  });
+
+  it('keeps an invasion visible through its ground troops and landed transport', () => {
+    let canonical = createInitialState();
+    const cygnus = planet(canonical, 'cygnus');
+    cygnus.groundUnits = [];
+    cygnus.orbitUnits = [unit('hostile-orbit', 'escortFrigate', 'enemy')];
+    canonical.battles = [{
+      planetId: cygnus.id,
+      attackerFaction: 'player',
+      attackers: [
+        unit('landed-squad', 'infantry', 'player'),
+        { ...unit('landed-transport', 'transport', 'player'), landedTransport: true },
+      ],
+      defenders: [unit('hostile-defender', 'infantry', 'enemy')],
+    }];
+    canonical = refreshPlanetIntel(canonical);
+
+    const visible = visibleStateForPlayer(canonical);
+    expect(planet(visible, 'cygnus')).toMatchObject({ intelStatus: 'current' });
+    expect(planet(visible, 'cygnus').orbitUnits.map(candidate => candidate.id)).toEqual(['hostile-orbit']);
+    expect(visible.battles).toHaveLength(1);
+    expect(visible.battles[0].attackers.map(candidate => candidate.id)).toEqual(['landed-squad', 'landed-transport']);
+  });
+
   it('keeps an unobserved conquest neutral until a friendly ship reaches the system', () => {
     let canonical = createInitialState();
     let nyx = planet(canonical, 'nyx');

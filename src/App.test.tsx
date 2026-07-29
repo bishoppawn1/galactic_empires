@@ -288,6 +288,36 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText(/independent defenders detected/)).toBeInTheDocument();
   });
 
+  it('keeps an enemy planet and its orbit visible while player troops and a transport fight there', () => {
+    const state = createInitialState();
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    cygnus.groundUnits = [];
+    cygnus.orbitUnits = [makeUnit('observed-enemy-orbit', 'missileFrigate', 'enemy')];
+    state.battles = [{
+      planetId: cygnus.id,
+      attackerFaction: 'player',
+      attackers: [
+        { ...makeUnit('invasion-squad', 'infantry', 'player'), battleX: 20, battleY: 45 },
+        { ...makeUnit('invasion-transport', 'transport', 'player'), battleX: 16, battleY: 58, landedTransport: true },
+      ],
+      defenders: [{ ...makeUnit('enemy-defender', 'antiVehicle', 'enemy'), battleX: 80, battleY: 55 }],
+    }];
+    saveState(state);
+    render(<App />);
+
+    const system = screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' });
+    expect(system.querySelector('.orbit-count')).toHaveTextContent('1');
+    fireEvent.click(system);
+    expect(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+    expect(screen.getByText('Missile Frigate', { selector: '.unit-row b' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+    expect(screen.getByRole('button', { name: 'Landed Transport invasion-transport' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select Infantry invasion-squad' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Target Anti-Vehicle Infantry enemy-defender' })).toBeInTheDocument();
+  });
+
   it('shows advanced units with their research and factory gates', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));

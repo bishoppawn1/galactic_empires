@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -1432,7 +1432,9 @@ describe('transport and colonization', () => {
     expect(departure.travelTime).toBeGreaterThan(PHASE_GATE_CHARGE_SECONDS);
 
     const clearing = tick(order.state, departure.travelTime / 2);
-    expect(clearing.fleets[0]).toMatchObject({ phase: 'exiting', progress: departure.travelTime / 2 });
+    expect(clearing.fleets[0].phase).toBe('exiting');
+    expect(clearing.fleets[0].progress).toBeGreaterThan(0);
+    expect(clearing.fleets[0].progress).toBeLessThan(departure.travelTime / 2);
     const atBorder = tick(clearing, clearing.fleets[0].travelTime - clearing.fleets[0].progress);
     expect(atBorder.fleets[0]).toMatchObject({ phase: 'charging', progress: 0, travelTime: PHASE_GATE_CHARGE_SECONDS });
     const charging = tick(atBorder, PHASE_GATE_CHARGE_SECONDS - .1);
@@ -1528,7 +1530,10 @@ describe('transport and colonization', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const order = dispatchSpaceUnit(state, 'terra', transport.id, 'halcyon'); expectOk(order);
-    const atBorder = tick(order.state, order.state.fleets[0].travelTime);
+    const turningAtBorder = tick(order.state, order.state.fleets[0].travelTime);
+    const atBorder = turningAtBorder.fleets[0].phase === 'exiting'
+      ? tick(turningAtBorder, turningAtBorder.fleets[0].travelTime - turningAtBorder.fleets[0].progress)
+      : turningAtBorder;
     expect(atBorder.fleets[0].phase).toBe('charging');
 
     const canceled = maneuverSpaceUnit(atBorder, 'terra', transport.id, 50, -20); expectOk(canceled);
@@ -1652,10 +1657,15 @@ describe('transport and colonization', () => {
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     const moved = maneuverSpaceUnit(state, 'terra', transport.id, 40, 25); expectOk(moved);
     expect(moved.state.planets[0].orbitUnits[0]).toMatchObject({ orbitTargetX: 40, orbitTargetY: 25 });
-    expect(moved.state.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
+    expect(moved.state.planets[0].orbitUnits[0].heading).toBe(0);
     expect(moved.state.planets[0].orbitUnits[0].orbitY).toBe(-180);
-    const underway = tick(moved.state, 1);
-    expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeCloseTo(ORBIT_MANEUVER_SPEED);
+    const turning = tick(moved.state, .5);
+    expect(turning.planets[0].orbitUnits[0].heading).toBeCloseTo(SHIP_TURN_RATE_DEGREES_PER_SECOND * .5);
+    expect(turning.planets[0].orbitUnits[0]).toMatchObject({ orbitX: 0, orbitY: -180 });
+    const underway = tick(turning, 1.5);
+    expect(underway.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
+    expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeGreaterThan(0);
+    expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeLessThan(ORBIT_MANEUVER_SPEED * 1.5);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeGreaterThan(-180);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeLessThan(25);
     const positioned = tick(underway, 20);
@@ -1670,6 +1680,33 @@ describe('transport and colonization', () => {
     expect(embarked.planets[0].orbitUnits[0].pendingEmbark).toBeUndefined();
     expect(embarked.planets[0].orbitUnits[0].cargo).toHaveLength(3);
     expect(embarked.planets[0].groundUnits).toHaveLength(0);
+  });
+
+  it('turns a departing fleet before it starts crossing the gravity well', () => {
+    const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const destination = state.planets.find(planet => planet.id === 'halcyon')!;
+    const dispatched = dispatchSpaceUnit(state, 'terra', transport.id, destination.id); expectOk(dispatched);
+    const fleet = dispatched.state.fleets[0];
+    const origin = dispatched.state.planets.find(planet => planet.id === fleet.originId)!;
+    const waypoint = dispatched.state.planets.find(planet => planet.id === fleet.destinationId)!;
+    const routeDx = GALAXY_CANVAS_WIDTH * (waypoint.x - origin.x);
+    const routeDy = GALAXY_CANVAS_HEIGHT * (waypoint.y - origin.y);
+    const routeDistance = Math.hypot(routeDx, routeDy);
+    const routeHeading = headingForVector(
+      routeDx / routeDistance * MAX_SHIP_ORBIT_RADIUS - fleet.departureX!,
+      routeDy / routeDistance * MAX_SHIP_ORBIT_RADIUS - fleet.departureY!,
+    );
+    fleet.unit.heading = (routeHeading + 180) % 360;
+
+    const halfTurn = tick(dispatched.state, 1);
+    expect(halfTurn.fleets[0].progress).toBe(0);
+    expect(Math.abs(shortestHeadingDelta(halfTurn.fleets[0].unit.heading!, routeHeading))).toBeCloseTo(90);
+    const aligned = tick(halfTurn, 1);
+    expect(aligned.fleets[0].progress).toBe(0);
+    expect(aligned.fleets[0].unit.heading).toBeCloseTo(routeHeading);
+    const underway = tick(aligned, .5);
+    expect(underway.fleets[0].progress).toBeCloseTo(.5);
   });
 
   it('allows hostile ships to destroy a transport during embarkation without killing waiting squads', () => {
@@ -1771,7 +1808,7 @@ describe('transport and colonization', () => {
     ];
     const order = maneuverSpaceUnits(state, terra.id, ['crossing-a', 'crossing-b'], 0, 100); expectOk(order);
     let moving = order.state;
-    for (let step = 0; step < 40; step += 1) {
+    for (let step = 0; step < 42; step += 1) {
       const before = moving.planets[0].orbitUnits.map(ship => ({ id: ship.id, x: ship.orbitX!, y: ship.orbitY! }));
       moving = tick(moving, .25);
       moving.planets[0].orbitUnits.forEach(ship => {
@@ -1802,7 +1839,7 @@ describe('transport and colonization', () => {
     const state = createInitialState(); const terra = state.planets[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
     terra.orbitUnits = [
-      { ...makeUnit('crossing', 'escortFrigate', 'player'), orbitX: 104, orbitY: 100, orbitTargetX: 220, orbitTargetY: 100 },
+      { ...makeUnit('crossing', 'escortFrigate', 'player'), orbitX: 104, orbitY: 100, orbitTargetX: 220, orbitTargetY: 100, heading: 90 },
       { ...makeUnit('arrived', 'missileFrigate', 'player'), orbitX: 100, orbitY: 100 },
     ];
 

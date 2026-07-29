@@ -58,11 +58,14 @@ export const shipMapPosition = (planet: Planet, ship: Unit, index: number, dimen
   };
 };
 
-export const orbitShipHeading = (ship: Unit) => typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number'
-  ? headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading)
-  : ship.heading ?? 0;
+export const orbitShipHeading = (ship: Unit) => ship.heading ?? (
+  typeof ship.orbitTargetX === 'number' && typeof ship.orbitTargetY === 'number'
+    ? headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0))
+    : 0
+);
 
 export const fleetHeading = (fleet: Fleet, planets: Planet[], dimensions = DEFAULT_GALAXY_CANVAS_DIMENSIONS) => {
+  if (typeof fleet.unit.heading === 'number') return fleet.unit.heading;
   const from = planets.find(planet => planet.id === fleet.originId)!;
   const to = planets.find(planet => planet.id === fleet.destinationId)!;
   return headingForVector(

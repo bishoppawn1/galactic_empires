@@ -5,14 +5,26 @@ import {
   PHASE_TUNNEL_MIN_SECONDS,
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
   STAR_PHASE_LANE_DISTANCE,
+  SHIP_TURN_RATE_DEGREES_PER_SECOND,
   createInitialState,
   findPlanetPath,
   galaxyCanvasDimensions,
   localPlanetConnections,
   phaseTravelTime,
+  shortestHeadingDelta,
+  turnHeadingToward,
 } from './game';
 
 describe('sparse phase-lane navigation', () => {
+  it('turns through the shortest arc at the capped ship rotation rate', () => {
+    expect(SHIP_TURN_RATE_DEGREES_PER_SECOND).toBe(90);
+    expect(turnHeadingToward(350, 10, 5)).toBe(355);
+    expect(turnHeadingToward(350, 10, 15)).toBe(5);
+    expect(turnHeadingToward(10, 350, 5)).toBe(5);
+    expect(shortestHeadingDelta(350, 10)).toBe(20);
+    expect(shortestHeadingDelta(10, 350)).toBe(-20);
+  });
+
   it('allows three mutual local neighbors without restoring every nearby lane', () => {
     expect(MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT).toBe(3);
   });

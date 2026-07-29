@@ -32,7 +32,7 @@ import {
   type UnitKind,
   type WeaponEffect,
 } from './types';
-import { findPlanetPath, headingForVector } from './navigation';
+import { findPlanetPath, headingForVector, shortestHeadingDelta, turnHeadingToward } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { seedKnownEmpireHomeworldIntel, updatePlanetIntel } from './visibility';
 import { enemyDefensiveReserve, enemyOrbitalBeachheads, planEnemyFleetOperations } from './ai/fleetOperations';
@@ -49,7 +49,7 @@ import {
 } from './factions';
 import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
-  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH,
+  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
   civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   requiredSpaceYardKind, SPACE_YARD_TIER,
@@ -148,6 +148,7 @@ function placeInOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitU
   const position = nextOpenOrbitPosition(otherShips.filter(other => other.id !== ship.id));
   ship.orbitX = position.orbitX;
   ship.orbitY = position.orbitY;
+  ship.heading ??= 0;
 }
 
 function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUnits) {
@@ -155,7 +156,7 @@ function targetOpenOrbit(planet: Planet, ship: Unit, otherShips = planet.orbitUn
   const position = nextOpenOrbitPosition(otherShips.filter(other => other.id !== ship.id));
   ship.orbitTargetX = position.orbitX;
   ship.orbitTargetY = position.orbitY;
-  ship.heading = headingForVector(position.orbitX - (ship.orbitX ?? 0), position.orbitY - (ship.orbitY ?? 0), ship.heading);
+  ship.heading ??= 0;
 }
 
 const systemDirection = (from: Planet, to: Planet, mapSize: MapSize) => {
@@ -209,7 +210,7 @@ function placeAtSystemEdge(origin: Planet, destination: Planet, ship: Unit, mapS
   ship.orbitX = fallback.x;
   ship.orbitY = fallback.y;
   const outboundDirection = systemDirection(origin, destination, mapSize);
-  ship.heading = headingForVector(outboundDirection.x, outboundDirection.y, ship.heading);
+  ship.heading ??= headingForVector(outboundDirection.x, outboundDirection.y);
   delete ship.phaseArrival;
   delete ship.orbitTargetX;
   delete ship.orbitTargetY;
@@ -993,6 +994,7 @@ export function dockSpaceUnits(input: GameState, planetId: string, unitIds: stri
   const occupied = p.orbitUnits.filter(ship => !selectedIds.has(ship.id));
   let availableSquads = p.groundUnits.filter(unit => unit.faction === 'player').length;
   ships.forEach(ship => {
+    ship.heading ??= 0;
     delete ship.phaseArrival;
     const openCapacity = Math.max(0, (UNITS[ship.kind].capacity ?? 0) - (ship.cargo?.length ?? 0));
     if ((ship.cargo?.length ?? 0) > 0) {
@@ -1050,6 +1052,7 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     return typeof x === 'number' && typeof y === 'number' ? [{ orbitX: x, orbitY: y }] : [];
   });
   ships.forEach((ship, index) => {
+    ship.heading ??= 0;
     delete ship.docked;
     delete ship.phaseArrival;
     delete ship.pendingLanding;
@@ -1060,7 +1063,6 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
     const target = nearestOpenOrbitPosition(targetX, targetY, occupied);
     ship.orbitTargetX = target.x; ship.orbitTargetY = target.y;
     occupied.push({ orbitX: target.x, orbitY: target.y });
-    ship.heading = headingForVector(ship.orbitTargetX - (ship.orbitX ?? 0), ship.orbitTargetY - (ship.orbitY ?? 0), ship.heading);
   });
   addMessage(state, `${interruptedFleets.length ? 'Jump canceled — ' : ''}${ships.length} ship${ships.length === 1 ? '' : 's'} maneuvering inside ${p.name} gravity well.`);
   return pass(state);
@@ -1085,6 +1087,7 @@ function beginSystemExit(fleet: Fleet, origin: Planet, destination: Planet, depa
   fleet.departureY = departureY;
   fleet.progress = 0;
   fleet.travelTime = Math.max(.1, Math.hypot(border.x - departureX, border.y - departureY) / SYSTEM_EXIT_SPEED);
+  fleet.unit.heading ??= 0;
 }
 
 function syncDepartingFleetPosition(state: GameState, fleet: Fleet) {
@@ -1095,7 +1098,6 @@ function syncDepartingFleetPosition(state: GameState, fleet: Fleet) {
   const progress = fleet.phase === 'charging' || fleet.travelTime <= 0 ? 1 : Math.min(1, fleet.progress / fleet.travelTime);
   fleet.unit.orbitX = (fleet.departureX ?? 0) + (border.x - (fleet.departureX ?? 0)) * progress;
   fleet.unit.orbitY = (fleet.departureY ?? 0) + (border.y - (fleet.departureY ?? 0)) * progress;
-  fleet.unit.heading = headingForVector(border.x - fleet.unit.orbitX, border.y - fleet.unit.orbitY, fleet.unit.heading);
 }
 
 function stageDepartingFleetsForCombat(state: GameState, planet: Planet) {
@@ -2097,12 +2099,26 @@ function tickSpecialSystem(state: GameState, system: Planet, seconds: number) {
   else if (previousOwner === 'player') addMessage(state, `RELIC LOST — control of ${system.name} has been broken.`);
 }
 
+function turnShipTowardVector(ship: Unit, dx: number, dy: number, seconds: number) {
+  const current = ship.heading ?? 0;
+  const target = headingForVector(dx, dy, current);
+  const turnDegrees = Math.abs(shortestHeadingDelta(current, target));
+  const availableSeconds = Math.max(0, seconds);
+  ship.heading = turnHeadingToward(
+    current,
+    target,
+    SHIP_TURN_RATE_DEGREES_PER_SECOND * availableSeconds,
+  );
+  return Math.min(availableSeconds, turnDegrees / SHIP_TURN_RATE_DEGREES_PER_SECOND);
+}
+
 function tickOrbitUnitMovement(ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
-  ship.heading = headingForVector(dx, dy, ship.heading);
-  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * seconds;
+  const turnSeconds = turnShipTowardVector(ship, dx, dy, seconds);
+  const movementSeconds = Math.max(0, seconds - turnSeconds);
+  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * movementSeconds;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
@@ -2140,7 +2156,7 @@ function directAiOrbitalShips(state: GameState, p: Planet) {
     delete ship.docked;
     ship.orbitTargetX = position.x;
     ship.orbitTargetY = position.y;
-    ship.heading = headingForVector(position.x - (ship.orbitX ?? 0), position.y - (ship.orbitY ?? 0), ship.heading);
+    ship.heading ??= 0;
   }
 }
 
@@ -2481,12 +2497,26 @@ export function tick(input: GameState, seconds: number): GameState {
   for (const fleet of state.fleets) {
     let timeLeft = seconds, arrived = false;
     while (timeLeft > 0 && !arrived) {
+      if (fleet.phase === 'exiting') {
+        const origin = getPlanet(state, fleet.originId), destination = getPlanet(state, fleet.destinationId);
+        if (origin && destination) {
+          const border = systemBorderOffset(origin, destination, state.config.mapSize);
+          const turnSeconds = turnShipTowardVector(
+            fleet.unit,
+            border.x - (fleet.unit.orbitX ?? fleet.departureX ?? 0),
+            border.y - (fleet.unit.orbitY ?? fleet.departureY ?? 0),
+            timeLeft,
+          );
+          timeLeft -= turnSeconds;
+          if (timeLeft <= 1e-9) break;
+        }
+      }
       const remainingPhaseTime = Math.max(0, fleet.travelTime - fleet.progress);
-      if (timeLeft < remainingPhaseTime) {
+      if (timeLeft + 1e-9 < remainingPhaseTime) {
         fleet.progress += timeLeft;
         timeLeft = 0;
       } else {
-        timeLeft -= remainingPhaseTime;
+        timeLeft = Math.max(0, timeLeft - remainingPhaseTime);
         const origin = getPlanet(state, fleet.originId)!;
         const waypoint = getPlanet(state, fleet.destinationId)!;
         if (fleet.phase === 'exiting') {

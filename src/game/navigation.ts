@@ -8,6 +8,17 @@ export const headingForVector = (dx: number, dy: number, fallback = 0) => Math.h
   ? fallback
   : (Math.atan2(dy, dx) * 180 / Math.PI + 450) % 360;
 
+export const shortestHeadingDelta = (current: number, target: number) =>
+  ((target - current + 540) % 360) - 180;
+
+export const turnHeadingToward = (current: number, target: number, maximumTurn: number) => {
+  const normalizedCurrent = (current % 360 + 360) % 360;
+  const normalizedTarget = (target % 360 + 360) % 360;
+  const delta = shortestHeadingDelta(normalizedCurrent, normalizedTarget);
+  if (Math.abs(delta) <= maximumTurn) return normalizedTarget;
+  return (normalizedCurrent + Math.sign(delta) * Math.max(0, maximumTurn) + 360) % 360;
+};
+
 export const MAX_PHASE_LANE_DISTANCE = 42;
 export const STAR_PHASE_LANE_DISTANCE = 32;
 export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 3;

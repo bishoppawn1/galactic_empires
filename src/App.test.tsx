@@ -10,7 +10,7 @@ import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
 import { GROUND_UNIT_DISPLAY_SCALES, GroundUnitImage } from './components/shared/GroundUnitImage';
 import { ShipImage } from './components/shared/ShipImage';
-import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -1325,6 +1325,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
     expect(screen.getByText(/double right-click to force movement/)).toBeInTheDocument();
+    expect(screen.getByText(/Rocks block movement/)).toBeInTheDocument();
     expect(screen.getAllByText('Infantry')).toHaveLength(2);
     expect(screen.queryByText(/RNG 14/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tri-Burst Pulse Rifle/)).not.toBeInTheDocument();
@@ -1341,7 +1342,10 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText(/5,200 × 3,200 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
     expect(document.querySelectorAll('.battle-terrain')).toHaveLength(36);
-    expect(document.querySelectorAll('.terrain-rocks')).toHaveLength(18);
+    expect(document.querySelectorAll('.battle-terrain.terrain-rocks')).toHaveLength(12);
+    expect(document.querySelectorAll('.battle-terrain.terrain-forest')).toHaveLength(12);
+    expect(document.querySelectorAll('.forest-canopy')).toHaveLength(12);
+    expect(document.querySelector('.ground-fog')).not.toBeNull();
     const expectedFit = groundBattleFitZoom(window.innerWidth, window.innerHeight);
     expect(document.querySelector('.battle-canvas')).toHaveStyle({ transform: `scale(${expectedFit})` });
     expect(within(screen.getByRole('group', { name: 'Ground map controls' })).getByText(`${Math.round(expectedFit * 100)}%`)).toBeInTheDocument();
@@ -1366,6 +1370,42 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fit ground map' }));
     expect(viewport.scrollLeft).toBe(0);
     expect(viewport.scrollTop).toBe(0);
+  });
+
+  it('hides hostile ground units outside friendly sight', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [{ ...makeUnit('scout', 'infantry', 'player'), battleX: 20, battleY: 50 }],
+      defenders: [
+        { ...makeUnit('visible', 'infantry', 'enemy'), battleX: 35, battleY: 50 },
+        { ...makeUnit('hidden', 'infantry', 'enemy'), battleX: 80, battleY: 50 },
+      ],
+    }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    expect(screen.getByRole('button', { name: 'Target Infantry visible' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Target Infantry hidden' })).not.toBeInTheDocument();
+    expect(screen.getByText(/1 CONTACT$/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.ground-fog mask circle')).toHaveLength(1);
+  });
+
+  it('marks units receiving forest cover', () => {
+    const state = createInitialState();
+    const forest = groundTerrainForPlanet('terra').find(piece => piece.kind === 'forest')!;
+    state.battles = [{
+      planetId: 'terra',
+      attackers: [{ ...makeUnit('covered', 'infantry', 'player'), battleX: forest.x, battleY: forest.y }],
+      defenders: [{ ...makeUnit('contact', 'infantry', 'enemy'), battleX: forest.x + 5, battleY: forest.y }],
+    }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    expect(screen.getByRole('button', { name: 'Select Infantry covered' })).toHaveClass('in-forest');
+    expect(screen.getByText('Infantry · COVER')).toBeInTheDocument();
   });
 
   it('shows uncontested orbital support on the ground battlefield', () => {
@@ -1394,7 +1434,7 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
 
     const landed = screen.getByRole('button', { name: 'Landed Transport landed' });
-    expect(screen.getByText(/2 ATTACKERS/)).toBeInTheDocument();
+    expect(screen.getByText(/2 FRIENDLY/)).toBeInTheDocument();
     expect(landed).toHaveClass('grounded-transport');
     expect(landed.querySelector('.landed-transport-image')).not.toBeNull();
     expect(document.querySelectorAll('.range-ring')).toHaveLength(2);

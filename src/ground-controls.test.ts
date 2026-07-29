@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, holdGroundUnits, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
+import { createInitialState, groundPositionBlocked, holdGroundUnits, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
 
 const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy', battleX: number): Unit => ({
   id,
@@ -90,7 +90,9 @@ describe('manual ground controls', () => {
     const repeated = maneuverGroundUnits(first.state, 'draven', ['forced-infantry'], 70, 50, true);
     expect(repeated.ok).toBe(true);
     if (!repeated.ok) return;
-    expect(repeated.state.battles[0].attackers[0]).toMatchObject({ battleTargetX: 70, battleTargetY: 50, battleForceMove: true });
+    const forcedUnit = repeated.state.battles[0].attackers[0];
+    expect(forcedUnit.battleForceMove).toBe(true);
+    expect(groundPositionBlocked('draven', { battleX: forcedUnit.battleTargetX!, battleY: forcedUnit.battleTargetY! })).toBe(false);
 
     const advancing = tick(repeated.state, 1);
     expect(advancing.battles[0].attackers[0].battleX).toBeGreaterThan(40);

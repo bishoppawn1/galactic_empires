@@ -1,21 +1,19 @@
 import type { Unit } from '../types';
+import {
+  GROUND_BATTLEFIELD_HEIGHT,
+  GROUND_BATTLEFIELD_WIDTH,
+  GROUND_UNIT_HITBOX_RADIUS,
+  GROUND_UNIT_MIN_SPACING,
+  type GroundPosition,
+} from './constants';
+import { groundPositionBlocked, groundRockCollisionDepth } from './terrain';
 
-export const GROUND_BATTLEFIELD_WIDTH = 5200;
-export const GROUND_BATTLEFIELD_HEIGHT = 3200;
-export const GROUND_UNIT_HITBOX_RADIUS = 52;
-export const GROUND_UNIT_MIN_SPACING = GROUND_UNIT_HITBOX_RADIUS * 2;
-export const GROUND_UNIT_SIGHT_RANGE = 28;
+export * from './constants';
 
 const X_MARGIN = GROUND_UNIT_HITBOX_RADIUS / GROUND_BATTLEFIELD_WIDTH * 100;
 const Y_MARGIN = GROUND_UNIT_HITBOX_RADIUS / GROUND_BATTLEFIELD_HEIGHT * 100;
 const X_SPACING = GROUND_UNIT_MIN_SPACING / GROUND_BATTLEFIELD_WIDTH * 100;
 const Y_SPACING = GROUND_UNIT_MIN_SPACING / GROUND_BATTLEFIELD_HEIGHT * 100;
-
-export interface GroundPosition {
-  id?: string;
-  battleX: number;
-  battleY: number;
-}
 
 export const GROUND_FORMATION_X_SPACING = X_SPACING;
 export const GROUND_FORMATION_Y_SPACING = Y_SPACING;
@@ -42,9 +40,11 @@ export function hasGroundUnitClearance(position: GroundPosition, occupied: Groun
     || groundUnitPixelDistance(position, other) >= GROUND_UNIT_MIN_SPACING - 1e-6);
 }
 
-export function nearestOpenGroundPosition(battleX: number, battleY: number, occupied: GroundPosition[]): GroundPosition {
+export function nearestOpenGroundPosition(battleX: number, battleY: number, occupied: GroundPosition[], planetId?: string): GroundPosition {
   const origin = clampGroundPosition(battleX, battleY);
-  if (hasGroundUnitClearance(origin, occupied)) return origin;
+  const open = (position: GroundPosition) => hasGroundUnitClearance(position, occupied)
+    && (!planetId || !groundPositionBlocked(planetId, position));
+  if (open(origin)) return origin;
 
   const directions = 24;
   for (let ring = 1; ring <= 24; ring += 1) {
@@ -55,7 +55,7 @@ export function nearestOpenGroundPosition(battleX: number, battleY: number, occu
         origin.battleX + Math.cos(angle) * radius / GROUND_BATTLEFIELD_WIDTH * 100,
         origin.battleY + Math.sin(angle) * radius / GROUND_BATTLEFIELD_HEIGHT * 100,
       );
-      if (hasGroundUnitClearance(candidate, occupied)) return candidate;
+      if (open(candidate)) return candidate;
     }
   }
   return origin;
@@ -76,16 +76,19 @@ const cellKey = (unit: Unit) => {
   return `${Math.floor(x / GROUND_UNIT_MIN_SPACING)},${Math.floor(y / GROUND_UNIT_MIN_SPACING)}`;
 };
 
-const moveUnitByPixels = (unit: Unit, x: number, y: number) => {
+const moveUnitByPixels = (unit: Unit, x: number, y: number, planetId?: string) => {
   const position = clampGroundPosition(
     (unit.battleX ?? 0) + x / GROUND_BATTLEFIELD_WIDTH * 100,
     (unit.battleY ?? 0) + y / GROUND_BATTLEFIELD_HEIGHT * 100,
   );
+  if (planetId && groundPositionBlocked(planetId, position)
+    && groundRockCollisionDepth(planetId, position) >= groundRockCollisionDepth(planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) - 1e-6) return false;
   unit.battleX = position.battleX;
   unit.battleY = position.battleY;
+  return true;
 };
 
-function separatePair(first: Unit, second: Unit) {
+function separatePair(first: Unit, second: Unit, planetId?: string) {
   let vector = pixelVector(
     { battleX: first.battleX ?? 0, battleY: first.battleY ?? 0 },
     { battleX: second.battleX ?? 0, battleY: second.battleY ?? 0 },
@@ -103,12 +106,18 @@ function separatePair(first: Unit, second: Unit) {
   const secondFixed = Boolean(second.sourceBuildingId || second.landedTransport);
   const firstShare = firstFixed && !secondFixed ? 0 : secondFixed && !firstFixed ? 1 : .5;
   const secondShare = 1 - firstShare;
-  moveUnitByPixels(first, -vector.x / divisor * overlap * firstShare, -vector.y / divisor * overlap * firstShare);
-  moveUnitByPixels(second, vector.x / divisor * overlap * secondShare, vector.y / divisor * overlap * secondShare);
-  return true;
+  const firstMoved = firstShare > 0 && moveUnitByPixels(first, -vector.x / divisor * overlap * firstShare, -vector.y / divisor * overlap * firstShare, planetId);
+  const secondMoved = secondShare > 0 && moveUnitByPixels(second, vector.x / divisor * overlap * secondShare, vector.y / divisor * overlap * secondShare, planetId);
+  if (!firstMoved && !secondFixed && firstShare > 0 && secondShare < 1) {
+    moveUnitByPixels(second, vector.x / divisor * overlap * firstShare, vector.y / divisor * overlap * firstShare, planetId);
+  }
+  if (!secondMoved && !firstFixed && secondShare > 0 && firstShare < 1) {
+    moveUnitByPixels(first, -vector.x / divisor * overlap * secondShare, -vector.y / divisor * overlap * secondShare, planetId);
+  }
+  return Boolean(firstMoved || secondMoved);
 }
 
-export function separateGroundUnits(units: Unit[]) {
+export function separateGroundUnits(units: Unit[], planetId?: string) {
   const ordered = [...units].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   for (let pass = 0; pass < 12; pass += 1) {
     const cells = new Map<string, Unit[]>();
@@ -128,7 +137,7 @@ export function separateGroundUnits(units: Unit[]) {
         for (let y = cellY - 1; y <= cellY + 1; y += 1) {
           for (const other of cells.get(`${x},${y}`) ?? []) {
             if (unit.id >= other.id) continue;
-            moved = separatePair(unit, other) || moved;
+            moved = separatePair(unit, other, planetId) || moved;
           }
         }
       }

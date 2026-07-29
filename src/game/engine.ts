@@ -41,6 +41,9 @@ import {
   GROUND_UNIT_SIGHT_RANGE, nearestOpenGroundPosition, separateGroundUnits,
 } from './ground/collision';
 import {
+  GROUND_FOREST_DAMAGE_MULTIPLIER, groundForestAtPosition, groundTerrainMovementStep,
+} from './ground/terrain';
+import {
   BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTIONS, biomassCost, empireCivilization,
   COVENANT_SALVAGE_ARRAY_MULTIPLIER, recoverableBiomass, recoverableMetalScrap, startingResources, usesBiomass, usesSalvage,
 } from './factions';
@@ -59,6 +62,7 @@ export * from './navigation';
 export * from './definitions';
 export * from './factions';
 export * from './ground/collision';
+export * from './ground/terrain';
 
 export const carrierFighterCount = (ship: Unit) => {
   const wing = UNITS[ship.kind].fighterWing;
@@ -1411,21 +1415,32 @@ function damageBuilding(target: Building, damage: number): Building {
 }
 
 function ensureBattlePositions(battle: GroundBattle) {
+  const occupied: Array<{ id: string; battleX: number; battleY: number }> = [];
   const deploy = (units: Unit[], x: number, direction: 1 | -1) => units.forEach((unit, index) => {
-    if (typeof unit.battleX === 'number' && typeof unit.battleY === 'number') return;
+    if (typeof unit.battleX === 'number' && typeof unit.battleY === 'number') {
+      occupied.push({ id: unit.id, battleX: unit.battleX, battleY: unit.battleY });
+      return;
+    }
     const rowsPerColumn = 13;
     const column = Math.floor(index / rowsPerColumn), row = index % rowsPerColumn;
     const rowCount = Math.min(rowsPerColumn, units.length - column * rowsPerColumn);
-    const position = clampGroundPosition(
+    const requested = clampGroundPosition(
       x + column * GROUND_FORMATION_X_SPACING * direction,
       50 + (row - (rowCount - 1) / 2) * GROUND_FORMATION_Y_SPACING,
     );
+    const position = nearestOpenGroundPosition(
+      requested.battleX,
+      requested.battleY,
+      occupied,
+      battle.planetId,
+    );
     unit.battleX = position.battleX;
     unit.battleY = position.battleY;
+    occupied.push({ id: unit.id, ...position });
   });
   deploy(battle.attackers, 12, 1);
   deploy(battle.defenders, 88, -1);
-  separateGroundUnits([...battle.attackers, ...battle.defenders]);
+  separateGroundUnits([...battle.attackers, ...battle.defenders], battle.planetId);
 }
 
 const battleDistance = (a: Unit, b: Unit) => Math.hypot((b.battleX ?? 0) - (a.battleX ?? 0), (b.battleY ?? 0) - (a.battleY ?? 0));
@@ -1497,12 +1512,20 @@ function tickShipWeapon(unit: Unit, weaponIndex: number, seconds: number, firing
   return (followupVolleys + 1) * weapon.damage;
 }
 
-const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number) => {
+const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number, planetId: string) => {
   const dx = x - (unit.battleX ?? 0), dy = y - (unit.battleY ?? 0);
-  const distance = Math.hypot(dx, dy), travel = Math.min(UNITS[unit.kind].moveSpeed * seconds, distance);
+  const distance = Math.hypot(dx, dy), travel = UNITS[unit.kind].moveSpeed * seconds;
   if (!distance || !travel) return;
-  unit.battleX = (unit.battleX ?? 0) + dx / distance * travel;
-  unit.battleY = (unit.battleY ?? 0) + dy / distance * travel;
+  const position = groundTerrainMovementStep(
+    planetId,
+    unit.id,
+    { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 },
+    { battleX: x, battleY: y },
+    travel,
+  );
+  const clamped = clampGroundPosition(position.battleX, position.battleY);
+  unit.battleX = clamped.battleX;
+  unit.battleY = clamped.battleY;
 };
 
 interface GroundHit {
@@ -1598,7 +1621,7 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
   }
 }
 
-function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, preferredId?: string, power = 1) {
+function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
   if (unit.landedTransport) {
     tickUnitWeapon(unit, seconds, false);
@@ -1607,7 +1630,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   const followingOrder = typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number';
   if (unit.battleForceMove && followingOrder) {
     tickUnitWeapon(unit, seconds, false);
-    moveBattleUnitToward(unit, unit.battleTargetX!, unit.battleTargetY!, seconds);
+    moveBattleUnitToward(unit, unit.battleTargetX!, unit.battleTargetY!, seconds, planetId);
     if (Math.hypot(unit.battleTargetX! - (unit.battleX ?? 0), unit.battleTargetY! - (unit.battleY ?? 0)) <= .05) {
       delete unit.battleTargetX;
       delete unit.battleTargetY;
@@ -1633,7 +1656,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
       fireGroundWeapon(unit, allies, enemies, retaliationTarget, seconds, hits, power);
     } else {
       tickUnitWeapon(unit, seconds, false);
-      if (!unit.battleHoldPosition) moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds);
+      if (!unit.battleHoldPosition) moveBattleUnitToward(unit, retaliationTarget.battleX ?? 0, retaliationTarget.battleY ?? 0, seconds, planetId);
     }
     return;
   }
@@ -1646,7 +1669,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   tickUnitWeapon(unit, seconds, false);
   if (unit.battleHoldPosition) return;
   if (typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number') {
-    moveBattleUnitToward(unit, unit.battleTargetX, unit.battleTargetY, seconds);
+    moveBattleUnitToward(unit, unit.battleTargetX, unit.battleTargetY, seconds, planetId);
     return;
   }
   const target = nearestBattleTarget(unit, enemies, preferredId);
@@ -1654,8 +1677,9 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   const distance = battleDistance(unit, target);
   const travel = Math.min(definition.moveSpeed * seconds, Math.max(0, distance - definition.range * .92));
   if (!travel || !distance) return;
-  unit.battleX = (unit.battleX ?? 0) + ((target.battleX ?? 0) - (unit.battleX ?? 0)) / distance * travel;
-  unit.battleY = (unit.battleY ?? 0) + ((target.battleY ?? 0) - (unit.battleY ?? 0)) / distance * travel;
+  const targetX = (unit.battleX ?? 0) + ((target.battleX ?? 0) - (unit.battleX ?? 0)) / distance * Math.max(0, distance - definition.range * .92);
+  const targetY = (unit.battleY ?? 0) + ((target.battleY ?? 0) - (unit.battleY ?? 0)) / distance * Math.max(0, distance - definition.range * .92);
+  moveBattleUnitToward(unit, targetX, targetY, seconds, planetId);
 }
 
 export function maneuverGroundUnits(input: GameState, planetId: string, unitIds: string[], battleX: number, battleY: number, forceMove = false): GameResult {
@@ -1681,6 +1705,7 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
       center.battleX + (column - (rowCount - 1) / 2) * GROUND_FORMATION_X_SPACING,
       center.battleY + (row - (Math.ceil(units.length / columns) - 1) / 2) * GROUND_FORMATION_Y_SPACING,
       occupied,
+      battle.planetId,
     );
     unit.battleTargetX = position.battleX;
     unit.battleTargetY = position.battleY;
@@ -1752,23 +1777,24 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, focus(unit), power(unit)));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, focus(unit), power(unit)));
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, battle.planetId, focus(unit), power(unit)));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, battle.planetId, focus(unit), power(unit)));
   protectGroundFormation(hits, battle.attackers);
   protectGroundFormation(hits, battle.defenders);
   const p = getPlanet(state, battle.planetId)!;
   recordOrbitalBombardment(p, battle, seconds, hits);
-  separateGroundUnits([...battle.attackers, ...battle.defenders]);
+  separateGroundUnits([...battle.attackers, ...battle.defenders], battle.planetId);
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
     if (!hit) return unit;
-    if (!hit.retaliationTargetId) return { ...damageUnit(unit, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
+    const terrainDamage = hit.damage * (groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) ? GROUND_FOREST_DAMAGE_MULTIPLIER : 1);
+    if (!hit.retaliationTargetId) return { ...damageUnit(unit, terrainDamage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
     const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
     if (!retaliating.battleForceMove) {
       delete retaliating.battleTargetX;
       delete retaliating.battleTargetY;
     }
-    return { ...damageUnit(retaliating, hit.damage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
+    return { ...damageUnit(retaliating, terrainDamage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
   };
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);

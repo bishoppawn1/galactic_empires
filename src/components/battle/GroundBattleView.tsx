@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  GROUND_BATTLEFIELD_HEIGHT, GROUND_BATTLEFIELD_WIDTH, UNITS,
+  GROUND_BATTLEFIELD_HEIGHT, GROUND_BATTLEFIELD_WIDTH, GROUND_UNIT_SIGHT_RANGE, UNITS,
+  groundForestAtPosition, groundTerrainForPlanet,
   type GameState, type GroundBattle, type Unit,
 } from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
@@ -8,8 +9,6 @@ import { ShipImage } from '../shared/ShipImage';
 import { GROUND_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 
 type SelectionBox = { left: number; top: number; width: number; height: number };
-type TerrainKind = 'crater' | 'rocks' | 'ridge' | 'scrub';
-type TerrainPiece = { kind: TerrainKind; x: number; y: number; size: number; rotation: number };
 type DragSelection = {
   pointerId: number;
   startX: number;
@@ -30,27 +29,6 @@ export const groundBattleFitZoom = (viewportWidth: number, viewportHeight: numbe
   MIN_GROUND_BATTLE_ZOOM,
   Math.floor(Math.min(viewportWidth / GROUND_BATTLEFIELD_WIDTH, viewportHeight / GROUND_BATTLEFIELD_HEIGHT) * 1000) / 1000,
 ));
-
-const terrainForPlanet = (planetId: string): TerrainPiece[] => {
-  let seed = 2166136261;
-  for (const character of planetId) {
-    seed ^= character.charCodeAt(0);
-    seed = Math.imul(seed, 16777619);
-  }
-  const random = () => {
-    seed = Math.imul(seed ^ (seed >>> 15), 2246822519);
-    seed = Math.imul(seed ^ (seed >>> 13), 3266489917);
-    return ((seed ^= seed >>> 16) >>> 0) / 0xffffffff;
-  };
-  const kinds: TerrainKind[] = ['rocks', 'crater', 'rocks', 'ridge', 'scrub', 'rocks'];
-  return Array.from({ length: 36 }, (_, index) => ({
-    kind: kinds[index % kinds.length],
-    x: 5 + random() * 90,
-    y: 6 + random() * 88,
-    size: 150 + random() * 260,
-    rotation: -35 + random() * 70,
-  }));
-};
 
 export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, onExit }: {
   state: GameState;
@@ -145,12 +123,18 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, o
   const nearest = (unit: Unit, enemies: Unit[], preferredId?: string) => enemies.find(enemy => enemy.id === preferredId) ?? enemies.reduce<Unit | undefined>((best, enemy) => !best || Math.hypot((enemy.battleX ?? 0) - (unit.battleX ?? 0), (enemy.battleY ?? 0) - (unit.battleY ?? 0)) < Math.hypot((best.battleX ?? 0) - (unit.battleX ?? 0), (best.battleY ?? 0) - (unit.battleY ?? 0)) ? enemy : best, undefined);
   const attackerFaction = battle.attackerFaction ?? battle.attackers[0]?.faction ?? 'player';
   const defenderFaction = battle.defenders[0]?.faction ?? (attackerFaction === 'player' ? 'enemy' : 'player');
-  const activeDefenses = allUnits.filter(unit => unit.sourceBuildingId).length;
-  const terrain = useMemo(() => terrainForPlanet(battle.planetId), [battle.planetId]);
+  const terrain = useMemo(() => groundTerrainForPlanet(battle.planetId), [battle.planetId]);
+  const friendlyUnits = allUnits.filter(unit => unit.faction === 'player');
+  const visibleToPlayer = (unit: Unit) => unit.faction === 'player' || friendlyUnits.some(observer =>
+    Math.hypot((unit.battleX ?? 0) - (observer.battleX ?? 0), (unit.battleY ?? 0) - (observer.battleY ?? 0))
+      <= Math.max(GROUND_UNIT_SIGHT_RANGE, UNITS[observer.kind].range));
+  const visibleHostiles = allUnits.filter(unit => unit.faction !== 'player' && visibleToPlayer(unit));
+  const activeDefenses = allUnits.filter(unit => unit.sourceBuildingId && visibleToPlayer(unit)).length;
+  const fogMaskId = `ground-fog-${battle.planetId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player');
   const playerOrbitalSupport = allUnits.some(unit => unit.faction === 'player') && playerShips.length > 0
     && !planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral');
-  const shots = [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => !unit.landedTransport && target && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
+  const shots = [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => !unit.landedTransport && target && visibleToPlayer(unit) && visibleToPlayer(target) && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
   const selectFriendly = (unit: Unit, additive: boolean) => {
     if (unit.sourceBuildingId || unit.landedTransport) return;
     setSelectedUnitIds(current => additive
@@ -199,11 +183,13 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, o
     const selected = selectedUnitIds.includes(unit.id);
     const definition = UNITS[unit.kind];
     const action = selectable ? 'Select' : friendly ? 'Landed' : 'Target';
-    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
+    const inForest = groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 });
+    const title = unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description;
+    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={`${title}${inForest ? ' · Forest cover reduces incoming damage by 30%' : ''}`} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${inForest ? 'in-forest' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${inForest ? ' · COVER' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${inForest ? ' · COVER' : ''}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
   };
   return <div className="battlefield">
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
-    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{battle.attackers.length} ATTACKERS <span>VS</span> {battle.defenders.length} DEFENDERS</b><p>Right-click to attack-move · double right-click to force movement · H to hold position.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
+    <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{friendlyUnits.length} FRIENDLY <span>VS</span> {visibleHostiles.length} CONTACT{visibleHostiles.length === 1 ? '' : 'S'}</b><p>Right-click to attack-move · double right-click to force movement · H to hold. Rocks block movement · Forests grant 30% cover · Sight reveals contacts.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">
       <div className="battle-stage" style={{ width: `${GROUND_BATTLEFIELD_WIDTH * battleZoom}px`, height: `${GROUND_BATTLEFIELD_HEIGHT * battleZoom}px` }}>
       <div className={`battle-canvas ${selectedUnits.length ? 'commanding-ground-units' : ''}`} style={{ '--battlefield-width': `${GROUND_BATTLEFIELD_WIDTH}px`, '--battlefield-height': `${GROUND_BATTLEFIELD_HEIGHT}px`, transform: `scale(${battleZoom})` } as React.CSSProperties} onPointerDown={event => {
@@ -254,9 +240,14 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, o
         {selectionBox && <div className="battle-selection-box" style={selectionBox} aria-hidden="true" />}
         <svg className="battle-orders" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{selectedUnits.filter(unit => typeof unit.battleTargetX === 'number' && typeof unit.battleTargetY === 'number').map(unit => <g key={`order-${unit.id}`}><line x1={unit.battleX} y1={unit.battleY} x2={unit.battleTargetX} y2={unit.battleTargetY} /><circle cx={unit.battleTargetX} cy={unit.battleTargetY} r=".8" /></g>)}</svg>
         <svg className="battle-fire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shots.map(({ unit, target, faction }) => <WeaponFire key={unit.id} id={unit.id} x1={unit.battleX!} y1={unit.battleY!} x2={target!.battleX!} y2={target!.battleY!} effect={UNITS[unit.kind].weapon.effect} projectiles={UNITS[unit.kind].weapon.projectiles} faction={faction} size={GROUND_PROJECTILE_SIZE} />)}</svg>
-        <div className={`army attackers ${attackerFaction}`}>{battle.attackers.map(combatant)}</div>
+        <div className={`army attackers ${attackerFaction}`}>{battle.attackers.filter(visibleToPlayer).map(combatant)}</div>
         <div className="front-line"><i /><span>CONTESTED ZONE</span><i /></div>
-        <div className={`army defenders ${defenderFaction}`}>{battle.defenders.map(combatant)}</div>
+        <div className={`army defenders ${defenderFaction}`}>{battle.defenders.filter(visibleToPlayer).map(combatant)}</div>
+        <div className="forest-canopy-layer" aria-hidden="true">{terrain.filter(piece => piece.kind === 'forest').map((piece, index) => <i key={`forest-canopy-${index}`} className="terrain-forest forest-canopy" style={{ '--terrain-x': `${piece.x}%`, '--terrain-y': `${piece.y}%`, '--terrain-size': `${piece.size}px`, '--terrain-rotation': `${piece.rotation}deg` } as React.CSSProperties} />)}</div>
+        <svg className="ground-fog" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs><mask id={fogMaskId} maskUnits="userSpaceOnUse"><rect width="100" height="100" fill="white" />{friendlyUnits.map(unit => <circle key={`sight-${unit.id}`} cx={unit.battleX ?? 0} cy={unit.battleY ?? 0} r={Math.max(GROUND_UNIT_SIGHT_RANGE, UNITS[unit.kind].range)} fill="black" />)}</mask></defs>
+          <rect width="100" height="100" mask={`url(#${fogMaskId})`} />
+        </svg>
       </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { UNITS, isBuildingOperational, shipArmor, shipWeaponBatteries } from '../definitions';
 import { findPlanetPath } from '../navigation';
-import type { GameState, Planet, SpaceUnitKind, Unit } from '../types';
+import type { EnemyDifficulty, GameState, Planet, SpaceUnitKind, Unit } from '../types';
 
 export interface AiFleetOperation {
   originId: string;
@@ -25,27 +25,65 @@ const routeDistance = (state: GameState, path: string[]) => path.slice(1).reduce
 
 const hasHostileShips = (planet: Planet) => planet.orbitUnits.some(ship => ship.faction !== 'neutral' && ship.faction !== 'enemy');
 
+const isWarship = (ship: Unit) => !(UNITS[ship.kind].capacity ?? 0);
+
+export const enemyDefensiveReserve = (warshipCount: number, difficulty: EnemyDifficulty) => {
+  const profile = difficulty === 'cadet'
+    ? { minimum: 3, share: .55 }
+    : difficulty === 'admiral'
+      ? { minimum: 1, share: .3 }
+      : { minimum: 2, share: .4 };
+  return Math.min(warshipCount, Math.max(profile.minimum, Math.ceil(warshipCount * profile.share)));
+};
+
+export function enemyHasOrbitalSuperiority(state: GameState, target: Planet, includeInbound = true) {
+  const enemyWarships = target.orbitUnits.filter(ship => ship.faction === 'enemy' && isWarship(ship)).length;
+  const inboundWarships = includeInbound
+    ? state.fleets.filter(fleet => fleet.faction === 'enemy'
+      && (fleet.finalDestinationId ?? fleet.destinationId) === target.id
+      && isWarship(fleet.unit)).length
+    : 0;
+  const hostileShips = target.orbitUnits.filter(ship => ship.faction !== 'enemy').length;
+  const hostileOrbitalDefenses = target.owner && target.owner !== 'enemy'
+    ? target.buildings.filter(building => ['antiSpaceDefense', 'spaceDefense'].includes(building.kind) && isBuildingOperational(building)).length
+    : 0;
+  const resistance = hostileShips + hostileOrbitalDefenses;
+  return enemyWarships + inboundWarships >= Math.max(2, resistance * 2 + 2);
+}
+
+export function enemyOrbitalBeachheads(state: GameState) {
+  const committedTargets = new Set(state.fleets.filter(fleet => fleet.faction === 'enemy'
+    && (UNITS[fleet.unit.kind].capacity ?? 0) > 0)
+    .map(fleet => fleet.finalDestinationId ?? fleet.destinationId));
+  return state.planets.filter(target => (target.systemKind ?? 'planet') === 'planet'
+    && target.owner !== null
+    && target.owner !== 'enemy'
+    && !state.battles.some(battle => battle.planetId === target.id)
+    && !committedTargets.has(target.id)
+    && !target.orbitUnits.some(ship => ship.faction === 'enemy'
+      && (UNITS[ship.kind].capacity ?? 0) > 0
+      && ((ship.cargo?.length ?? 0) > 0 || ship.pendingLanding))
+    && enemyHasOrbitalSuperiority(state, target, false));
+}
+
 export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
-  const profile = state.config.difficulty === 'cadet'
-    ? { reserve: 3 }
-    : state.config.difficulty === 'admiral'
-      ? { reserve: 1 }
-      : { reserve: 2 };
   const invasionTargets = new Set(state.fleets.filter(fleet => fleet.faction === 'enemy' && (UNITS[fleet.unit.kind].capacity ?? 0) > 0)
     .map(fleet => fleet.finalDestinationId ?? fleet.destinationId));
+  const plannedTargets = new Set<string>();
+  const operations: AiFleetOperation[] = [];
 
-  return state.planets.flatMap(origin => {
-    if (origin.owner !== 'enemy' || hasHostileShips(origin) || state.battles.some(battle => battle.planetId === origin.id)) return [];
-    const warships = origin.orbitUnits.filter(ship => ship.faction === 'enemy' && !(UNITS[ship.kind].capacity ?? 0));
-    const deploymentSize = warships.length - profile.reserve;
-    if (deploymentSize < 1) return [];
+  for (const origin of state.planets) {
+    if (origin.owner !== 'enemy' || hasHostileShips(origin) || state.battles.some(battle => battle.planetId === origin.id)) continue;
+    const warships = origin.orbitUnits.filter(ship => ship.faction === 'enemy' && isWarship(ship));
+    const deploymentSize = warships.length - enemyDefensiveReserve(warships.length, state.config.difficulty);
+    if (deploymentSize < 1) continue;
 
     const targets = state.planets.flatMap(target => {
-      if (target.id === origin.id) return [];
+      if (target.id === origin.id || plannedTargets.has(target.id)) return [];
       const reinforce = target.owner === 'enemy' && hasHostileShips(target);
       const strike = (target.owner !== null && target.owner !== 'enemy')
         || ((target.systemKind ?? 'planet') === 'ancientTemple' && target.owner !== 'enemy');
-      if (!reinforce && !strike) return [];
+      if ((!reinforce && !strike) || (strike && enemyHasOrbitalSuperiority(state, target))) return [];
       const path = findPlanetPath(state.planets, origin.id, target.id);
       if (!path) return [];
       const priority = reinforce ? 0
@@ -54,8 +92,10 @@ export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
       return [{ target, priority, distance: routeDistance(state, path), kind: reinforce ? 'reinforce' as const : 'strike' as const }];
     }).sort((a, b) => a.priority - b.priority || a.distance - b.distance || a.target.id.localeCompare(b.target.id));
     const destination = targets[0];
-    if (!destination) return [];
+    if (!destination) continue;
     const ships = [...warships].sort((a, b) => combatStrength(b) - combatStrength(a) || a.id.localeCompare(b.id)).slice(0, deploymentSize);
-    return [{ originId: origin.id, targetId: destination.target.id, shipIds: ships.map(ship => ship.id), kind: destination.kind }];
-  });
+    operations.push({ originId: origin.id, targetId: destination.target.id, shipIds: ships.map(ship => ship.id), kind: destination.kind });
+    plannedTargets.add(destination.target.id);
+  }
+  return operations;
 }

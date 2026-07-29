@@ -1291,7 +1291,28 @@ describe('enemy strategy', () => {
     expect(queuedKinds.some(kind => (UNITS[kind].capacity ?? 0) > 0)).toBe(true);
   });
 
-  it('launches transport-independent strike fleets from every eligible rear colony', () => {
+  it('immediately converts decisive orbital superiority into a loaded ground invasion', () => {
+    const state = createInitialState(); const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    terra.orbitUnits = Array.from({ length: 6 }, (_, index) => makeUnit(`beachhead-warship-${index}`, 'escortFrigate', 'enemy'));
+    cygnus.groundUnits = Array.from({ length: 6 }, (_, index) => makeUnit(`beachhead-squad-${index}`, 'infantry', 'enemy'));
+    cygnus.orbitUnits = Array.from({ length: 3 }, (_, index) => makeUnit(`beachhead-transport-${index}`, 'transport', 'enemy'));
+    state.enemyMissionCount = 0;
+    state.enemyResources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.enemyActionClock = 0;
+    state.enemyAttackClock = 9999;
+
+    const response = tick(state, 0);
+    const invasion = response.fleets.filter(fleet => fleet.finalDestinationId === terra.id && (UNITS[fleet.unit.kind].capacity ?? 0) > 0);
+    const queuedKinds = spaceYards(response.planets.find(planet => planet.id === cygnus.id)!).flatMap(yard => yard.spaceQueue ?? []).map(item => item.kind);
+
+    expect(invasion).toHaveLength(3);
+    expect(invasion.every(fleet => (fleet.unit.cargo?.length ?? 0) > 0)).toBe(true);
+    expect(queuedKinds.some(kind => (UNITS[kind].capacity ?? 0) > 0)).toBe(true);
+    expect(response.messages.some(message => message.includes('HOSTILE FLEET LAUNCHED'))).toBe(true);
+  });
+
+  it('launches one measured strike group instead of converging every rear colony on the same target', () => {
     const state = createInitialState();
     const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
     const nyx = state.planets.find(planet => planet.id === 'nyx')!;
@@ -1303,23 +1324,38 @@ describe('enemy strategy', () => {
 
     const launched = tick(state, 0);
     const strikeFleets = launched.fleets.filter(fleet => fleet.faction === 'enemy');
-    expect(strikeFleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(3);
-    expect(strikeFleets.filter(fleet => fleet.originId === nyx.id)).toHaveLength(3);
+    expect(strikeFleets).toHaveLength(3);
+    expect(new Set(strikeFleets.map(fleet => fleet.originId)).size).toBe(1);
     expect(strikeFleets.every(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toBe(true);
-    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
-    expect(launched.planets.find(planet => planet.id === nyx.id)!.orbitUnits).toHaveLength(2);
-    expect(launched.messages.filter(message => message.includes('HOSTILE STRIKE FLEET'))).toHaveLength(2);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits.length
+      + launched.planets.find(planet => planet.id === nyx.id)!.orbitUnits.length).toBe(7);
+    expect(launched.messages.filter(message => message.includes('HOSTILE STRIKE FLEET'))).toHaveLength(1);
   });
 
-  it('deploys every surplus warship above the local defensive reserve', () => {
+  it('keeps a proportional defensive fleet instead of deploying nearly every warship', () => {
     const state = createInitialState(); const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
     cygnus.orbitUnits = Array.from({ length: 14 }, (_, index) => makeUnit(`surplus-warship-${index}`, 'escortFrigate', 'enemy'));
     state.enemyActionClock = 9999;
     state.enemyAttackClock = 0;
 
     const launched = tick(state, 0);
-    expect(launched.fleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(12);
-    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+    expect(launched.fleets.filter(fleet => fleet.originId === cygnus.id)).toHaveLength(8);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(6);
+  });
+
+  it('stops piling strike fleets onto a hostile planet after securing its orbit', () => {
+    const state = createInitialState(); const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const cygnus = state.planets.find(planet => planet.id === 'cygnus')!;
+    terra.orbitUnits = [makeUnit('occupation-warship-a', 'escortFrigate', 'enemy'), makeUnit('occupation-warship-b', 'missileFrigate', 'enemy')];
+    cygnus.orbitUnits = Array.from({ length: 8 }, (_, index) => makeUnit(`held-reserve-${index}`, 'escortFrigate', 'enemy'));
+    cygnus.groundUnits = [];
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 0;
+
+    const planning = tick(state, 0);
+
+    expect(planning.fleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(0);
+    expect(planning.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(8);
   });
 
   it('sends surplus warships alongside a transport invasion instead of limiting the attack to escorts', () => {
@@ -1337,8 +1373,8 @@ describe('enemy strategy', () => {
     const launched = tick(state, 0);
     const invasionFleets = launched.fleets.filter(fleet => fleet.faction === 'enemy' && fleet.finalDestinationId === 'terra');
     expect(invasionFleets.filter(fleet => (UNITS[fleet.unit.kind].capacity ?? 0) > 0)).toHaveLength(1);
-    expect(invasionFleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(7);
-    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(2);
+    expect(invasionFleets.filter(fleet => !(UNITS[fleet.unit.kind].capacity ?? 0))).toHaveLength(5);
+    expect(launched.planets.find(planet => planet.id === cygnus.id)!.orbitUnits).toHaveLength(4);
     expect(launched.messages.some(message => message.includes('HOSTILE FLEET LAUNCHED'))).toBe(true);
   });
 

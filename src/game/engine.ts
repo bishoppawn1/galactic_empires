@@ -35,7 +35,7 @@ import {
 import { findPlanetPath, headingForVector } from './navigation';
 import { viewStateForFaction } from './perspective';
 import { seedKnownEmpireHomeworldIntel, updatePlanetIntel } from './visibility';
-import { planEnemyFleetOperations } from './ai/fleetOperations';
+import { enemyDefensiveReserve, enemyOrbitalBeachheads, planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
   GROUND_UNIT_SIGHT_RANGE, nearestOpenGroundPosition, separateGroundUnits,
@@ -2124,7 +2124,10 @@ function tickAiFaction(state: GameState, faction: EmpireFaction, seconds: number
     launchEnemyMission(view);
     launchEnemyCombatFleets(view);
     view.enemyAttackClock += attackInterval;
-  } else if (strategicActionRan) launchEnemyCombatFleets(view);
+  } else if (strategicActionRan) {
+    launchEnemyCombatFleets(view);
+    launchEnemyMission(view, true);
+  }
   if (faction !== 'enemy') {
     const restored = viewStateForFaction(viewStateForFaction(view, 'enemy'), faction);
     const aiEconomy = empireEconomy(restored, faction);
@@ -2204,6 +2207,16 @@ function runEnemyStrategicAction(state: GameState) {
   const groundKind = (kind: GroundUnitKind) => civilizationUnitKind(civilization, kind) as GroundUnitKind;
   const spaceKind = (kind: SpaceUnitKind) => civilizationUnitKind(civilization, kind) as SpaceUnitKind;
   const colonies = state.planets.filter(p => isColonizableWorld(p) && p.owner === 'enemy' && !state.battles.some(battle => battle.planetId === p.id));
+  const urgentCarrierOrigins = new Set(enemyOrbitalBeachheads(state).flatMap(target => {
+    const nearest = colonies.flatMap(origin => {
+      const path = findPlanetPath(state.planets, origin.id, target.id);
+      return path && spaceYards(origin).length ? [{ origin, distance: path.slice(1).reduce((sum, id, index) => {
+        const from = getPlanet(state, path[index])!, to = getPlanet(state, id)!;
+        return sum + Math.hypot(to.x - from.x, to.y - from.y);
+      }, 0) }] : [];
+    }).sort((a, b) => a.distance - b.distance || a.origin.id.localeCompare(b.origin.id))[0];
+    return nearest ? [nearest.origin.id] : [];
+  }));
   const forceTarget = state.config.difficulty === 'cadet' ? 4 : state.config.difficulty === 'admiral' ? 8 : 6;
   for (const p of colonies) {
     const priorities: Array<[BuildingKind, number]> = [
@@ -2222,7 +2235,8 @@ function runEnemyStrategicAction(state: GameState) {
       if (!enemyQueueUnit(state, p, advancedKind)) enemyQueueUnit(state, p, basicKind);
     }
 
-    const transportTarget = state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3;
+    const transportTarget = (state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3)
+      + (urgentCarrierOrigins.has(p.id) ? 1 : 0);
     for (const yard of spaceYards(p)) {
       if (yard.spaceQueue?.length) continue;
       const queuedKinds = spaceYards(p).flatMap(other => other.spaceQueue ?? []).map(item => item.kind);
@@ -2253,11 +2267,12 @@ function runEnemyStrategicAction(state: GameState) {
   }
 }
 
-function launchEnemyMission(state: GameState) {
+function launchEnemyMission(state: GameState, urgentOnly = false) {
   const hostilePlanets = state.planets.filter(p => isColonizableWorld(p) && p.owner !== null && p.owner !== 'enemy');
   const reservedTargets = new Set(state.fleets.filter(fleet => fleet.faction === 'enemy').map(fleet => fleet.finalDestinationId ?? fleet.destinationId));
   const neutralPlanets = state.planets.filter(p => isColonizableWorld(p) && p.owner === null && !reservedTargets.has(p.id) && !state.battles.some(battle => battle.planetId === p.id));
-  if (!hostilePlanets.length && !neutralPlanets.length) return;
+  const urgentTargets = enemyOrbitalBeachheads(state);
+  if ((!hostilePlanets.length && !neutralPlanets.length) || (urgentOnly && !urgentTargets.length)) return;
   const preferExpansion = neutralPlanets.length > 0 && (state.enemyMissionCount % 3 !== 2 || !hostilePlanets.length);
   const preferredTargets = preferExpansion ? neutralPlanets : hostilePlanets;
   const fallbackTargets = preferExpansion ? hostilePlanets : neutralPlanets;
@@ -2278,11 +2293,11 @@ function launchEnemyMission(state: GameState) {
       }, 0) }] : [];
     });
   }).sort((a, b) => a.distance - b.distance);
-  const mission = candidatesFor(preferredTargets)[0] ?? candidatesFor(fallbackTargets)[0];
+  const mission = candidatesFor(urgentTargets)[0]
+    ?? (urgentOnly ? undefined : candidatesFor(preferredTargets)[0] ?? candidatesFor(fallbackTargets)[0]);
   if (!mission) return;
-  const reserve = state.config.difficulty === 'cadet' ? 3 : state.config.difficulty === 'admiral' ? 1 : 2;
   const warships = mission.origin.orbitUnits.filter(ship => ship.faction === 'enemy' && !UNITS[ship.kind].capacity);
-  const escorts = warships.slice(0, Math.max(0, warships.length - reserve));
+  const escorts = warships.slice(0, Math.max(0, warships.length - enemyDefensiveReserve(warships.length, state.config.difficulty)));
   for (const carrier of mission.carriers) {
     if ((carrier.cargo?.length ?? 0) > 0) continue;
     const squad = mission.origin.groundUnits.find(unit => unit.faction === 'enemy');

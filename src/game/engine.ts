@@ -1740,7 +1740,7 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
   }
 }
 
-function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, advanceX: number, preferredId?: string, power = 1) {
+function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, advanceX: number, advanceWhenUnseen: boolean, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
   const visibleEnemies = enemies.filter(enemy => allies.some(observer => battleDistance(observer, enemy) <= groundUnitVisionRange(observer)));
   if (unit.landedTransport) {
@@ -1793,7 +1793,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   }
   const target = nearestBattleTarget(unit, visibleEnemies, preferredId);
   if (!target) {
-    moveBattleUnitToward(unit, advanceX, unit.battleY ?? 50, seconds, planetId);
+    if (advanceWhenUnseen) moveBattleUnitToward(unit, advanceX, unit.battleY ?? 50, seconds, planetId);
     return;
   }
   const distance = battleDistance(unit, target);
@@ -1985,9 +1985,10 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const participants = battlefieldFactions(combatantsBefore);
   const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
+  const advancesAutonomously = (unit: Unit) => unit.faction !== 'neutral' && state.aiFactions?.includes(unit.faction as EmpireFaction) === true;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, battle.planetId, 88, focus(unit), power(unit)));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, battle.planetId, 12, focus(unit), power(unit)));
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, battle.planetId, 88, advancesAutonomously(unit), focus(unit), power(unit)));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, battle.planetId, 12, advancesAutonomously(unit), focus(unit), power(unit)));
   protectGroundFormation(hits, battle.attackers);
   protectGroundFormation(hits, battle.defenders);
   const p = getPlanet(state, battle.planetId)!;

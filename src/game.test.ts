@@ -2275,13 +2275,16 @@ describe('transport and colonization', () => {
     const landedSquads = battle.attackers.filter(unit => !unit.landedTransport);
     expect(landedSquads.every(unit => !unit.battleHoldPosition)).toBe(true);
     const landingPositions = new Map(landedSquads.map(unit => [unit.id, { x: unit.battleX!, y: unit.battleY! }]));
-    const advancing = tick(landed, .25);
-    const advancingSquads = advancing.battles[0].attackers.filter(unit => !unit.landedTransport);
-    expect(advancingSquads.some(unit => {
+    const idle = tick(landed, .25);
+    const idleSquads = idle.battles[0].attackers.filter(unit => !unit.landedTransport);
+    expect(idleSquads.every(unit => {
       const start = landingPositions.get(unit.id)!;
-      return Math.hypot(unit.battleX! - start.x, unit.battleY! - start.y) > .01;
+      return Math.hypot(unit.battleX! - start.x, unit.battleY! - start.y) < .01;
     })).toBe(true);
-    const closedDistance = tick(advancing, 19.75);
+    expect(idleSquads.every(unit => !unit.battleHoldPosition)).toBe(true);
+    const ordered = applyGameCommand(idle, { type: 'battleManeuver', planetId: nyx.id, unitIds: idleSquads.map(unit => unit.id), battleX: 70, battleY: 50 });
+    expectOk(ordered);
+    const closedDistance = tick(ordered.state, 19.75);
     const underFire = tick(closedDistance, 1);
     expect(underFire.battles[0].attackers.some(unit => unit.shields < unit.maxShields)).toBe(true);
     expect(underFire.battles[0].defenders.find(unit => unit.kind === 'defenseTurret')?.battleX).toBe(88);
@@ -2476,12 +2479,13 @@ describe('positional ground combat', () => {
     id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields, battleX, battleY: 50,
   });
 
-  it('advances units without dealing damage until a target enters weapon range', () => {
+  it('keeps human units idle while AI units close distance without dealing damage', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'infantry', 'player', 12)], defenders: [combatUnit('d1', 'infantry', 'enemy', 88)] }];
     const advanced = tick(state, 1);
     const battle = advanced.battles[0];
-    expect(battle.attackers[0].battleX).toBeGreaterThan(12);
+    expect(battle.attackers[0].battleX).toBe(12);
+    expect(battle.attackers[0].battleHoldPosition).toBeUndefined();
     expect(battle.defenders[0].battleX).toBeLessThan(88);
     expect(battle.attackers[0].shields).toBe(UNITS.infantry.shields);
     expect(battle.defenders[0].shields).toBe(UNITS.infantry.shields);

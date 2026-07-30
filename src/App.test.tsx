@@ -487,7 +487,7 @@ describe('Galactic Empires interface', () => {
 
     const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;
     expect(canvas.style.width).toBe('19200px');
-    expect(canvas.style.height).toBe('8800px');
+    expect(canvas.style.height).toBe('12800px');
     expect(wholeMapZoom(640, 600, dimensions)).toBe(.033);
   });
 

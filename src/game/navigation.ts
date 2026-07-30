@@ -22,6 +22,19 @@ export const turnHeadingToward = (current: number, target: number, maximumTurn: 
 export const MAX_PHASE_LANE_DISTANCE = 42;
 export const STAR_PHASE_LANE_DISTANCE = 32;
 export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 3;
+export const PHASE_LANE_TARGET_DENSITY = 1.4;
+export const PHASE_LANE_MAX_DEGREE = 4;
+
+const laneRandomValue = (connection: PlanetConnection) => {
+  const systems = [connection.from, connection.to].sort((a, b) => a.id.localeCompare(b.id));
+  const key = systems.map(system => `${system.id}:${system.x.toFixed(4)},${system.y.toFixed(4)}`).join('|');
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+};
 
 export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHASE_LANE_DISTANCE): PlanetConnection[] {
   const candidates: PlanetConnection[] = [];
@@ -35,7 +48,12 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
       if (distance <= connectionRange) candidates.push({ from, to, distance });
     }
   }
-  candidates.sort((a, b) => a.distance - b.distance
+  const priority = new Map(candidates.map(connection => [
+    connection,
+    laneRandomValue(connection) + connection.distance / maxDistance * .15,
+  ]));
+  const randomizedCandidates = candidates.sort((a, b) =>
+    priority.get(a)! - priority.get(b)!
     || a.from.id.localeCompare(b.from.id)
     || a.to.id.localeCompare(b.to.id));
 
@@ -50,28 +68,43 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   const connections: PlanetConnection[] = [];
   const selected = new Set<string>();
   const connectionKey = (connection: PlanetConnection) => `${connection.from.id}:${connection.to.id}`;
-  for (const connection of candidates) {
+  const degree = new Map(planets.map(planet => [planet.id, 0]));
+  const addConnection = (connection: PlanetConnection) => {
+    connections.push(connection);
+    selected.add(connectionKey(connection));
+    degree.set(connection.from.id, degree.get(connection.from.id)! + 1);
+    degree.set(connection.to.id, degree.get(connection.to.id)! + 1);
+  };
+  for (const connection of randomizedCandidates) {
     const fromRoot = root(connection.from.id), toRoot = root(connection.to.id);
     if (fromRoot === toRoot) continue;
     parent.set(toRoot, fromRoot);
-    connections.push(connection);
-    selected.add(connectionKey(connection));
+    addConnection(connection);
   }
 
-  const nearestNeighbors = new Map(planets.map(planet => [planet.id, new Set<string>()]));
+  // Give branch tips another exit before adding a bounded set of seeded shortcuts.
   for (const planet of planets) {
-    candidates
-      .filter(connection => connection.from.id === planet.id || connection.to.id === planet.id)
-      .slice(0, MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT)
-      .forEach(connection => nearestNeighbors.get(planet.id)!.add(
-        connection.from.id === planet.id ? connection.to.id : connection.from.id,
-      ));
+    if (degree.get(planet.id)! >= 2) continue;
+    const connection = randomizedCandidates.find(candidate => {
+      if (selected.has(connectionKey(candidate))) return false;
+      const other = candidate.from.id === planet.id ? candidate.to
+        : candidate.to.id === planet.id ? candidate.from
+          : undefined;
+      return !!other && degree.get(other.id)! < PHASE_LANE_MAX_DEGREE;
+    });
+    if (connection) addConnection(connection);
   }
-  for (const connection of candidates) {
+
+  const targetCount = Math.min(
+    randomizedCandidates.length,
+    Math.ceil(planets.length * PHASE_LANE_TARGET_DENSITY),
+  );
+  for (const connection of randomizedCandidates) {
+    if (connections.length >= targetCount) break;
     if (selected.has(connectionKey(connection))
-      || !nearestNeighbors.get(connection.from.id)!.has(connection.to.id)
-      || !nearestNeighbors.get(connection.to.id)!.has(connection.from.id)) continue;
-    connections.push(connection);
+      || degree.get(connection.from.id)! >= PHASE_LANE_MAX_DEGREE
+      || degree.get(connection.to.id)! >= PHASE_LANE_MAX_DEGREE) continue;
+    addConnection(connection);
   }
   return connections.sort((a, b) => a.distance - b.distance
     || a.from.id.localeCompare(b.from.id)

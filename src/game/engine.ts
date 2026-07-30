@@ -359,46 +359,46 @@ const shuffle = <T,>(items: T[], random: () => number) => {
   }
   return result;
 };
-const ORGANIC_SYSTEM_ROW_COUNTS: Record<MapSize, number[]> = {
-  small: [2, 3, 2],
-  medium: [3, 5, 3],
-  large: [4, 7, 4],
-  huge: [3, 5, 5, 5, 3],
-  massive: [5, 7, 7, 7, 5],
-  galactic: [7, 10, 11, 10, 7],
-};
 const randomizeSystemPositions = (systems: Planet[], random: () => number, mapSize: MapSize) => {
   const { width, height } = galaxyCanvasDimensions(mapSize);
   const edgePadding = GRAVITY_WELL_RADIUS;
-  const usableWidth = width - edgePadding * 2;
-  const usableHeight = height - edgePadding * 2;
-  const rowCounts = ORGANIC_SYSTEM_ROW_COUNTS[mapSize];
-  const widestRow = Math.max(...rowCounts);
-  const horizontalStep = widestRow <= 1 ? 0 : Math.min(
-    (usableWidth - 400) / (widestRow - 1),
-    width * .24,
-  );
-  const verticalStep = rowCounts.length <= 1 ? 0 : Math.min(
-    (usableHeight - 240) / (rowCounts.length - 1),
-    height * .28,
-  );
-  const verticalJitter = Math.min(140, Math.max(0, (verticalStep - MIN_SYSTEM_CENTER_SEPARATION) * .4));
-  const widestRowSideRoom = Math.max(0, (usableWidth - (widestRow - 1) * horizontalStep) / 2);
-  const rowDrift = Math.min(120, widestRowSideRoom * .45);
-  const horizontalJitter = Math.min(
-    140,
-    Math.max(0, (horizontalStep - MIN_SYSTEM_CENTER_SEPARATION) * .4),
-    Math.max(0, widestRowSideRoom - rowDrift - 1),
-  );
-  const positions = rowCounts.flatMap((rowColumns, row) => {
-    const rowOffset = (random() - .5) * rowDrift * 2;
-    return Array.from({ length: rowColumns }, (_, column) => ({
-      x: width / 2 + rowOffset + (column - (rowColumns - 1) / 2) * horizontalStep
-        + (random() - .5) * horizontalJitter * 2,
-      y: height / 2 + (row - (rowCounts.length - 1) / 2) * verticalStep
-        + (random() - .5) * verticalJitter * 2,
-    }));
-  });
+  const branchReach = MIN_SYSTEM_CENTER_SEPARATION * 2;
+  let positions: Array<{ x: number; y: number }> = [];
+  for (let layoutAttempt = 0; layoutAttempt < 12 && positions.length < systems.length; layoutAttempt += 1) {
+    positions = [{
+      x: width / 2 + (random() - .5) * width * .12,
+      y: height / 2 + (random() - .5) * height * .12,
+    }];
+    while (positions.length < systems.length) {
+      let best: { x: number; y: number } | undefined;
+      let bestSeparation = -1;
+      for (let attempt = 0; attempt < 320; attempt += 1) {
+        const anchor = positions[Math.floor(random() * positions.length)];
+        const angle = random() * Math.PI * 2;
+        const distance = MIN_SYSTEM_CENTER_SEPARATION
+          + random() * (branchReach - MIN_SYSTEM_CENTER_SEPARATION);
+        const candidate = {
+          x: anchor.x + Math.cos(angle) * distance,
+          y: anchor.y + Math.sin(angle) * distance,
+        };
+        const branchLaneDistance = Math.hypot(
+          (candidate.x - anchor.x) / width * 100,
+          (candidate.y - anchor.y) / height * 100,
+        );
+        if (branchLaneDistance > 30) continue;
+        if (candidate.x < edgePadding || candidate.x > width - edgePadding
+          || candidate.y < edgePadding || candidate.y > height - edgePadding) continue;
+        const separation = Math.min(...positions.map(position =>
+          Math.hypot(position.x - candidate.x, position.y - candidate.y)));
+        if (separation < MIN_SYSTEM_CENTER_SEPARATION || separation <= bestSeparation) continue;
+        best = candidate;
+        bestSeparation = separation;
+      }
+      if (!best) break;
+      positions.push(best);
+    }
+  }
+  if (positions.length < systems.length) throw new Error(`Unable to scatter ${systems.length} systems on the ${mapSize} galaxy canvas`);
 
   shuffle(positions, random).forEach((position, index) => {
     const system = systems[index];

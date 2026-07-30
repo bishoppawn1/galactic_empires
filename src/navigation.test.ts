@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PHASE_LANE_DISTANCE,
-  MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT,
+  PHASE_LANE_TARGET_DENSITY,
   PHASE_TUNNEL_MIN_SECONDS,
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
   STAR_PHASE_LANE_DISTANCE,
@@ -25,8 +25,40 @@ describe('sparse phase-lane navigation', () => {
     expect(shortestHeadingDelta(10, 350)).toBe(-20);
   });
 
-  it('allows three mutual local neighbors without restoring every nearby lane', () => {
-    expect(MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT).toBe(3);
+  it('builds seeded branching networks with several alternate routes', () => {
+    expect(PHASE_LANE_TARGET_DENSITY).toBe(1.4);
+    const topologies = new Set<string>();
+    for (let mapSeed = 1; mapSeed <= 20; mapSeed += 1) {
+      const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed });
+      const connections = localPlanetConnections(state.planets);
+      const degree = new Map(state.planets.map(planet => [planet.id, 0]));
+      const nearest = new Map(state.planets.map(planet => {
+        const [closest] = state.planets
+          .filter(other => other.id !== planet.id)
+          .sort((a, b) => Math.hypot(a.x - planet.x, a.y - planet.y) - Math.hypot(b.x - planet.x, b.y - planet.y));
+        return [planet.id, closest.id];
+      }));
+      connections.forEach(connection => {
+        degree.set(connection.from.id, degree.get(connection.from.id)! + 1);
+        degree.set(connection.to.id, degree.get(connection.to.id)! + 1);
+      });
+      topologies.add(connections
+        .map(connection => [connection.from.id, connection.to.id].sort().join(':'))
+        .sort()
+        .join('|'));
+
+      expect(connections.length).toBeGreaterThan(state.planets.length);
+      expect(connections.some(connection =>
+        nearest.get(connection.from.id) !== connection.to.id
+        && nearest.get(connection.to.id) !== connection.from.id)).toBe(true);
+      expect([...degree.values()].filter(value => value >= 2).length).toBeGreaterThanOrEqual(
+        Math.floor(state.planets.length * .8),
+      );
+      expect([...degree.values()].filter(value => value >= 3).length).toBeGreaterThanOrEqual(
+        Math.floor(state.planets.length * .3),
+      );
+    }
+    expect(topologies.size).toBe(20);
   });
 
   it('keeps generated maps connected while removing redundant nearby lanes', () => {

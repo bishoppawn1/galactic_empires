@@ -14,10 +14,11 @@ export const RESOURCE_TRADE_MAX_SPEND = 1_000_000_000;
 export const GALAXY_CANVAS_WIDTH = 12800;
 export const GALAXY_CANVAS_HEIGHT = 8800;
 export const GALACTIC_GALAXY_CANVAS_WIDTH = 19200;
+export const EXPANDED_GALAXY_CANVAS_HEIGHT = 12800;
 export interface GalaxyCanvasDimensions { width: number; height: number }
 export const galaxyCanvasDimensions = (mapSize: MapSize): GalaxyCanvasDimensions => ({
   width: mapSize === 'galactic' ? GALACTIC_GALAXY_CANVAS_WIDTH : GALAXY_CANVAS_WIDTH,
-  height: GALAXY_CANVAS_HEIGHT,
+  height: ['huge', 'massive', 'galactic'].includes(mapSize) ? EXPANDED_GALAXY_CANVAS_HEIGHT : GALAXY_CANVAS_HEIGHT,
 });
 
 export const BUILDINGS: Record<BuildingKind, Definition> = {

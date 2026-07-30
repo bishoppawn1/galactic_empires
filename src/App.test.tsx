@@ -917,8 +917,15 @@ describe('Galactic Empires interface', () => {
     }
     for (const id of ['planetaryFortifications', 'heavyArmor', 'phaseMastery', 'shieldHarmonics', 'deepCoreExtraction', 'capitalShips', 'weaponsCalibration', 'titanEngineering']) {
       const node = document.querySelector(`[data-tech-id="${id}"]`) as HTMLElement;
-      expect(within(node).getByRole('button', { name: 'PREREQUISITE' })).toBeDisabled();
+      expect(within(node).getByRole('button', { name: 'PREREQUISITE NOT COMPLETED' })).toBeDisabled();
+      const footer = node.querySelector('.tech-node-footer') as HTMLElement;
+      expect(footer).toContainElement(within(node).getByRole('button', { name: 'PREREQUISITE NOT COMPLETED' }));
+      expect(footer.querySelector('em')).toHaveTextContent(/M|BIOMASS/);
+      expect(Array.from(node.children).indexOf(footer)).toBeGreaterThan(Array.from(node.children).indexOf(node.querySelector('.tech-unlocks')!));
     }
+    const carrierNode = document.querySelector('[data-tech-id="carrierOperations"]') as HTMLElement;
+    const shieldNode = document.querySelector('[data-tech-id="shieldHarmonics"]') as HTMLElement;
+    expect(parseFloat(carrierNode.style.top) + parseFloat(carrierNode.style.height)).toBeLessThanOrEqual(parseFloat(shieldNode.style.top));
   });
 
   it('enables Spore Migration for the Brood after Evolved Industry', () => {

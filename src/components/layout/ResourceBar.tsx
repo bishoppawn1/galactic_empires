@@ -34,7 +34,6 @@ export function ResourceBar({ state, view, onViewChange, act }: { state: GameSta
         </div>
       </>}
     </div>
-    <div className="cycle">CYCLE {Math.floor(state.elapsed / 60) + 1}<small>{Math.floor(state.elapsed % 60).toString().padStart(2, '0')}:{Math.floor((state.elapsed * 10) % 10)}0</small></div>
   </div>;
 }
 

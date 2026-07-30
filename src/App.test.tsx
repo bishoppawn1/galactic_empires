@@ -36,6 +36,17 @@ describe('Galactic Empires interface', () => {
     vi.stubGlobal('confirm', () => true);
   });
 
+  it('omits the cycle clock from the top resource bar', () => {
+    const state = createInitialState();
+    state.elapsed = 127.4;
+    saveState(state);
+    render(<App />);
+
+    expect(document.querySelector('.resource-bar')).toBeInTheDocument();
+    expect(document.querySelector('.cycle')).not.toBeInTheDocument();
+    expect(screen.queryByText(/CYCLE \d+/)).not.toBeInTheDocument();
+  });
+
   it('opens with campaign size and enemy difficulty controls when no save exists', () => {
     localStorage.clear();
     render(<App />);

@@ -19,6 +19,7 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 ## Resources
 
+- The top command bar shows the empire identity, Galaxy and Research navigation, resource balances, collection rates, and mineral trading controls. It does not display the internal simulation cycle or elapsed time.
 - Metal, Crystal, and Gold are global stockpiles for the Human Coalition, Aegis Directorate, and Iron Covenant.
 - The Brood replaces all three mineral stockpiles and costs with Biomass. It cannot construct mineral mines.
 - Every Brood-controlled planet naturally produces 4 Biomass per second. Quantum Extraction increases that planetary output by 25 percent.

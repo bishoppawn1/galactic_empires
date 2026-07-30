@@ -37,8 +37,6 @@ button { color: inherit; }
 .trade-options button { min-height: 38px; padding: 7px; border: 1px solid #31514e; background: #0c1c20; color: #c6ddd9; font: 600 10px 'Barlow Condensed'; letter-spacing: .06em; cursor: pointer; }
 .trade-options button:hover:not(:disabled) { border-color: var(--cyan); background: #15302f; color: white; }
 .trade-options button:disabled { border-color: #263036; background: #0a1015; color: #4d5960; cursor: not-allowed; }
-.cycle { flex: 0 0 155px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; color: #6f7c88; font: 600 10px Inter; letter-spacing: .17em; }
-.cycle small { font: 600 19px 'Barlow Condensed'; color: #d9e1e5; letter-spacing: .08em; }
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(600px, 1fr) 430px; }
 .galaxy { overflow: hidden; position: relative; background: #020307; }
 .galaxy-scroll { position: absolute; inset: 0; overflow: auto; scrollbar-width: none; }
@@ -289,7 +287,7 @@ button { color: inherit; }
 @media (max-height: 740px) { .planet-header { padding: 10px 18px; }.mini-planet { width: 54px; height: 54px; }.planet-header h1 { font-size: 23px; }.tabs { flex-basis: 40px; }.panel-scroll section { padding: 16px 20px; } }
 
 /* Readability pass: compact interface labels should remain legible at normal zoom. */
-.empire-tabs button, .resource small, .resource em, .cycle, .phase-gate, .faction-badge,
+.empire-tabs button, .resource small, .resource em, .phase-gate, .faction-badge,
 .planet-status, .orbit-count, .fleet-command-hint, .map-key, .zoom-controls output, .map-pan-hint, .whole-map-button,
 .planet-header small, .section-title small, .tabs button, .panel h3, .stat small,
 .deposit, .deposit b, .intel b, .card-copy small, .card-copy em, .build-card button,

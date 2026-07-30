@@ -30,9 +30,10 @@ export const groundBattleFitZoom = (viewportWidth: number, viewportHeight: numbe
   Math.floor(Math.min(viewportWidth / GROUND_BATTLEFIELD_WIDTH, viewportHeight / GROUND_BATTLEFIELD_HEIGHT) * 1000) / 1000,
 ));
 
-export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, onExit }: {
+export function GroundBattleView({ state, battle, movementSmoothingMs = 0, onFocus, onManeuver, onHold, onExit }: {
   state: GameState;
   battle: GroundBattle;
+  movementSmoothingMs?: number;
   onFocus: (planetId: string, targetId: string) => void;
   onManeuver: (planetId: string, unitIds: string[], battleX: number, battleY: number, forceMove: boolean) => void;
   onHold: (planetId: string, unitIds: string[]) => void;
@@ -187,7 +188,11 @@ export function GroundBattleView({ state, battle, onFocus, onManeuver, onHold, o
     const title = unit.landedTransport ? 'Stationary landed transport · cannot attack or receive movement orders' : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description;
     return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !friendly ? battle.focusTargetId === unit.id : undefined} title={`${title}${inForest ? ' · Forest cover reduces incoming damage by 30%' : ''}`} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${inForest ? 'in-forest' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${inForest ? ' · COVER' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED` : definition.label}${inForest ? ' · COVER' : ''}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
   };
-  return <div className="battlefield">
+  return <div
+    className={movementSmoothingMs ? 'battlefield network-smoothed' : 'battlefield'}
+    data-movement-smoothing-ms={movementSmoothingMs}
+    style={{ '--movement-smoothing': `${movementSmoothingMs || 110}ms` } as React.CSSProperties}
+  >
     <button className="back-arrow" onClick={onExit} aria-label="Return to galaxy">←</button>
     <div className="battle-hud"><small>GROUND ENGAGEMENT // {planet.name.toUpperCase()}</small><b>{friendlyUnits.length} FRIENDLY <span>VS</span> {visibleHostiles.length} CONTACT{visibleHostiles.length === 1 ? '' : 'S'}</b><p>Right-click to attack-move · double right-click to force movement · H to hold. Rocks block movement · Forests grant 30% cover · Sight reveals contacts.</p>{playerOrbitalSupport && <em>{playerShips.length} SHIP{playerShips.length === 1 ? '' : 'S'} PROVIDING ORBITAL FIRE · {playerShips.length} DAMAGE/S</em>}{activeDefenses > 0 && <em>{activeDefenses} FORTIFIED DEFENSE{activeDefenses === 1 ? '' : 'S'} ONLINE</em>}</div>
     <div className="battle-scroll" ref={scrollRef} aria-label="Scrollable ground battlefield">

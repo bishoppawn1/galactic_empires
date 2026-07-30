@@ -11,7 +11,7 @@ import { ResourceBar } from '../components/layout/ResourceBar';
 import { PlanetPanel } from '../components/planet/PlanetPanel';
 import { ResearchView } from '../components/research/ResearchView';
 import {
-  hostMultiplayer, joinMultiplayer, matchSlotsForLobby,
+  GUEST_STATE_TRANSITION_MS, hostMultiplayer, joinMultiplayer, matchSlotsForLobby,
   type LobbySnapshot, type MultiplayerController,
 } from './multiplayer';
 import { LEGACY_SAVE_KEY, SAVE_KEY, loadGame } from './storage';
@@ -198,6 +198,9 @@ export default function App() {
   />;
 
   const presentedState = visibleState!;
+  const guestMovementSmoothingMs = controllerRef.current && !controllerRef.current.isHost
+    ? GUEST_STATE_TRANSITION_MS
+    : 0;
   const planet = presentedState.planets.find(candidate => candidate.id === selectedId) ?? presentedState.planets[0];
   const selectPlanet = (id: string) => {
     setSelectedYardIds([]);
@@ -232,10 +235,10 @@ export default function App() {
   };
 
   const changeView = (nextView: EmpireView) => { setView(nextView); if (nextView !== 'galaxy') setBattleId(undefined); };
-  if (battle) return <><ResourceBar state={presentedState} view="galaxy" onViewChange={changeView} act={issue} /><GroundBattleView state={presentedState} battle={battle} onFocus={(planetId, targetId) => issue({ type: 'battleFocus', planetId, targetId })} onManeuver={(planetId, unitIds, battleX, battleY, forceMove) => issue({ type: 'battleManeuver', planetId, unitIds, battleX, battleY, forceMove })} onHold={(planetId, unitIds) => issue({ type: 'battleHold', planetId, unitIds })} onExit={() => setBattleId(undefined)} /></>;
+  if (battle) return <><ResourceBar state={presentedState} view="galaxy" onViewChange={changeView} act={issue} /><GroundBattleView state={presentedState} battle={battle} movementSmoothingMs={guestMovementSmoothingMs} onFocus={(planetId, targetId) => issue({ type: 'battleFocus', planetId, targetId })} onManeuver={(planetId, unitIds, battleX, battleY, forceMove) => issue({ type: 'battleManeuver', planetId, unitIds, battleX, battleY, forceMove })} onHold={(planetId, unitIds) => issue({ type: 'battleHold', planetId, unitIds })} onExit={() => setBattleId(undefined)} /></>;
   return <div className="app-shell">
     <ResourceBar state={presentedState} view={view} onViewChange={changeView} act={issue} />
-    {view === 'galaxy' ? <div className="workspace"><GalaxyMap state={presentedState} selectedId={planet.id} selectedShipIds={selectedShipIds} selectedYardIds={selectedYardIds} zoom={galaxyZoom} onZoomChange={setGalaxyZoom} onSelect={selectPlanet} onOrderToPlanet={orderShipsToPlanet} onSelectShip={selectShip} onSelectSpaceYard={(planetId, yardId, additive) => { setSelectedId(planetId); setSelectedShipIds([]); setSelectedYardIds(current => { const samePlanet = current.every(id => spaceYards(presentedState.planets.find(candidate => candidate.id === planetId)!).some(yard => yard.id === id)); return additive && samePlanet ? (current.includes(yardId) ? current.filter(id => id !== yardId) : [...current, yardId]) : (current.length === 1 && current[0] === yardId ? [] : [yardId]); }); setProductionFocus('space'); setTab('forces'); }} onGroupSelect={ids => { setSelectedYardIds([]); setSelectedShipIds(ids); }} onManeuver={(planetId, x, y) => issue({ type: 'maneuver', planetId, unitIds: selectedShipIds, orbitX: x, orbitY: y })} onTargetDefense={(planetId, defenseId) => issue({ type: 'orbitFocus', planetId, targetId: defenseId })} /><PlanetPanel state={presentedState} planet={planet} tab={tab} setTab={changeTab} productionFocus={productionFocus} selectedYardIds={selectedYardIds} act={issue} onBattle={() => setBattleId(planet.id)} /></div> : <ResearchView state={presentedState} act={issue} />}
+    {view === 'galaxy' ? <div className="workspace"><GalaxyMap state={presentedState} selectedId={planet.id} selectedShipIds={selectedShipIds} selectedYardIds={selectedYardIds} zoom={galaxyZoom} movementSmoothingMs={guestMovementSmoothingMs} onZoomChange={setGalaxyZoom} onSelect={selectPlanet} onOrderToPlanet={orderShipsToPlanet} onSelectShip={selectShip} onSelectSpaceYard={(planetId, yardId, additive) => { setSelectedId(planetId); setSelectedShipIds([]); setSelectedYardIds(current => { const samePlanet = current.every(id => spaceYards(presentedState.planets.find(candidate => candidate.id === planetId)!).some(yard => yard.id === id)); return additive && samePlanet ? (current.includes(yardId) ? current.filter(id => id !== yardId) : [...current, yardId]) : (current.length === 1 && current[0] === yardId ? [] : [yardId]); }); setProductionFocus('space'); setTab('forces'); }} onGroupSelect={ids => { setSelectedYardIds([]); setSelectedShipIds(ids); }} onManeuver={(planetId, x, y) => issue({ type: 'maneuver', planetId, unitIds: selectedShipIds, orbitX: x, orbitY: y })} onTargetDefense={(planetId, defenseId) => issue({ type: 'orbitFocus', planetId, targetId: defenseId })} /><PlanetPanel state={presentedState} planet={planet} tab={tab} setTab={changeTab} productionFocus={productionFocus} selectedYardIds={selectedYardIds} act={issue} onBattle={() => setBattleId(planet.id)} /></div> : <ResearchView state={presentedState} act={issue} />}
     <footer className="command-log"><b>COMMAND LOG</b><div>{presentedState.messages[0]}</div>{controllerRef.current && <span className="multiplayer-status">FREE-FOR-ALL · EMPIRE {['player', 'enemy', 'rival2', 'rival3'].indexOf(controllerRef.current.faction) + 1} · {controllerRef.current.code}</span>}{alerts > 0 && <span className="alert-count">{alerts} ACTIVE CONFLICT{alerts > 1 ? 'S' : ''}</span>}<button onClick={reset}>{controllerRef.current ? 'LEAVE GAME' : 'RESET CAMPAIGN'}</button></footer>
     {toast && <div className="toast">{toast}</div>}
   </div>;

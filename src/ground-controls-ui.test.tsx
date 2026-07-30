@@ -29,11 +29,16 @@ describe('ground battle command gestures', () => {
     const view = render(<GroundBattleView
       state={state}
       battle={battle}
+      movementSmoothingMs={320}
       onFocus={vi.fn()}
       onManeuver={onManeuver}
       onHold={onHold}
       onExit={vi.fn()}
     />);
+    const battlefield = view.container.querySelector('.battlefield') as HTMLDivElement;
+    expect(battlefield).toHaveClass('network-smoothed');
+    expect(battlefield).toHaveAttribute('data-movement-smoothing-ms', '320');
+    expect(battlefield.style.getPropertyValue('--movement-smoothing')).toBe('320ms');
 
     fireEvent.click(screen.getByRole('button', { name: 'Select Infantry selected-squad' }));
     fireEvent.keyDown(window, { code: 'KeyH', key: 'h' });

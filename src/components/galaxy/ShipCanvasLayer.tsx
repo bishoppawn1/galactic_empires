@@ -112,8 +112,9 @@ const drawStrategicMarker = (context: CanvasRenderingContext2D, ship: CanvasShip
   }
 };
 
-export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number; selectedShipIds: string[] }) {
+export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds, movementSmoothingMs = 0 }: { state: GameState; bounds?: GalaxyViewportBounds; zoom: number; selectedShipIds: string[]; movementSmoothingMs?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const displayedShipsRef = useRef(new Map<string, Pick<CanvasShip, 'x' | 'y' | 'heading'>>());
   const ships = useMemo(() => {
     const dimensions = galaxyCanvasDimensions(state.config.mapSize);
     const orbiting = state.planets.flatMap(planet => visibleOrbitUnits(planet).flatMap((ship, index) => {
@@ -147,26 +148,47 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
     context.setTransform(pixelScale, 0, 0, pixelScale, 0, 0);
     context.clearRect(0, 0, width, height);
     let active = true;
+    let animationFrame = 0;
+    const startedAt = performance.now();
+    const previousShips = new Map(displayedShipsRef.current);
     const selectedIds = new Set(selectedShipIds);
 
-    const draw = () => {
+    const draw = (now = performance.now()) => {
       if (!active) return;
+      animationFrame = 0;
+      const progress = movementSmoothingMs > 0
+        ? Math.min(1, Math.max(0, (now - startedAt) / movementSmoothingMs))
+        : 1;
+      const displayedShips = new Map<string, Pick<CanvasShip, 'x' | 'y' | 'heading'>>();
       context.clearRect(0, 0, width, height);
       for (const ship of ships) {
+        const previous = previousShips.get(ship.id) ?? ship;
+        const headingDelta = (ship.heading - previous.heading + 540) % 360 - 180;
+        const displayed = {
+          x: previous.x + (ship.x - previous.x) * progress,
+          y: previous.y + (ship.y - previous.y) * progress,
+          heading: previous.heading + headingDelta * progress,
+        };
+        displayedShips.set(ship.id, displayed);
         const selected = selectedIds.has(ship.id);
         if (usesStrategicShipMarkers(zoom)) {
           context.save();
-          context.translate(ship.x - bounds.left, ship.y - bounds.top);
+          context.translate(displayed.x - bounds.left, displayed.y - bounds.top);
           drawStrategicMarker(context, ship, zoom, selected);
           context.restore();
           continue;
         }
         const image = cachedShipImage(ship.kind);
-        if (!image.complete) { image.onload = draw; continue; }
+        if (!image.complete) {
+          image.onload = () => {
+            if (active && performance.now() - startedAt >= movementSmoothingMs) draw();
+          };
+          continue;
+        }
         const size = shipDisplaySize(ship.kind);
         context.save();
-        context.translate(ship.x - bounds.left, ship.y - bounds.top);
-        context.rotate(ship.heading * Math.PI / 180);
+        context.translate(displayed.x - bounds.left, displayed.y - bounds.top);
+        context.rotate(displayed.heading * Math.PI / 180);
         context.globalAlpha = ship.charging ? .72 : .9;
         context.drawImage(image, -size / 2, -size / 2, size, size);
         if (selected) {
@@ -179,13 +201,18 @@ export function ShipCanvasLayer({ state, bounds, zoom, selectedShipIds }: { stat
         }
         context.restore();
       }
+      displayedShipsRef.current = displayedShips;
+      if (progress < 1) animationFrame = window.requestAnimationFrame(draw);
     };
     draw();
-    return () => { active = false; };
-  }, [bounds, selectedShipIds, ships, zoom]);
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [bounds, movementSmoothingMs, selectedShipIds, ships, zoom]);
 
   const style = bounds ? { left: bounds.left, top: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top } : undefined;
   const selectedIds = new Set(selectedShipIds);
   const strategicMarkers = usesStrategicShipMarkers(zoom);
-  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-selected-ship-count={ships.filter(ship => selectedIds.has(ship.id)).length} data-transit-count={state.fleets.length} data-marker-mode={strategicMarkers ? 'strategic' : 'artwork'} data-tier-one-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 1).length : 0} data-tier-two-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 2).length : 0} data-tier-three-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 3).length : 0} aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="ship-canvas-layer" style={style} data-ship-count={ships.length} data-selected-ship-count={ships.filter(ship => selectedIds.has(ship.id)).length} data-transit-count={state.fleets.length} data-marker-mode={strategicMarkers ? 'strategic' : 'artwork'} data-movement-smoothing-ms={movementSmoothingMs} data-tier-one-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 1).length : 0} data-tier-two-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 2).length : 0} data-tier-three-marker-count={strategicMarkers ? ships.filter(ship => strategicShipMarkerInfo(ship.kind).tier === 3).length : 0} aria-hidden="true" />;
 }

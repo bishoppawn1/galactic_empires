@@ -9,6 +9,7 @@ const PEER_PREFIX = 'galactic-empires-';
 export const MAX_PLAYERS = 4;
 export const MULTIPLAYER_SERIALIZATION = 'binary';
 export const STATE_SYNC_INTERVAL_MS = 250;
+export const GUEST_STATE_TRANSITION_MS = 320;
 export const MAX_BUFFERED_STATE_MESSAGES = 2;
 export const PEER_OPEN_TIMEOUT_MS = 10000;
 
@@ -22,6 +23,33 @@ export function prepareIncomingState(payload: unknown): GameState | undefined {
     return undefined;
   }
 }
+
+const isIncomingSnapshot = (payload: unknown): payload is GameState => {
+  if (!payload || typeof payload !== 'object') return false;
+  const state = payload as Partial<GameState>;
+  return state.mode === 'competitive'
+    && !!state.config
+    && typeof state.config === 'object'
+    && Array.isArray(state.planets)
+    && state.planets.length > 0
+    && state.planets.every(planet => !!planet
+      && typeof planet.id === 'string'
+      && typeof planet.x === 'number'
+      && Number.isFinite(planet.x)
+      && typeof planet.y === 'number'
+      && Number.isFinite(planet.y)
+      && Array.isArray(planet.buildings)
+      && Array.isArray(planet.groundUnits)
+      && Array.isArray(planet.orbitUnits))
+    && Array.isArray(state.fleets)
+    && Array.isArray(state.battles)
+    && Array.isArray(state.messages)
+    && typeof state.elapsed === 'number'
+    && Number.isFinite(state.elapsed);
+};
+
+export const prepareIncomingSnapshot = (payload: unknown): GameState | undefined =>
+  isIncomingSnapshot(payload) ? payload : undefined;
 
 export const prepareOutgoingCommand = (command: GameCommand): GameCommand => Object.fromEntries(
   Object.entries(command).filter(([, value]) => value !== undefined),
@@ -223,7 +251,9 @@ export async function joinMultiplayer(rawCode: string, civilization: PlayableFac
       callbacks.onLobby(message.lobby);
     }
     else if (message?.type === 'start' || message?.type === 'state') {
-      const state = prepareIncomingState(message.state);
+      const state = message.type === 'start'
+        ? prepareIncomingState(message.state)
+        : prepareIncomingSnapshot(message.state);
       if (!state) { callbacks.onError('The host sent an invalid campaign snapshot.'); return; }
       if (message.type === 'start') callbacks.onStart(state);
       else callbacks.onState(state);

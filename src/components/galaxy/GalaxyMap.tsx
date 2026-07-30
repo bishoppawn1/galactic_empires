@@ -46,9 +46,10 @@ function ShipMapStatusBars({ ship, visible }: { ship: Unit; visible: boolean }) 
 export const wholeMapZoom = (viewportWidth: number, viewportHeight: number, dimensions: GalaxyCanvasDimensions = DEFAULT_GALAXY_CANVAS_DIMENSIONS) => Math.max(MIN_MAP_ZOOM,
   Math.floor(Math.min(viewportWidth / dimensions.width, viewportHeight / dimensions.height) * 1000) / 1000);
 
-export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
+export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, movementSmoothingMs = 0, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense }: {
   state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
   zoom?: number; onZoomChange?: (zoom: number) => void;
+  movementSmoothingMs?: number;
   onOrderToPlanet: (id: string) => void;
   onSelectShip: (planetId: string, unitId: string, additive: boolean) => void; onGroupSelect: (ids: string[]) => void;
   onSelectSpaceYard: (planetId: string, yardId: string, additive: boolean) => void;
@@ -190,7 +191,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
     setCamera(DEFAULT_GALAXY_CAMERA);
     cameraDragRef.current = undefined;
   };
-  return <main className={`galaxy ${camera3D ? 'view-3d' : 'view-2d'} ${strategicShipMarkers ? 'strategic-ship-markers' : ''} ${largeFleetRendering ? 'large-fleet-rendering' : ''} ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" data-large-fleet-rendering={largeFleetRendering} data-strategic-ship-markers={strategicShipMarkers}>
+  return <main className={`galaxy ${camera3D ? 'view-3d' : 'view-2d'} ${movementSmoothingMs ? 'network-smoothed' : ''} ${strategicShipMarkers ? 'strategic-ship-markers' : ''} ${largeFleetRendering ? 'large-fleet-rendering' : ''} ${selectedOrigin ? 'issuing-order' : ''} ${selectedYardIds.length ? 'selecting-yards' : ''}`} aria-label="Galaxy map" data-large-fleet-rendering={largeFleetRendering} data-strategic-ship-markers={strategicShipMarkers} data-movement-smoothing-ms={movementSmoothingMs} style={{ '--movement-smoothing': `${movementSmoothingMs || 110}ms` } as React.CSSProperties}>
     <div className="galaxy-scroll" ref={scrollRef}>
       <div className="galaxy-canvas" style={{
         width: dimensions.width,
@@ -272,7 +273,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             left: `${p.x}%`, top: `${p.y}%`, width: GRAVITY_WELL_RADIUS * 2, height: GRAVITY_WELL_RADIUS * 2,
           }} />
           : [])}
-        {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} />}
+        {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} movementSmoothingMs={movementSmoothingMs} />}
         <ShipExplosionLayer state={state} />
         <svg className="orbital-fire" viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} preserveAspectRatio="none" aria-hidden="true">
           {effectPlanets.flatMap(p => {

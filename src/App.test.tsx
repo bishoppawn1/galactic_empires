@@ -530,6 +530,17 @@ describe('Galactic Empires interface', () => {
     expect(canvas).toHaveClass('galaxy-canvas');
   });
 
+  it('extends ship and canvas interpolation across multiplayer guest snapshots', () => {
+    const state = createInitialState();
+    render(<GalaxyMap state={state} selectedId={state.planets[0].id} selectedShipIds={[]} selectedYardIds={[]} movementSmoothingMs={320} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    const galaxy = screen.getByRole('main', { name: 'Galaxy map' });
+    expect(galaxy).toHaveClass('network-smoothed');
+    expect(galaxy).toHaveAttribute('data-movement-smoothing-ms', '320');
+    expect(galaxy.style.getPropertyValue('--movement-smoothing')).toBe('320ms');
+    expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-movement-smoothing-ms', '320');
+  });
+
   it('calculates whole-map zoom from both viewport dimensions', () => {
     expect(wholeMapZoom(640, 600)).toBe(.05);
     expect(wholeMapZoom(1_000, 440)).toBe(.05);

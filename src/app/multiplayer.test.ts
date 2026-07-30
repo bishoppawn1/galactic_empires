@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   canSendStateUpdate,
+  GUEST_STATE_TRANSITION_MS,
   MAX_PLAYERS,
   MAX_BUFFERED_STATE_MESSAGES,
   MULTIPLAYER_SERIALIZATION,
   matchSlotsForLobby,
   PEER_OPEN_TIMEOUT_MS,
   prepareIncomingState,
+  prepareIncomingSnapshot,
   prepareOutgoingCommand,
   STATE_SYNC_INTERVAL_MS,
 } from './multiplayer';
@@ -20,6 +22,7 @@ describe('multiplayer state transport', () => {
 
   it('limits full-state synchronization to four updates per second', () => {
     expect(STATE_SYNC_INTERVAL_MS).toBe(250);
+    expect(GUEST_STATE_TRANSITION_MS).toBeGreaterThan(STATE_SYNC_INTERVAL_MS);
     expect(canSendStateUpdate(1000, 1249)).toBe(false);
     expect(canSendStateUpdate(1000, 1250)).toBe(true);
   });
@@ -39,6 +42,13 @@ describe('multiplayer state transport', () => {
     expect(rival.planets.find(planet => planet.id === 'cygnus')?.owner).toBe('player');
     expect(prepareIncomingState({ planets: [] })).toBeUndefined();
     expect(prepareIncomingState(null)).toBeUndefined();
+  });
+
+  it('installs current authoritative updates without cloning and remigrating the full match', () => {
+    const current = viewStateForFaction(createCompetitiveState({ mapSize: 'small', difficulty: 'commander' }), 'enemy');
+    expect(prepareIncomingSnapshot(current)).toBe(current);
+    expect(prepareIncomingSnapshot({ ...current, elapsed: Number.NaN })).toBeUndefined();
+    expect(prepareIncomingSnapshot({ ...current, planets: [] })).toBeUndefined();
   });
 
   it('marks every guest empire ship as local before client-side viewport culling', () => {

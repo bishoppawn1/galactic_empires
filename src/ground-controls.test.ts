@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COALITION_GROUND_KINDS, BROOD_GROUND_KINDS, AEGIS_GROUND_KINDS, COVENANT_GROUND_KINDS, createInitialState, evacuateGroundTransports, groundPositionBlocked, groundUnitVisionRange, holdGroundUnits, isFlyingGroundUnit, isGameCommand, loadGroundTransport, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
+import { COALITION_GROUND_KINDS, BROOD_GROUND_KINDS, AEGIS_GROUND_KINDS, COVENANT_GROUND_KINDS, createInitialState, evacuateGroundTransports, groundFormationAliveCount, groundFormationSize, groundPositionBlocked, groundUnitVisionRange, holdGroundUnits, isFlyingGroundUnit, isGameCommand, loadGroundTransport, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
 
 const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy', battleX: number): Unit => ({
   id,
@@ -31,6 +31,58 @@ describe('manual ground controls', () => {
     expect(flyingRoster(AEGIS_GROUND_KINDS)).toEqual(['aegisSeraphSkimmer', 'aegisHaloGunship']);
     expect(flyingRoster(COVENANT_GROUND_KINDS)).toEqual(['covenantWaspDrone', 'covenantFurnaceGunship']);
     expect(groundUnitVisionRange(combatUnit('scout', 'dragonflyScout', 'player', 10))).toBeGreaterThan(groundUnitVisionRange(combatUnit('gunship', 'falconGunship', 'player', 10)));
+  });
+
+  it('groups ground forces into eight-, four-, two-, and one-model formations', () => {
+    expect(groundFormationSize('infantry')).toBe(8);
+    expect(groundFormationSize('broodling')).toBe(8);
+    expect(groundFormationSize('lightTank')).toBe(4);
+    expect(groundFormationSize('aegisRampartArtillery')).toBe(4);
+    expect(groundFormationSize('siegeWalker')).toBe(2);
+    expect(groundFormationSize('covenantJuggernaut')).toBe(2);
+    expect(groundFormationSize('defenseTurret')).toBe(1);
+    expect(groundFormationSize('transport')).toBe(1);
+  });
+
+  it('shares shields but assigns hull damage to one deterministic formation member', () => {
+    const battleState = (shields: number) => {
+      const state = createInitialState();
+      const target = { ...combatUnit('target', 'dragonflyScout', 'enemy', 60), shields, maxShields: shields, weaponCooldown: 999 };
+      state.battles = [{
+        planetId: 'draven',
+        attackers: [{ ...combatUnit('walker', 'siegeWalker', 'player', 40), weaponCooldown: 0 }],
+        defenders: [target],
+        focusTargetId: target.id,
+      }];
+      return tick(state, .1).battles[0].defenders[0];
+    };
+
+    const shielded = battleState(10);
+    expect(shielded.shields).toBe(0);
+    expect(shielded.memberHp).toHaveLength(4);
+    expect(shielded.memberHp!.filter(hp => hp < shielded.maxHp / 4)).toHaveLength(1);
+    expect(shielded.hp).toBeCloseTo(99);
+    expect(groundFormationAliveCount(shielded)).toBe(4);
+
+    const exposed = battleState(0);
+    expect(exposed.memberHp).toEqual(battleState(0).memberHp);
+    expect(exposed.hp).toBeCloseTo(90);
+    expect(groundFormationAliveCount(exposed)).toBe(3);
+  });
+
+  it('reduces battalion firepower as individual members are lost', () => {
+    const shieldLoss = (memberHp?: number[]) => {
+      const state = createInitialState();
+      const tank = { ...combatUnit('tank', 'lightTank', 'player', 40), weaponCooldown: 0, ...(memberHp ? { memberHp, hp: memberHp.reduce((total, hp) => total + hp, 0) } : {}) };
+      const target = { ...combatUnit('target', 'dragonflyScout', 'enemy', 50), weaponCooldown: 999 };
+      state.battles = [{ planetId: 'draven', attackers: [tank], defenders: [target], focusTargetId: target.id }];
+      const damaged = tick(state, .1).battles[0].defenders[0];
+      return target.shields - damaged.shields;
+    };
+
+    const memberMaximum = UNITS.lightTank.hp / 4;
+    expect(shieldLoss()).toBeCloseTo(UNITS.lightTank.weapon.damage);
+    expect(shieldLoss([0, memberMaximum, memberMaximum, memberMaximum])).toBeCloseTo(UNITS.lightTank.weapon.damage * .75);
   });
 
   it('moves ground units at half their defined tactical speed', () => {

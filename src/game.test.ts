@@ -609,7 +609,7 @@ describe('starter faction foundations', () => {
     state.battles = [{ planetId: 'draven', attackers: [rampart], defenders: [moving], focusTargetId: moving.id }];
     const advanced = tick(state, .1).battles[0];
     const movedTarget = advanced.defenders.find(unit => unit.id === moving.id)!;
-    expect(moving.hp + moving.shields - movedTarget.hp - movedTarget.shields).toBeCloseTo(28 * 1.75);
+    expect(moving.hp + moving.shields - movedTarget.hp - movedTarget.shields).toBeCloseTo(moving.shields + moving.maxHp / 8);
 
     const splashState = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     splashState.enemyActionClock = 9999; splashState.enemyAttackClock = 9999;

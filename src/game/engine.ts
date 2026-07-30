@@ -45,6 +45,9 @@ import {
 } from './ground/collision';
 import { GROUND_UNIT_MOVEMENT_SPEED_SCALE } from './ground/constants';
 import {
+  groundFormationMemberHealth, groundFormationSize, groundFormationStrength,
+} from './ground/formations';
+import {
   GROUND_FOREST_DAMAGE_MULTIPLIER, groundForestAtPosition, groundTerrainMovementStep,
 } from './ground/terrain';
 import {
@@ -68,6 +71,7 @@ export * from './navigation';
 export * from './definitions';
 export * from './factions';
 export * from './ground/collision';
+export * from './ground/formations';
 export * from './ground/terrain';
 
 export const carrierFighterCount = (ship: Unit) => {
@@ -78,6 +82,9 @@ export const carrierFighterCount = (ship: Unit) => {
 const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp,
   shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
+  ...(UNITS[kind].factory === 'ground' && groundFormationSize(kind) > 1
+    ? { memberHp: Array.from({ length: groundFormationSize(kind) }, () => UNITS[kind].hp / groundFormationSize(kind)), groundDamageSequence: 0 }
+    : {}),
   ...(UNITS[kind].capacity || kind === 'transport' ? { loadedUnitIds: [] } : {}),
   ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0, fighterDamage: 0 } : {}),
   ...(isTitanKind(kind) ? { titanUpgrades: [] } : {}),
@@ -720,6 +727,16 @@ export function migrateGameState(input: GameState): GameState {
       }
     } else {
       delete savedUnit.titanUpgrades;
+    }
+    if (UNITS[savedUnit.kind].factory === 'ground' && groundFormationSize(savedUnit.kind) > 1) {
+      savedUnit.memberHp = groundFormationMemberHealth(savedUnit);
+      savedUnit.hp = savedUnit.memberHp.reduce((total, hp) => total + hp, 0);
+      savedUnit.groundDamageSequence = Number.isSafeInteger(savedUnit.groundDamageSequence) && savedUnit.groundDamageSequence! >= 0
+        ? savedUnit.groundDamageSequence
+        : 0;
+    } else {
+      delete savedUnit.memberHp;
+      delete savedUnit.groundDamageSequence;
     }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
@@ -1437,6 +1454,10 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
 export function recoverGroundUnits(units: Unit[]): Unit[] {
   return units.map(unit => {
     const restored = { ...unit, hp: unit.maxHp, shields: unit.maxShields };
+    if (UNITS[unit.kind].factory === 'ground' && groundFormationSize(unit.kind) > 1) {
+      restored.memberHp = Array.from({ length: groundFormationSize(unit.kind) }, () => unit.maxHp / groundFormationSize(unit.kind));
+      restored.groundDamageSequence = 0;
+    }
     delete restored.battleX; delete restored.battleY;
     delete restored.weaponCooldown; delete restored.weaponFlash;
     delete restored.weaponCooldowns; delete restored.weaponFlashes;
@@ -1647,17 +1668,70 @@ const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number,
   unit.battleY = clamped.battleY;
 };
 
+interface GroundDamageInstance {
+  damage: number;
+  sourceId: string;
+}
+
 interface GroundHit {
   damage: number;
+  instances: GroundDamageInstance[];
   retaliationTargetId?: string;
   strongestRetaliationHit: number;
   corrosionSeconds?: number;
 }
 
-function addGroundDamage(hits: Map<string, GroundHit>, targetId: string, damage: number) {
+function addGroundDamage(hits: Map<string, GroundHit>, targetId: string, damage: number, sourceId: string) {
   const current = hits.get(targetId);
-  if (!current) hits.set(targetId, { damage, strongestRetaliationHit: 0 });
-  else current.damage += damage;
+  const instance = { damage, sourceId };
+  if (!current) hits.set(targetId, { damage, instances: [instance], strongestRetaliationHit: 0 });
+  else {
+    current.damage += damage;
+    current.instances.push(instance);
+  }
+}
+
+function scaleGroundHit(hit: GroundHit, multiplier: number) {
+  hit.damage *= multiplier;
+  hit.instances.forEach(instance => { instance.damage *= multiplier; });
+}
+
+function deterministicGroundMemberIndex(unitId: string, sourceId: string, sequence: number, livingMembers: number[]) {
+  let hash = 2166136261;
+  for (const character of `${unitId}:${sourceId}:${sequence}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return livingMembers[(hash >>> 0) % livingMembers.length];
+}
+
+function damageGroundFormation(target: Unit, instances: GroundDamageInstance[]) {
+  const memberHp = groundFormationMemberHealth(target);
+  let shields = target.shields;
+  let sequence = target.groundDamageSequence ?? 0;
+  const ability = UNITS[target.kind].ability?.kind;
+  const damageMultiplier = ability === 'evasiveChitin' ? .7
+    : ability === 'ablativePlating' && target.hp > target.maxHp / 2 ? .7
+      : 1;
+  for (const instance of instances) {
+    const reducedDamage = instance.damage * damageMultiplier;
+    const shieldDamage = Math.min(shields, reducedDamage);
+    shields -= shieldDamage;
+    const hullDamage = reducedDamage - shieldDamage;
+    if (hullDamage <= 0) continue;
+    const livingMembers = memberHp.map((hp, index) => hp > 1e-6 ? index : -1).filter(index => index >= 0);
+    if (!livingMembers.length) break;
+    const memberIndex = deterministicGroundMemberIndex(target.id, instance.sourceId, sequence, livingMembers);
+    memberHp[memberIndex] = Math.max(0, memberHp[memberIndex] - hullDamage);
+    sequence += 1;
+  }
+  return {
+    ...target,
+    shields,
+    hp: memberHp.reduce((total, hp) => total + hp, 0),
+    memberHp,
+    groundDamageSequence: sequence,
+  };
 }
 
 function recordOrbitalBombardment(p: Planet, battle: GroundBattle, seconds: number, hits: Map<string, GroundHit>) {
@@ -1671,7 +1745,7 @@ function recordOrbitalBombardment(p: Planet, battle: GroundBattle, seconds: numb
     if (!supportingShips.length || orbitContested || !targets.length) continue;
     const target = targets[0];
     const damage = supportingShips.length * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP * seconds;
-    addGroundDamage(hits, target.id, damage);
+    addGroundDamage(hits, target.id, damage, `orbital-${faction}`);
   }
 }
 
@@ -1679,13 +1753,14 @@ function recordGroundHit(hits: Map<string, GroundHit>, attacker: Unit, target: U
   const amplifiedDamage = damage * ((target.corrodedFor ?? 0) > 0 ? 1.35 : 1);
   const current = hits.get(target.id);
   if (!current) {
-    hits.set(target.id, { damage: amplifiedDamage, strongestRetaliationHit: 0 });
+    hits.set(target.id, { damage: amplifiedDamage, instances: [{ damage: amplifiedDamage, sourceId: attacker.id }], strongestRetaliationHit: 0 });
   } else {
     current.damage += amplifiedDamage;
+    current.instances.push({ damage: amplifiedDamage, sourceId: attacker.id });
   }
   const hit = hits.get(target.id)!;
   if (UNITS[attacker.kind].ability?.kind === 'corrosiveBile') hit.corrosionSeconds = 5;
-  if (UNITS[target.kind].ability?.kind === 'thornedCarapace') addGroundDamage(hits, attacker.id, amplifiedDamage * .2);
+  if (UNITS[target.kind].ability?.kind === 'thornedCarapace') addGroundDamage(hits, attacker.id, amplifiedDamage * .2, target.id);
   if (battleDistance(target, attacker) <= groundUnitVisionRange(target)) return;
   if (amplifiedDamage > hit.strongestRetaliationHit || (amplifiedDamage === hit.strongestRetaliationHit && (!hit.retaliationTargetId || attacker.id < hit.retaliationTargetId))) {
     hit.retaliationTargetId = attacker.id;
@@ -1713,13 +1788,18 @@ function groundAbilityDamageMultiplier(unit: Unit, allies: Unit[], target: Unit)
 function fireGroundWeapon(unit: Unit, allies: Unit[], enemies: Unit[], target: Unit, seconds: number, hits: Map<string, GroundHit>, power: number) {
   const salvoDamage = tickUnitWeapon(unit, seconds, true);
   if (!salvoDamage) return;
-  const damage = salvoDamage * power * groundAbilityDamageMultiplier(unit, allies, target);
-  recordGroundHit(hits, unit, target, damage);
+  const weapon = UNITS[unit.kind].weapon;
+  const baseVolleyDamage = weapon.damage * weapon.projectiles;
+  const volleyCount = Math.max(1, Math.round(salvoDamage / baseVolleyDamage));
+  const damage = baseVolleyDamage * power * groundAbilityDamageMultiplier(unit, allies, target) * groundFormationStrength(unit);
+  for (let volley = 0; volley < volleyCount; volley += 1) recordGroundHit(hits, unit, target, damage);
   const ability = UNITS[unit.kind].ability?.kind;
   const splash = ability === 'burstSpores' ? .35 : ability === 'judgmentShockwave' ? .45 : ability === 'forgeShockwave' ? .4 : 0;
   if (!splash) return;
-  enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
-    .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * splash));
+  for (let volley = 0; volley < volleyCount; volley += 1) {
+    enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
+      .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * splash));
+  }
 }
 
 function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
@@ -1728,16 +1808,16 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
     if (!hit || UNITS[target.kind].ability?.kind === 'paladinIntercept') continue;
     const guard = allies.find(ally => ally.id !== target.id && UNITS[ally.kind].ability?.kind === 'paladinIntercept' && battleDistance(target, ally) <= 16);
     if (!guard) continue;
-    const intercepted = hit.damage * .4;
-    hit.damage -= intercepted;
-    addGroundDamage(hits, guard.id, intercepted);
+    const intercepted = hit.instances.map(instance => ({ ...instance, damage: instance.damage * .4 }));
+    scaleGroundHit(hit, .6);
+    intercepted.forEach(instance => addGroundDamage(hits, guard.id, instance.damage, `intercept-${target.id}-${instance.sourceId}`));
   }
   for (const target of allies) {
     const hit = hits.get(target.id);
     if (!hit) continue;
     const behindShieldWall = allies.some(ally => ally.shields > 0 && UNITS[ally.kind].ability?.kind === 'shieldWall' && battleDistance(target, ally) <= 18);
-    if (behindShieldWall) hit.damage *= .8;
-    if (UNITS[target.kind].ability?.kind === 'bastionAnchor' && (target.weaponFlash ?? 0) > 0) hit.damage *= .65;
+    if (behindShieldWall) scaleGroundHit(hit, .8);
+    if (UNITS[target.kind].ability?.kind === 'bastionAnchor' && (target.weaponFlash ?? 0) > 0) scaleGroundHit(hit, .65);
   }
 }
 
@@ -1967,6 +2047,20 @@ function resolveGroundBattleIfDecided(state: GameState, battle: GroundBattle) {
   return true;
 }
 
+function healGroundFormationHull(unit: Unit, healing: number) {
+  if (healing <= 0 || groundFormationSize(unit.kind) <= 1) return { ...unit, hp: Math.min(unit.maxHp, unit.hp + healing) };
+  const memberHp = groundFormationMemberHealth(unit);
+  const memberMaximum = unit.maxHp / memberHp.length;
+  let remaining = healing;
+  for (let index = 0; index < memberHp.length && remaining > 0; index += 1) {
+    if (memberHp[index] <= 0 || memberHp[index] >= memberMaximum) continue;
+    const restored = Math.min(remaining, memberMaximum - memberHp[index]);
+    memberHp[index] += restored;
+    remaining -= restored;
+  }
+  return { ...unit, memberHp, hp: memberHp.reduce((total, hp) => total + hp, 0) };
+}
+
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   if (resolveGroundBattleIfDecided(state, battle)) return;
   ensureBattlePositions(battle);
@@ -1977,7 +2071,7 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
     if (civilization !== 'covenant') return unit;
     const fieldRepair = units.some(ally => ally.id !== unit.id && UNITS[ally.kind].ability?.kind === 'fieldRepair' && battleDistance(unit, ally) <= COVENANT_FIELD_REPAIR_RANGE);
     const healing = seconds * (COVENANT_GROUND_HULL_REGEN + (fieldRepair ? COVENANT_FIELD_REPAIR_PER_SECOND : 0));
-    return { ...unit, hp: Math.min(unit.maxHp, unit.hp + healing) };
+    return healGroundFormationHull(unit, healing);
   });
   battle.attackers = restoreFactionSystems(battle.attackers);
   battle.defenders = restoreFactionSystems(battle.defenders);
@@ -1998,14 +2092,18 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
     if (!hit) return unit;
-    const terrainDamage = hit.damage * (!isFlyingGroundUnit(unit) && groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) ? GROUND_FOREST_DAMAGE_MULTIPLIER : 1);
-    if (!hit.retaliationTargetId) return { ...damageUnit(unit, terrainDamage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
-    const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
-    if (!retaliating.battleForceMove) {
-      delete retaliating.battleTargetX;
-      delete retaliating.battleTargetY;
+    const terrainMultiplier = !isFlyingGroundUnit(unit) && groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 })
+      ? GROUND_FOREST_DAMAGE_MULTIPLIER
+      : 1;
+    const target = hit.retaliationTargetId ? { ...unit, battleRetaliationTargetId: hit.retaliationTargetId } : unit;
+    if (hit.retaliationTargetId && !target.battleForceMove) {
+      delete target.battleTargetX;
+      delete target.battleTargetY;
     }
-    return { ...damageUnit(retaliating, terrainDamage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
+    const damaged = UNITS[target.kind].factory === 'ground' && groundFormationSize(target.kind) > 1
+      ? damageGroundFormation(target, hit.instances.map(instance => ({ ...instance, damage: instance.damage * terrainMultiplier })))
+      : damageUnit(target, hit.damage * terrainMultiplier);
+    return { ...damaged, ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
   };
   battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
   battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);

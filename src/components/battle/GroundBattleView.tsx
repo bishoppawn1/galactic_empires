@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   GROUND_BATTLEFIELD_HEIGHT, GROUND_BATTLEFIELD_WIDTH, UNITS,
-  groundForestAtPosition, groundTerrainForPlanet, groundUnitVisionRange, isFlyingGroundUnit,
+  groundForestAtPosition, groundFormationAliveCount, groundFormationMemberHealth, groundFormationSize,
+  groundTerrainForPlanet, groundUnitShowsProjectile, groundUnitVisionRange, isFlyingGroundUnit,
   type GameState, type GroundBattle, type Unit,
 } from '../../game';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
@@ -24,6 +25,7 @@ const FORCE_MOVE_DOUBLE_CLICK_MS = 500;
 const FORCE_MOVE_SAME_SPOT_TOLERANCE = 1.5;
 const MIN_GROUND_BATTLE_ZOOM = .04;
 const MAX_GROUND_BATTLE_ZOOM = 1.25;
+export const GROUND_BATTALION_DETAIL_ZOOM = .55;
 
 export const groundBattleFitZoom = (viewportWidth: number, viewportHeight: number) => Math.min(1, Math.max(
   MIN_GROUND_BATTLE_ZOOM,
@@ -154,7 +156,7 @@ export function GroundBattleView({ state, battle, mode = 'battle', movementSmoot
   const playerShips = planet.orbitUnits.filter(unit => unit.faction === 'player');
   const playerOrbitalSupport = allUnits.some(unit => unit.faction === 'player') && playerShips.length > 0
     && !planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral');
-  const shots = deploymentMode ? [] : [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => !unit.landedTransport && target && visibleToPlayer(unit) && visibleToPlayer(target) && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
+  const shots = deploymentMode ? [] : [...battle.attackers.map(unit => ({ unit, target: nearest(unit, battle.defenders, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction })), ...battle.defenders.map(unit => ({ unit, target: nearest(unit, battle.attackers, unit.faction === 'player' ? battle.focusTargetId : undefined), faction: unit.faction }))].filter(({ unit, target }) => !unit.landedTransport && groundUnitShowsProjectile(unit.kind) && target && visibleToPlayer(unit) && visibleToPlayer(target) && (typeof unit.weaponFlash !== 'number' || unit.weaponFlash > 0) && Math.hypot((target.battleX ?? 0) - (unit.battleX ?? 0), (target.battleY ?? 0) - (unit.battleY ?? 0)) <= UNITS[unit.kind].range);
   const selectFriendly = (unit: Unit, additive: boolean) => {
     if (unit.sourceBuildingId) return;
     setSelectedUnitIds(current => additive
@@ -204,12 +206,14 @@ export function GroundBattleView({ state, battle, mode = 'battle', movementSmoot
     const definition = UNITS[unit.kind];
     const action = deploymentMode ? 'Inspect' : selectable ? 'Select' : friendly ? 'Landed' : 'Target';
     const flying = isFlyingGroundUnit(unit);
+    const formationSize = groundFormationSize(unit.kind);
+    const aliveMembers = groundFormationAliveCount(unit);
     const inForest = !flying && groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 });
     const title = unit.landedTransport
       ? deploymentMode ? 'Stationary landed transport · cannot attack or receive movement orders' : 'Stationary landed transport · right-click with squads selected to load · select and press E to evacuate'
-      : definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description;
+      : `${definition.ability ? `${definition.ability.label}: ${definition.ability.description}` : definition.description}${formationSize > 1 ? ` · ${aliveMembers}/${formationSize} formation members active` : ''}`;
     const cargoStatus = unit.landedTransport ? `${unit.cargo?.length ?? 0}/${definition.capacity ?? 0}` : '';
-    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !deploymentMode && !friendly ? battle.focusTargetId === unit.id : undefined} title={`${title}${inForest ? ' · Forest cover reduces incoming damage by 30%' : ''}`} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${flying ? 'flying' : ''} ${inForest ? 'in-forest' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (deploymentMode) return; if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} onContextMenu={event => { if (deploymentMode || !friendly || !unit.landedTransport || !selectedMobileUnits.length) return; event.preventDefault(); event.stopPropagation(); onLoad(battle.planetId, unit.id, selectedMobileUnits.map(selectedUnit => selectedUnit.id)); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px`, '--vision-size': `${groundUnitVisionRange(unit) * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${unit.landedTransport ? ` · CARGO ${cargoStatus}` : ''}${inForest ? ' · COVER' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED · ${cargoStatus}` : definition.label}${flying ? ' · AIR' : ''}${inForest ? ' · COVER' : ''}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
+    return <button key={unit.id} type="button" aria-label={`${action} ${definition.label} ${unit.id}`} aria-pressed={selectable ? selected : !deploymentMode && !friendly ? battle.focusTargetId === unit.id : undefined} title={`${title}${inForest ? ' · Forest cover reduces incoming damage by 30%' : ''}`} className={`battle-unit ${unit.faction} ${unit.sourceBuildingId ? 'fortification' : ''} ${unit.landedTransport ? 'grounded-transport' : ''} ${flying ? 'flying' : ''} ${inForest ? 'in-forest' : ''} ${unit.battleHoldPosition ? 'holding' : ''} ${battle.focusTargetId === unit.id ? 'focused' : ''} ${selected ? 'selected' : ''}`} onClick={event => { event.stopPropagation(); if (deploymentMode) return; if (suppressClickRef.current) { suppressClickRef.current = false; return; } if (friendly) selectFriendly(unit, event.shiftKey); else onFocus(battle.planetId, unit.id); }} onContextMenu={event => { if (deploymentMode || !friendly || !unit.landedTransport || !selectedMobileUnits.length) return; event.preventDefault(); event.stopPropagation(); onLoad(battle.planetId, unit.id, selectedMobileUnits.map(selectedUnit => selectedUnit.id)); }} style={{ '--delay': `${index * .15}s`, '--battle-x': `${unit.battleX ?? (friendly ? 12 : 88)}%`, '--battle-y': `${unit.battleY ?? 50}%`, '--range-size': `${definition.range * 18}px`, '--vision-size': `${groundUnitVisionRange(unit) * 18}px` } as React.CSSProperties}>{!unit.landedTransport && <span className="range-ring" />}<UnitCore unit={unit} detailedFormation={battleZoom >= GROUND_BATTALION_DETAIL_ZOOM} /><small>{battle.focusTargetId === unit.id ? 'FOCUS TARGET' : selected ? `SELECTED${unit.landedTransport ? ` · CARGO ${cargoStatus}` : ''}${inForest ? ' · COVER' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}` : `${unit.landedTransport ? `${definition.label} · LANDED · ${cargoStatus}` : definition.label}${flying ? ' · AIR' : ''}${inForest ? ' · COVER' : ''}${unit.corrodedFor ? ' · CORRODED' : ''}${unit.battleHoldPosition ? ' · HOLDING' : ''}`}</small></button>;
   };
   return <div
     className={`battlefield ${deploymentMode ? 'deployment-overview' : ''} ${movementSmoothingMs ? 'network-smoothed' : ''}`}
@@ -290,6 +294,27 @@ export function GroundBattleView({ state, battle, mode = 'battle', movementSmoot
   </div>;
 }
 
-function UnitCore({ unit }: { unit: Unit }) {
-  return <div className="unit-core">{unit.landedTransport ? <ShipImage kind={unit.kind} className="landed-transport-image" /> : <GroundUnitImage kind={unit.kind} />}<div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div><div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div></div>;
+function formationMemberPosition(size: number, index: number) {
+  if (size === 8) return { x: [20, 40, 60, 80][index % 4], y: index < 4 ? 40 : 67, spriteSize: 34 };
+  if (size === 4) return { x: index % 2 ? 66 : 34, y: index < 2 ? 38 : 69, spriteSize: 43 };
+  return { x: index ? 66 : 34, y: 55, spriteSize: 48 };
+}
+
+function UnitCore({ unit, detailedFormation }: { unit: Unit; detailedFormation: boolean }) {
+  const formationSize = groundFormationSize(unit.kind);
+  const memberHealth = groundFormationMemberHealth(unit);
+  const showMembers = !unit.landedTransport && formationSize > 1 && detailedFormation;
+  return <div className={`unit-core ${showMembers ? 'formation-expanded' : ''}`} data-formation-size={formationSize} data-alive-members={memberHealth.filter(hp => hp > 1e-6).length}>
+    {unit.landedTransport
+      ? <ShipImage kind={unit.kind} className="landed-transport-image" />
+      : showMembers
+        ? <div className="formation-members">{memberHealth.map((hp, index) => {
+            if (hp <= 1e-6) return null;
+            const position = formationMemberPosition(formationSize, index);
+            return <span key={index} className="formation-member" style={{ '--member-x': `${position.x}%`, '--member-y': `${position.y}%`, '--member-size': `${position.spriteSize}px`, '--member-health': hp / (unit.maxHp / formationSize) } as React.CSSProperties}><GroundUnitImage kind={unit.kind} /></span>;
+          })}</div>
+        : <GroundUnitImage kind={unit.kind} className="formation-summary" />}
+    <div className="hp"><i style={{ width: `${Math.max(0, unit.hp / unit.maxHp * 100)}%` }} /></div>
+    <div className="shield"><i style={{ width: `${Math.max(0, unit.shields / unit.maxShields * 100)}%` }} /></div>
+  </div>;
 }

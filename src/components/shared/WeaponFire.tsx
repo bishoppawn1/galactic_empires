@@ -33,10 +33,10 @@ const flightDurations: Record<WeaponEffect, number> = {
   siege: .24,
 };
 
-// These values are in each map's SVG coordinate system. They keep a missile
-// much smaller than its firing unit while leaving the transparent source art
-// enough room to render cleanly.
-export const GROUND_PROJECTILE_SIZE = .3;
+// These values are in each map's SVG coordinate system. They keep tactical
+// shells much smaller than their firing unit while leaving the transparent
+// source art enough room to render cleanly.
+export const GROUND_PROJECTILE_SIZE = .18;
 export const ORBITAL_PROJECTILE_SIZE = 6;
 
 export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, className = '' }: {

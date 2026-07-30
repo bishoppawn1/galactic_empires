@@ -79,6 +79,8 @@ export interface Unit {
   maxHp: number;
   shields: number;
   maxShields: number;
+  memberHp?: number[];
+  groundDamageSequence?: number;
   orbitX?: number;
   orbitY?: number;
   orbitTargetX?: number;

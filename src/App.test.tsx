@@ -1561,12 +1561,8 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.unit-core .ground-unit-image')).toHaveLength(2);
     expect(document.querySelector('.unit-core .ground-unit-image')).toHaveClass('ground-unit-sprite');
     expect(document.querySelector('.unit-core .ground-unit-image')).toHaveAttribute('data-display-scale', String(GROUND_UNIT_DISPLAY_SCALES.infantry));
-    expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-pulse')).toHaveLength(2);
-    expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(6);
-    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.3');
-    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(.9);
-    expect(Number(document.querySelector('.battle-fire .weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(.08);
-    expect(document.querySelector('.battle-fire .weapon-projectile animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
+    expect(document.querySelectorAll('.battle-fire .weapon-fire')).toHaveLength(0);
+    expect(document.querySelectorAll('.formation-member')).toHaveLength(0);
     expect(screen.getByText(/5,200 × 3,200 TACTICAL ZONE/)).toBeInTheDocument();
     expect(document.querySelector('.battle-canvas')).not.toBeNull();
     expect(document.querySelectorAll('.battle-terrain')).toHaveLength(36);
@@ -1577,6 +1573,20 @@ describe('Galactic Empires interface', () => {
     const expectedFit = groundBattleFitZoom(window.innerWidth, window.innerHeight);
     expect(document.querySelector('.battle-canvas')).toHaveStyle({ transform: `scale(${expectedFit})` });
     expect(within(screen.getByRole('group', { name: 'Ground map controls' })).getByText(`${Math.round(expectedFit * 100)}%`)).toBeInTheDocument();
+  });
+
+  it('shows only smaller tank and artillery-class ground projectiles', () => {
+    const state = createInitialState();
+    state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('tank-a', 'lightTank', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('tank-b', 'lightTank', 'enemy'), battleX: 29, battleY: 55 }] }];
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
+
+    expect(document.querySelectorAll('.battle-fire .weapon-fire.weapon-kinetic')).toHaveLength(2);
+    expect(document.querySelectorAll('.battle-fire .weapon-projectile')).toHaveLength(2);
+    expect(document.querySelector('.battle-fire .weapon-fire')).toHaveAttribute('data-projectile-size', '0.18');
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile')?.getAttribute('height'))).toBeCloseTo(.54);
+    expect(Number(document.querySelector('.battle-fire .weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(.08);
   });
 
   it('opens a read-only surface tab with stationed ground forces and defenses', () => {
@@ -1616,7 +1626,10 @@ describe('Galactic Empires interface', () => {
     const viewport = document.querySelector('.battle-scroll') as HTMLElement;
     Object.defineProperty(viewport, 'scrollLeft', { configurable: true, writable: true, value: 0 });
     Object.defineProperty(viewport, 'scrollTop', { configurable: true, writable: true, value: 0 });
-    fireEvent.click(screen.getByRole('button', { name: 'Ground zoom in' }));
+    expect(document.querySelectorAll('.formation-member')).toHaveLength(0);
+    for (let index = 0; index < 6; index += 1) fireEvent.click(screen.getByRole('button', { name: 'Ground zoom in' }));
+    expect(document.querySelectorAll('.formation-member')).toHaveLength(8);
+    expect(document.querySelector('.unit-core')).toHaveAttribute('data-formation-size', '8');
     fireEvent.keyDown(window, { code: 'KeyD', key: 'd' });
     fireEvent.keyUp(window, { code: 'KeyD', key: 'd' });
     fireEvent.keyDown(window, { code: 'KeyS', key: 's' });

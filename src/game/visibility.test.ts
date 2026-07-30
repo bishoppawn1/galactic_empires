@@ -14,10 +14,15 @@ const unit = (id: string, kind: UnitKind, faction: Unit['faction']): Unit => ({
   maxShields: UNITS[kind].shields,
 });
 
-const fleet = (id: string, destinationId: string, finalDestinationId = destinationId): Fleet => ({
+const fleet = (
+  id: string,
+  destinationId: string,
+  finalDestinationId = destinationId,
+  originId = 'cygnus',
+): Fleet => ({
   id,
   faction: 'enemy',
-  originId: 'cygnus',
+  originId,
   destinationId,
   finalDestinationId,
   unit: unit(`${id}-ship`, 'escortFrigate', 'enemy'),
@@ -158,17 +163,18 @@ describe('fog of war', () => {
     expect(visible.groundUnits.map(candidate => candidate.id)).toEqual(['occupier']);
   });
 
-  it('shows hostile fleets only when they are inbound to a currently visible system', () => {
+  it('shows hostile fleets only when the current jump touches a visible system', () => {
     const canonical = createInitialState();
     canonical.fleets = [
       fleet('attack-home', 'terra'),
+      fleet('departing-home', 'nyx', 'nyx', 'terra'),
       fleet('hidden-move', 'nyx'),
       fleet('routed-attack', 'nyx', 'terra'),
     ];
 
     const visible = visibleStateForPlayer(canonical);
 
-    expect(visible.fleets.map(candidate => candidate.id)).toEqual(['attack-home', 'routed-attack']);
+    expect(visible.fleets.map(candidate => candidate.id)).toEqual(['attack-home', 'departing-home']);
   });
 
   it('does not leak hidden planet events through the command log', () => {

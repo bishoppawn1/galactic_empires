@@ -123,8 +123,8 @@ export function visibleStateForPlayer(input: GameState): GameState {
   }
 
   state.fleets = state.fleets.filter(fleet => fleet.faction === 'player'
-    || currentSystemIds.has(fleet.destinationId)
-    || (!!fleet.finalDestinationId && currentSystemIds.has(fleet.finalDestinationId)));
+    || currentSystemIds.has(fleet.originId)
+    || currentSystemIds.has(fleet.destinationId));
   state.battles = state.battles.filter(battle => currentSystemIds.has(battle.planetId));
 
   const hiddenPlanetNames = input.planets

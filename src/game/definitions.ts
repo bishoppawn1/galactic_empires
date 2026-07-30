@@ -585,13 +585,13 @@ export const TITAN_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['dreadnought', '
 export const TITAN_UPGRADES: Record<TitanUpgradeId, { label: string; description: string; cost: ResourcePool }> = {
   siegeCore: { label: 'Siege Core', description: '+35% battery damage per level', cost: pool(360, 280, 180) },
   shieldMatrix: { label: 'Shield Matrix', description: '+40% maximum shields per level', cost: pool(300, 340, 200) },
-  farcastArray: { label: 'Farcast Array', description: '+25% battery range per level', cost: pool(260, 300, 240) },
+  farcastArray: { label: 'Farcast Array', description: '+10% battery range per level', cost: pool(260, 300, 240) },
 };
 export const isTitanKind = (kind: UnitKind): kind is SpaceUnitKind => TITAN_KINDS.has(kind as SpaceUnitKind);
 export const titanUpgradeLevel = (unit: Unit, upgradeId: TitanUpgradeId) =>
   unit.titanUpgrades?.filter(installed => installed === upgradeId).length ?? 0;
 export const titanWeaponDamageMultiplier = (unit: Unit) => 1 + titanUpgradeLevel(unit, 'siegeCore') * .35;
-export const titanWeaponRangeMultiplier = (unit: Unit) => 1 + titanUpgradeLevel(unit, 'farcastArray') * .25;
+export const titanWeaponRangeMultiplier = (unit: Unit) => 1 + titanUpgradeLevel(unit, 'farcastArray') * .1;
 export const unitMaximumWeaponRange = (unit: Unit) => Math.max(...shipWeaponBatteries(unit.kind as SpaceUnitKind).map(weapon => weapon.range))
   * titanWeaponRangeMultiplier(unit);
 export const TIER_TWO_COPY_BY_TIER_ONE: Readonly<Partial<Record<SpaceUnitKind, SpaceUnitKind>>> = {

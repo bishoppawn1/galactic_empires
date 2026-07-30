@@ -1058,15 +1058,15 @@ describe('production and research', () => {
     const farcast = upgradeTitan(secondShield.state, 'terra', titan.id, 'farcastArray'); expectOk(farcast);
     const secondFarcast = upgradeTitan(farcast.state, 'terra', titan.id, 'farcastArray'); expectOk(secondFarcast);
     const upgradedTitan = secondFarcast.state.planets[0].orbitUnits[0];
-    expect(titanWeaponRangeMultiplier(upgradedTitan)).toBe(1.5);
-    expect(unitMaximumWeaponRange(upgradedTitan)).toBeCloseTo(UNITS.dreadnought.range * 1.5);
+    expect(titanWeaponRangeMultiplier(upgradedTitan)).toBe(1.2);
+    expect(unitMaximumWeaponRange(upgradedTitan)).toBeCloseTo(UNITS.dreadnought.range * 1.2);
 
-    const target = { ...makeUnit('farcast-target', 'battlecruiser', 'enemy'), orbitX: 650, orbitY: 0 };
+    const target = { ...makeUnit('farcast-target', 'battlecruiser', 'enemy'), orbitX: 540, orbitY: 0 };
     secondFarcast.state.planets[0].orbitUnits.push(target);
     const shots = orbitalCombatShots(secondFarcast.state.planets[0]).filter(shot => shot.attackerId === titan.id);
     expect(shots.length).toBeGreaterThan(0);
     expect(shots.every(shot => shot.damageMultiplier === 1.7)).toBe(true);
-    expect(shots.every(shot => shot.weaponRange === UNITS.dreadnought.range * 1.5)).toBe(true);
+    expect(shots.every(shot => shot.weaponRange === UNITS.dreadnought.range * 1.2)).toBe(true);
   });
 
   it('validates Titan upgrade commands, charges Brood biomass, and preserves upgrades across perspectives', () => {

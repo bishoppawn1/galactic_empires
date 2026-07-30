@@ -518,7 +518,7 @@ describe('starter faction foundations', () => {
   });
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
-    expect(BROOD_GROUND_KINDS).toHaveLength(11);
+    expect(BROOD_GROUND_KINDS).toHaveLength(12);
     expect(BROOD_SPACE_KINDS).toHaveLength(14);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -549,7 +549,7 @@ describe('starter faction foundations', () => {
   it('gives the Aegis Directorate a separate durable production roster', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
-    expect(AEGIS_GROUND_KINDS).toHaveLength(7);
+    expect(AEGIS_GROUND_KINDS).toHaveLength(8);
     expect(AEGIS_SPACE_KINDS).toHaveLength(13);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);

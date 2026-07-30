@@ -29,10 +29,10 @@ export type BuildingKind =
 export type DefenseBuildingKind = 'groundDefense' | 'antiSpaceDefense' | 'spaceDefense';
 
 export type GroundUnitKind =
-  | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'dragonflyScout' | 'falconGunship' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
-  | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'razorwing' | 'sporewing' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower'
-  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisSeraphSkimmer' | 'aegisHaloGunship' | 'aegisPaladinGuard' | 'aegisFortressWalker'
-  | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantWaspDrone' | 'covenantFurnaceGunship' | 'covenantJuggernaut' | 'covenantBulwark';
+  | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'flakRover' | 'dragonflyScout' | 'falconGunship' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
+  | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'spineFlak' | 'razorwing' | 'sporewing' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower'
+  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisSkyguard' | 'aegisSeraphSkimmer' | 'aegisHaloGunship' | 'aegisPaladinGuard' | 'aegisFortressWalker'
+  | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantFlakEngine' | 'covenantWaspDrone' | 'covenantFurnaceGunship' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
   | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate' | 'reconCutter' | 'phaseSuppressionFrigate'
   | 'advancedTransport' | 'advancedEscortFrigate' | 'advancedMissileFrigate' | 'advancedFlakFrigate' | 'phaseLockCruiser'
@@ -55,7 +55,7 @@ export type UnitAbilityKind =
   | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
   | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
   | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
-  | 'aerialRecon' | 'airSupport'
+  | 'aerialRecon' | 'airSupport' | 'groundFlak'
   | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam'
   | 'antiFighterCannons' | 'reconDrive' | 'phaseControl';
 
@@ -253,6 +253,7 @@ export interface UnitDefinition extends Definition {
   visionRange?: number;
   moveSpeed: number;
   flying?: boolean;
+  groundTargeting?: 'all' | 'surface';
   orbitSpeedMultiplier?: number;
   weapon: WeaponDefinition;
   advancedFactory?: boolean;

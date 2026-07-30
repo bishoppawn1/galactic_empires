@@ -59,7 +59,7 @@ import {
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
   blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
-  groundUnitVisionRange, isFlyingGroundUnit,
+  canGroundUnitAttackTarget, groundUnitVisionRange, isFlyingGroundUnit, isInfantryGroundUnit,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
@@ -1782,6 +1782,7 @@ function groundAbilityDamageMultiplier(unit: Unit, allies: Unit[], target: Unit)
   const targetIsMoving = typeof target.battleTargetX === 'number' && typeof target.battleTargetY === 'number'
     && Math.hypot(target.battleTargetX - (target.battleX ?? 0), target.battleTargetY - (target.battleY ?? 0)) > .5;
   if (ability === 'movingTargetBarrage' && targetIsMoving) multiplier *= 1.75;
+  if (ability === 'groundFlak' && (isInfantryGroundUnit(target) || isFlyingGroundUnit(target))) multiplier *= 1.5;
   return multiplier;
 }
 
@@ -1797,7 +1798,7 @@ function fireGroundWeapon(unit: Unit, allies: Unit[], enemies: Unit[], target: U
   const splash = ability === 'burstSpores' ? .35 : ability === 'judgmentShockwave' ? .45 : ability === 'forgeShockwave' ? .4 : 0;
   if (!splash) return;
   for (let volley = 0; volley < volleyCount; volley += 1) {
-    enemies.filter(enemy => enemy.id !== target.id && battleDistance(target, enemy) <= 10)
+    enemies.filter(enemy => enemy.id !== target.id && canGroundUnitAttackTarget(unit, enemy) && battleDistance(target, enemy) <= 10)
       .forEach(enemy => recordGroundHit(hits, unit, enemy, damage * splash));
   }
 }
@@ -1823,7 +1824,9 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
 
 function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, advanceX: number, advanceWhenUnseen: boolean, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
-  const visibleEnemies = enemies.filter(enemy => allies.some(observer => battleDistance(observer, enemy) <= groundUnitVisionRange(observer)));
+  const visibleEnemies = enemies.filter(enemy =>
+    canGroundUnitAttackTarget(unit, enemy)
+    && allies.some(observer => battleDistance(observer, enemy) <= groundUnitVisionRange(observer)));
   if (unit.landedTransport) {
     tickUnitWeapon(unit, seconds, false);
     return;
@@ -1840,7 +1843,8 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
     return;
   }
   if (unit.battleForceMove) delete unit.battleForceMove;
-  let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
+  let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy =>
+    enemy.id === unit.battleRetaliationTargetId && canGroundUnitAttackTarget(unit, enemy));
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
   if (!retaliationTarget && followingOrder) {
     const spottedTarget = nearestBattleTarget(unit, visibleEnemies, preferredId);

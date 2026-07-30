@@ -47,7 +47,7 @@ describe('manual ground controls', () => {
   it('shares shields but assigns hull damage to one deterministic formation member', () => {
     const battleState = (shields: number) => {
       const state = createInitialState();
-      const target = { ...combatUnit('target', 'dragonflyScout', 'enemy', 60), shields, maxShields: shields, weaponCooldown: 999 };
+      const target = { ...combatUnit('target', 'artillery', 'enemy', 60), shields, maxShields: shields, weaponCooldown: 999 };
       state.battles = [{
         planetId: 'draven',
         attackers: [{ ...combatUnit('walker', 'siegeWalker', 'player', 40), weaponCooldown: 0 }],
@@ -61,12 +61,12 @@ describe('manual ground controls', () => {
     expect(shielded.shields).toBe(0);
     expect(shielded.memberHp).toHaveLength(4);
     expect(shielded.memberHp!.filter(hp => hp < shielded.maxHp / 4)).toHaveLength(1);
-    expect(shielded.hp).toBeCloseTo(99);
+    expect(shielded.hp).toBeCloseTo(UNITS.artillery.hp - (UNITS.siegeWalker.weapon.damage - 10));
     expect(groundFormationAliveCount(shielded)).toBe(4);
 
     const exposed = battleState(0);
     expect(exposed.memberHp).toEqual(battleState(0).memberHp);
-    expect(exposed.hp).toBeCloseTo(90);
+    expect(exposed.hp).toBeCloseTo(UNITS.artillery.hp - UNITS.artillery.hp / 4);
     expect(groundFormationAliveCount(exposed)).toBe(3);
   });
 
@@ -74,7 +74,7 @@ describe('manual ground controls', () => {
     const shieldLoss = (memberHp?: number[]) => {
       const state = createInitialState();
       const tank = { ...combatUnit('tank', 'lightTank', 'player', 40), weaponCooldown: 0, ...(memberHp ? { memberHp, hp: memberHp.reduce((total, hp) => total + hp, 0) } : {}) };
-      const target = { ...combatUnit('target', 'dragonflyScout', 'enemy', 50), weaponCooldown: 999 };
+      const target = { ...combatUnit('target', 'artillery', 'enemy', 50), weaponCooldown: 999 };
       state.battles = [{ planetId: 'draven', attackers: [tank], defenders: [target], focusTargetId: target.id }];
       const damaged = tick(state, .1).battles[0].defenders[0];
       return target.shields - damaged.shields;

@@ -120,16 +120,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
     const broodGroundArt = [...document.querySelectorAll<HTMLImageElement>('.unit-button .ground-unit-image')];
-    expect(broodGroundArt).toHaveLength(11);
-    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(11);
+    expect(broodGroundArt).toHaveLength(12);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(12);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
   it('uses dedicated artwork for every Brood ground organism', () => {
     const { container } = render(<>{[...BROOD_GROUND_KINDS, 'spineTower' as const].map(kind => <GroundUnitImage key={kind} kind={kind} />)}</>);
     const broodGroundArt = [...container.querySelectorAll<HTMLImageElement>('.ground-unit-image')];
-    expect(broodGroundArt).toHaveLength(12);
-    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(12);
+    expect(broodGroundArt).toHaveLength(13);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(13);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
@@ -183,7 +183,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: /Interdictor Flak Frigate/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(7);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(8);
     expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(14);
   });
 
@@ -422,7 +422,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('heading', { name: 'TIER 3 · SUPER CAPITALS' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' }).closest('button')).not.toHaveTextContent('RESEARCH REQUIRED');
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(11);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(12);
     const infantryOrder = screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button');
     expect(infantryOrder).toHaveTextContent('RNG 14');
     expect(infantryOrder).not.toHaveTextContent('Tri-Burst Pulse Rifle');
@@ -516,7 +516,7 @@ describe('Galactic Empires interface', () => {
     }
     expect(screen.queryByText('Ward Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(7);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(8);
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
     expect(screen.getByText('Sovereign Titan')).toBeInTheDocument();

@@ -2271,7 +2271,7 @@ describe('transport and colonization', () => {
       const start = landingPositions.get(unit.id)!;
       return Math.hypot(unit.battleX! - start.x, unit.battleY! - start.y) > .01;
     })).toBe(true);
-    const closedDistance = tick(advancing, 9.75);
+    const closedDistance = tick(advancing, 19.75);
     const underFire = tick(closedDistance, 1);
     expect(underFire.battles[0].attackers.some(unit => unit.shields < unit.maxShields)).toBe(true);
     expect(underFire.battles[0].defenders.find(unit => unit.kind === 'defenseTurret')?.battleX).toBe(88);

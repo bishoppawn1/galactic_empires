@@ -33,6 +33,22 @@ describe('manual ground controls', () => {
     expect(groundUnitVisionRange(combatUnit('scout', 'dragonflyScout', 'player', 10))).toBeGreaterThan(groundUnitVisionRange(combatUnit('gunship', 'falconGunship', 'player', 10)));
   });
 
+  it('moves ground units at half their defined tactical speed', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [combatUnit('scout', 'dragonflyScout', 'player', 10)],
+      defenders: [combatUnit('turret', 'defenseTurret', 'enemy', 98)],
+    }];
+    const ordered = maneuverGroundUnits(state, 'draven', ['scout'], 90, 50, true);
+    expect(ordered.ok).toBe(true);
+    if (!ordered.ok) return;
+
+    const underway = tick(ordered.state, 1);
+    expect(underway.battles[0].attackers[0].battleX).toBeCloseTo(17);
+    expect(underway.battles[0].attackers[0].battleY).toBeCloseTo(50);
+  });
+
   it('moves selected troops toward separate formation positions', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'infantry', 'player', 12), combatUnit('a2', 'infantry', 'player', 14)], defenders: [combatUnit('d1', 'defenseTurret', 'enemy', 98)] }];

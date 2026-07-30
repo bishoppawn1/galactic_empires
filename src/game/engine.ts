@@ -43,6 +43,7 @@ import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
   nearestOpenGroundPosition, separateGroundUnits,
 } from './ground/collision';
+import { GROUND_UNIT_MOVEMENT_SPEED_SCALE } from './ground/constants';
 import {
   GROUND_FOREST_DAMAGE_MULTIPLIER, groundForestAtPosition, groundTerrainMovementStep,
 } from './ground/terrain';
@@ -1628,7 +1629,7 @@ function tickShipWeapon(unit: Unit, weaponIndex: number, seconds: number, firing
 
 const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number, planetId: string) => {
   const dx = x - (unit.battleX ?? 0), dy = y - (unit.battleY ?? 0);
-  const distance = Math.hypot(dx, dy), travel = UNITS[unit.kind].moveSpeed * seconds;
+  const distance = Math.hypot(dx, dy), travel = UNITS[unit.kind].moveSpeed * GROUND_UNIT_MOVEMENT_SPEED_SCALE * seconds;
   if (!distance || !travel) return;
   const position = isFlyingGroundUnit(unit) ? {
     battleX: (unit.battleX ?? 0) + dx / distance * Math.min(distance, travel),

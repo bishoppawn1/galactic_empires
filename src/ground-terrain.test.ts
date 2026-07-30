@@ -9,6 +9,7 @@ import {
   groundPositionBlocked,
   groundTerrainForPlanet,
   groundTerrainMovementStep,
+  maneuverGroundUnits,
   tick,
   type Unit,
 } from './game';
@@ -50,6 +51,39 @@ describe('functional ground terrain', () => {
     }
 
     expect(Math.hypot(target.battleX - position.battleX, target.battleY - position.battleY)).toBeLessThan(.1);
+  });
+
+  it('lets flying ground units cross and occupy rock formations', () => {
+    const state = createInitialState();
+    const rock = groundTerrainForPlanet('draven').find(piece => piece.kind === 'rocks')!;
+    const scout: Unit = {
+      id: 'air-scout',
+      kind: 'dragonflyScout',
+      faction: 'player',
+      hp: UNITS.dragonflyScout.hp,
+      maxHp: UNITS.dragonflyScout.hp,
+      shields: UNITS.dragonflyScout.shields,
+      maxShields: UNITS.dragonflyScout.shields,
+      battleX: Math.max(5, rock.x - 12),
+      battleY: rock.y,
+    };
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [scout],
+      defenders: [{ ...infantry('distant-defender', 'enemy', 95, 95), weaponCooldown: 999 }],
+    }];
+
+    const ordered = maneuverGroundUnits(state, 'draven', [scout.id], rock.x, rock.y, true);
+    expect(ordered.ok).toBe(true);
+    if (!ordered.ok) return;
+    expect(groundPositionBlocked('draven', {
+      battleX: ordered.state.battles[0].attackers[0].battleTargetX!,
+      battleY: ordered.state.battles[0].attackers[0].battleTargetY!,
+    })).toBe(true);
+
+    const arrived = tick(ordered.state, 2);
+    const airborne = arrived.battles[0].attackers[0];
+    expect(groundPositionBlocked('draven', { battleX: airborne.battleX!, battleY: airborne.battleY! })).toBe(true);
   });
 
   it('reduces damage received by units inside forests by thirty percent', () => {

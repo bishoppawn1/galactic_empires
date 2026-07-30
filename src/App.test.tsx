@@ -120,16 +120,16 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.brood-organic').length).toBeGreaterThan(0);
     const broodGroundArt = [...document.querySelectorAll<HTMLImageElement>('.unit-button .ground-unit-image')];
-    expect(broodGroundArt).toHaveLength(9);
-    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(9);
+    expect(broodGroundArt).toHaveLength(11);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(11);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
   it('uses dedicated artwork for every Brood ground organism', () => {
     const { container } = render(<>{[...BROOD_GROUND_KINDS, 'spineTower' as const].map(kind => <GroundUnitImage key={kind} kind={kind} />)}</>);
     const broodGroundArt = [...container.querySelectorAll<HTMLImageElement>('.ground-unit-image')];
-    expect(broodGroundArt).toHaveLength(10);
-    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(10);
+    expect(broodGroundArt).toHaveLength(12);
+    expect(new Set(broodGroundArt.map(image => image.src)).size).toBe(12);
     broodGroundArt.forEach(image => expect(image.src).toContain('/assets/brood/ground/'));
   });
 
@@ -183,7 +183,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: /Interdictor Flak Frigate/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(7);
     expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(14);
   });
 
@@ -378,9 +378,9 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Missile Frigate', { selector: '.unit-row b' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
-    expect(screen.getByRole('button', { name: 'Landed Transport invasion-transport' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Select Transport invasion-transport' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select Infantry invasion-squad' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Target Anti-Vehicle Infantry enemy-defender' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Target Anti-Vehicle Infantry enemy-defender' })).not.toBeInTheDocument();
   });
 
   it('shows advanced units with their research and factory gates', () => {
@@ -405,7 +405,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('heading', { name: 'TIER 3 · SUPER CAPITALS' })).toBeInTheDocument();
     expect(screen.getAllByText('RESEARCH REQUIRED').length).toBeGreaterThanOrEqual(8);
     expect(screen.getByText('Flak Frigate', { selector: '.unit-button b' }).closest('button')).not.toHaveTextContent('RESEARCH REQUIRED');
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(9);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(11);
     const infantryOrder = screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button');
     expect(infantryOrder).toHaveTextContent('RNG 14');
     expect(infantryOrder).not.toHaveTextContent('Tri-Burst Pulse Rifle');
@@ -458,7 +458,7 @@ describe('Galactic Empires interface', () => {
     }
     expect(screen.queryByText('Ward Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
+    expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(7);
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
     expect(screen.getByText('Sovereign Titan')).toBeInTheDocument();
@@ -1632,14 +1632,14 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /GROUND BATTLE ACTIVE/ }));
 
-    const landed = screen.getByRole('button', { name: 'Landed Transport landed' });
+    const landed = screen.getByRole('button', { name: 'Select Transport landed' });
     expect(screen.getByText(/2 FRIENDLY/)).toBeInTheDocument();
     expect(landed).toHaveClass('grounded-transport');
     expect(landed.querySelector('.landed-transport-image')).not.toBeNull();
-    expect(document.querySelectorAll('.range-ring')).toHaveLength(2);
+    expect(document.querySelectorAll('.range-ring')).toHaveLength(1);
     expect(document.querySelectorAll('.battle-fire .weapon-fire')).toHaveLength(0);
     fireEvent.click(landed);
-    expect(screen.getByText('DRAG-SELECT FRIENDLY TROOPS TO ISSUE ORDERS')).toBeInTheDocument();
+    expect(screen.getByText(/1 UNIT SELECTED · E EVACUATE LOADED TRANSPORTS/)).toBeInTheDocument();
   });
 
   it('selects friendly troops and issues a formation move by right-clicking the battlefield', () => {

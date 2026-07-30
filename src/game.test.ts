@@ -499,7 +499,7 @@ describe('starter faction foundations', () => {
   });
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
-    expect(BROOD_GROUND_KINDS).toHaveLength(9);
+    expect(BROOD_GROUND_KINDS).toHaveLength(11);
     expect(BROOD_SPACE_KINDS).toHaveLength(14);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -530,7 +530,7 @@ describe('starter faction foundations', () => {
   it('gives the Aegis Directorate a separate durable production roster', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
-    expect(AEGIS_GROUND_KINDS).toHaveLength(5);
+    expect(AEGIS_GROUND_KINDS).toHaveLength(7);
     expect(AEGIS_SPACE_KINDS).toHaveLength(13);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
@@ -2422,7 +2422,7 @@ describe('positional ground combat', () => {
 
   it('lets artillery hold position and fire from its longer range', () => {
     const state = createInitialState();
-    state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'artillery', 'player', 40)], defenders: [combatUnit('d1', 'infantry', 'enemy', 68)] }];
+    state.battles = [{ planetId: 'draven', attackers: [combatUnit('a1', 'artillery', 'player', 40)], defenders: [combatUnit('d1', 'infantry', 'enemy', 64)] }];
     const fired = tick(state, 1);
     const battle = fired.battles[0];
     expect(battle.attackers[0].battleX).toBe(40);
@@ -2436,7 +2436,7 @@ describe('positional ground combat', () => {
     draven.buildings.push({ id: 'ground-defense-doomed', kind: 'groundDefense' });
     const turret = { ...combatUnit('ground-defense-ground-defense-doomed', 'defenseTurret', 'enemy', 70), hp: 1, shields: 0, sourceBuildingId: 'ground-defense-doomed' };
     state.battles = [{ planetId: draven.id, attackerFaction: 'player', attackers: [combatUnit('siege', 'siegeWalker', 'player', 40)], defenders: [turret], groundDefenseBuildingIds: ['ground-defense-doomed'] }];
-    const resolved = tick(state, 1);
+    const resolved = tick(tick(state, 2), 1);
     expect(resolved.battles).toHaveLength(0);
     expect(resolved.planets.find(p => p.id === draven.id)!.buildings.some(building => building.id === 'ground-defense-doomed')).toBe(false);
   });

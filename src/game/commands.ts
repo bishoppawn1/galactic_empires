@@ -3,9 +3,11 @@ import {
   constructBuilding,
   dispatchSpaceUnits,
   dockSpaceUnits,
+  evacuateGroundTransports,
   maneuverSpaceUnits,
   maneuverGroundUnits,
   holdGroundUnits,
+  loadGroundTransport,
   queueUnit,
   setBattleFocus,
   setOrbitFocusTarget,
@@ -25,6 +27,8 @@ export type GameCommand =
   | { type: 'maneuver'; planetId: string; unitIds: string[]; orbitX: number; orbitY: number }
   | { type: 'battleManeuver'; planetId: string; unitIds: string[]; battleX: number; battleY: number; forceMove?: boolean }
   | { type: 'battleHold'; planetId: string; unitIds: string[] }
+  | { type: 'battleLoad'; planetId: string; transportId: string; unitIds: string[] }
+  | { type: 'battleEvacuate'; planetId: string; transportIds: string[] }
   | { type: 'dispatch'; originId: string; unitIds: string[]; destinationId: string }
   | { type: 'battleFocus'; planetId: string; targetId?: string }
   | { type: 'orbitFocus'; planetId: string; targetId?: string }
@@ -50,6 +54,8 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case 'battleManeuver': return isString(value.planetId) && isStringArray(value.unitIds) && Number.isFinite(value.battleX) && Number.isFinite(value.battleY)
       && (value.forceMove === undefined || typeof value.forceMove === 'boolean');
     case 'battleHold': return isString(value.planetId) && isStringArray(value.unitIds);
+    case 'battleLoad': return isString(value.planetId) && isString(value.transportId) && isStringArray(value.unitIds);
+    case 'battleEvacuate': return isString(value.planetId) && isStringArray(value.transportIds);
     case 'dispatch': return isString(value.originId) && isStringArray(value.unitIds) && isString(value.destinationId);
     case 'battleFocus':
     case 'orbitFocus': return isString(value.planetId) && isOptionalString(value.targetId);
@@ -69,6 +75,8 @@ export function applyGameCommand(state: GameState, command: GameCommand): GameRe
     case 'maneuver': return maneuverSpaceUnits(state, command.planetId, command.unitIds, command.orbitX, command.orbitY);
     case 'battleManeuver': return maneuverGroundUnits(state, command.planetId, command.unitIds, command.battleX, command.battleY, command.forceMove);
     case 'battleHold': return holdGroundUnits(state, command.planetId, command.unitIds);
+    case 'battleLoad': return loadGroundTransport(state, command.planetId, command.transportId, command.unitIds);
+    case 'battleEvacuate': return evacuateGroundTransports(state, command.planetId, command.transportIds);
     case 'dispatch': return dispatchSpaceUnits(state, command.originId, command.unitIds, command.destinationId);
     case 'battleFocus': return { ok: true, state: setBattleFocus(state, command.planetId, command.targetId) };
     case 'orbitFocus': return { ok: true, state: setOrbitFocusTarget(state, command.planetId, command.targetId) };

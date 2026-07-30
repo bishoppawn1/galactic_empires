@@ -2,6 +2,8 @@ import { type CSSProperties } from 'react';
 import antiVehicle from '../../assets/ground/anti-vehicle.png';
 import artillery from '../../assets/ground/artillery.png';
 import defenseTurret from '../../assets/ground/defense-turret.png';
+import dragonflyScout from '../../assets/ground/dragonfly-scout.png';
+import falconGunship from '../../assets/ground/falcon-gunship.png';
 import infantry from '../../assets/ground/infantry.png';
 import lightTank from '../../assets/ground/light-tank.png';
 import plasmaTank from '../../assets/ground/plasma-tank.png';
@@ -14,20 +16,26 @@ import aegisFortressWalker from '../../assets/aegis/ground/fortress-walker.png';
 import aegisPaladinGuard from '../../assets/aegis/ground/paladin-guard.png';
 import aegisRampartArtillery from '../../assets/aegis/ground/rampart-artillery.png';
 import aegisWarden from '../../assets/aegis/ground/warden.png';
+import aegisHaloGunship from '../../assets/aegis/ground/halo-gunship.png';
+import aegisSeraphSkimmer from '../../assets/aegis/ground/seraph-skimmer.png';
 import covenantBastionStrider from '../../assets/covenant/ground/bastion-strider.png';
 import covenantBulwark from '../../assets/covenant/ground/iron-bulwark.png';
 import covenantCohort from '../../assets/covenant/ground/iron-cohort.png';
 import covenantFurnaceArtillery from '../../assets/covenant/ground/furnace-artillery.png';
 import covenantJuggernaut from '../../assets/covenant/ground/juggernaut-engine.png';
 import covenantRepairDrone from '../../assets/covenant/ground/repair-drone.png';
+import covenantFurnaceGunship from '../../assets/covenant/ground/furnace-gunship.png';
+import covenantWaspDrone from '../../assets/covenant/ground/wasp-drone.png';
 import acidBehemoth from '../../assets/brood/ground/acid-behemoth.png';
 import acidSpitter from '../../assets/brood/ground/acid-spitter.png';
 import broodling from '../../assets/brood/ground/broodling.png';
 import carapaceBeast from '../../assets/brood/ground/carapace-beast.png';
 import crusherBeast from '../../assets/brood/ground/crusher-beast.png';
+import razorwing from '../../assets/brood/ground/razorwing.png';
 import siegeCrawler from '../../assets/brood/ground/siege-crawler.png';
 import skitterer from '../../assets/brood/ground/skitterer.png';
 import spineTower from '../../assets/brood/ground/spine-tower.png';
+import sporewing from '../../assets/brood/ground/sporewing.png';
 import sporeLobber from '../../assets/brood/ground/spore-lobber.png';
 import synapseGuard from '../../assets/brood/ground/synapse-guard.png';
 import { BROOD_GROUND_KINDS, type GroundUnitKind, type UnitKind } from '../../game';
@@ -38,6 +46,8 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   recon,
   lightTank,
   artillery,
+  dragonflyScout,
+  falconGunship,
   shockTrooper,
   railgunTank,
   plasmaTank,
@@ -48,6 +58,8 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   skitterer,
   carapaceBeast,
   sporeLobber,
+  razorwing,
+  sporewing,
   synapseGuard,
   crusherBeast,
   acidBehemoth,
@@ -56,12 +68,16 @@ const GROUND_UNIT_IMAGES: Record<GroundUnitKind, string> = {
   aegisWarden,
   aegisBastionTank,
   aegisRampartArtillery,
+  aegisSeraphSkimmer,
+  aegisHaloGunship,
   aegisPaladinGuard,
   aegisFortressWalker,
   covenantCohort,
   covenantRepairDrone,
   covenantBastionStrider,
   covenantFurnaceArtillery,
+  covenantWaspDrone,
+  covenantFurnaceGunship,
   covenantJuggernaut,
   covenantBulwark,
 };
@@ -74,6 +90,8 @@ export const GROUND_UNIT_DISPLAY_SCALES = {
   recon: .86,
   lightTank: .98,
   artillery: 1.06,
+  dragonflyScout: .705,
+  falconGunship: 1.115,
   shockTrooper: .82,
   railgunTank: 1.1,
   plasmaTank: 1.16,
@@ -84,6 +102,8 @@ export const GROUND_UNIT_DISPLAY_SCALES = {
   skitterer: .84,
   carapaceBeast: 1.02,
   sporeLobber: .94,
+  razorwing: .735,
+  sporewing: 1.105,
   synapseGuard: .88,
   crusherBeast: 1.14,
   acidBehemoth: 1.22,
@@ -92,12 +112,16 @@ export const GROUND_UNIT_DISPLAY_SCALES = {
   aegisWarden: .76,
   aegisBastionTank: 1,
   aegisRampartArtillery: 1.08,
+  aegisSeraphSkimmer: .795,
+  aegisHaloGunship: 1.145,
   aegisPaladinGuard: .9,
   aegisFortressWalker: 1.26,
   covenantCohort: .74,
   covenantRepairDrone: .68,
   covenantBastionStrider: .96,
   covenantFurnaceArtillery: 1.07,
+  covenantWaspDrone: .815,
+  covenantFurnaceGunship: 1.155,
   covenantJuggernaut: 1.24,
   covenantBulwark: 1.19,
 } satisfies Record<GroundUnitKind, number>;

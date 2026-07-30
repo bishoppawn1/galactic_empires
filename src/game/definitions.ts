@@ -42,6 +42,8 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   recon: { label: 'Light Recon Vehicle', description: 'Fast scouting armor with twin autocannons.', cost: pool(55, 18, 9), time: 16, factory: 'ground', hp: 130, shields: 15, range: 11, moveSpeed: 11, weapon: { label: 'Twin Autocannon', damage: 1, cooldown: .5, projectiles: 2, effect: 'kinetic' } },
   lightTank: { label: 'Light Tank', description: 'Durable armor carrying a medium accelerator cannon.', cost: pool(82, 30, 15), time: 22, factory: 'ground', hp: 220, shields: 30, range: 16, moveSpeed: 5, weapon: { label: 'Accelerator Cannon', damage: 7, cooldown: 1.2, projectiles: 1, effect: 'kinetic' } },
   artillery: { label: 'Light Artillery', description: 'Long-range fire support delivering heavy mortar salvos.', cost: pool(75, 36, 18), time: 24, factory: 'ground', hp: 115, shields: 10, range: 30, moveSpeed: 3.5, weapon: { label: 'Arc Mortar', damage: 18, cooldown: 2.6, projectiles: 1, effect: 'artillery' } },
+  dragonflyScout: { label: 'Dragonfly Scout', description: 'A fast VTOL scout with a broad sensor footprint and light autocannons.', cost: pool(62, 28, 12), time: 18, factory: 'ground', hp: 120, shields: 35, range: 13, visionRange: 40, moveSpeed: 14, flying: true, weapon: { label: 'Twin Scout Autocannons', damage: .8, cooldown: .45, projectiles: 2, effect: 'kinetic' }, ability: { kind: 'aerialRecon', label: 'Aerial Recon', description: 'Flies over rocks and reveals a much wider area than line units.' } },
+  falconGunship: { label: 'Falcon Gunship', description: 'An armored atmospheric gunship that crosses terrain to deliver sustained pulse fire.', cost: pool(155, 92, 46), time: 38, factory: 'ground', hp: 310, shields: 85, range: 24, visionRange: 30, moveSpeed: 7.5, flying: true, weapon: { label: 'Paired Falcon Cannons', damage: 3.2, cooldown: .7, projectiles: 2, effect: 'pulse' }, requires: 'groundWarfare', advancedFactory: true, ability: { kind: 'airSupport', label: 'Air Support', description: 'Flies over rocks and does not receive forest cover.' } },
   transport: { label: 'Transport', description: 'Carries four squads and mounts a light point-defense laser.', cost: pool(70, 48, 20), time: 18, factory: 'space', spaceTier: 1, hp: 180, shields: 90, range: 160, moveSpeed: 0, weapon: { label: 'Point-Defense Laser', damage: .14, cooldown: .25, projectiles: 1, effect: 'laser' }, capacity: 4 },
   escortFrigate: { label: 'Escort Frigate', description: 'Close escort with three low-damage continuous laser emitters.', cost: pool(120, 70, 35), time: 26, factory: 'space', spaceTier: 1, hp: 260, shields: 130, range: 280, moveSpeed: 0, weapon: { label: 'Laser Emitter', damage: .5, cooldown: .4, projectiles: 3, effect: 'laser' } },
   missileFrigate: { label: 'Missile Frigate', description: 'Long-range frigate with one slow, devastating missile launcher.', cost: pool(135, 82, 42), time: 30, factory: 'space', spaceTier: 1, hp: 230, shields: 115, range: 440, moveSpeed: 0, weapon: { label: 'Heavy Siege Missile Launcher', damage: 17, cooldown: 3.5, projectiles: 1, effect: 'missile' } },
@@ -68,6 +70,8 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   skitterer: { label: 'Skitterer', description: 'A darting reconnaissance organism that is difficult to pin down.', cost: pool(45, 14, 5), time: 13, factory: 'ground', hp: 100, shields: 0, range: 10, moveSpeed: 14, weapon: { label: 'Spine Volley', damage: .8, cooldown: .35, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'evasiveChitin', label: 'Evasive Chitin', description: 'Reduces incoming damage by 30%.' } },
   carapaceBeast: { label: 'Carapace Beast', description: 'Dense living armor that punishes anything striking its barbed hide.', cost: pool(74, 22, 10), time: 19, factory: 'ground', hp: 245, shields: 0, range: 12, moveSpeed: 5.8, weapon: { label: 'Bone Ram', damage: 9, cooldown: 1.1, projectiles: 1, effect: 'kinetic' }, ability: { kind: 'thornedCarapace', label: 'Thorned Carapace', description: 'Reflects 20% of direct ground damage back at attackers.' } },
   sporeLobber: { label: 'Spore Lobber', description: 'A bombardment organism whose sacs burst across clustered formations.', cost: pool(70, 30, 12), time: 21, factory: 'ground', hp: 95, shields: 0, range: 34, moveSpeed: 3, weapon: { label: 'Burst Spore', damage: 16, cooldown: 2.2, projectiles: 1, effect: 'artillery' }, ability: { kind: 'burstSpores', label: 'Burst Spores', description: 'Deals 35% splash damage to enemies near the primary target.' } },
+  razorwing: { label: 'Razorwing', description: 'A darting aerial hunter whose sensory crown tastes movement across the battlefield.', cost: pool(54, 20, 8), time: 15, factory: 'ground', hp: 105, shields: 0, range: 10, visionRange: 41, moveSpeed: 15, flying: true, weapon: { label: 'Razor Spine Volley', damage: .75, cooldown: .35, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'aerialRecon', label: 'Sky Senses', description: 'Flies over rocks and reveals a much wider area than line organisms.' } },
+  sporewing: { label: 'Sporewing', description: 'A heavy winged bombardment organism that drops volatile cysts over terrain obstacles.', cost: pool(142, 76, 34), time: 35, factory: 'ground', hp: 340, shields: 0, range: 29, visionRange: 33, moveSpeed: 6.5, flying: true, weapon: { label: 'Volatile Spore Cyst', damage: 14, cooldown: 1.9, projectiles: 1, effect: 'artillery' }, requires: 'groundWarfare', advancedFactory: true, ability: { kind: 'burstSpores', label: 'Sporefall', description: 'Deals 35% splash damage to enemies near the primary target.' } },
   synapseGuard: { label: 'Synapse Guard', description: 'A psychic assault caste that drives nearby swarms into a killing focus.', cost: pool(78, 46, 24), time: 25, factory: 'ground', hp: 190, shields: 20, range: 16, moveSpeed: 8.5, weapon: { label: 'Synaptic Lance', damage: 2.4, cooldown: .65, projectiles: 3, effect: 'pulse' }, requires: 'groundWarfare', advancedFactory: true, ability: { kind: 'synapseAura', label: 'Synapse Aura', description: 'Nearby allied ground organisms deal 25% more damage.' } },
   crusherBeast: { label: 'Crusher Beast', description: 'A massive shock organism bred to tear fortified positions apart.', cost: pool(160, 92, 42), time: 38, factory: 'ground', hp: 500, shields: 0, range: 10, moveSpeed: 6.5, weapon: { label: 'Siege Horn', damage: 30, cooldown: 1.6, projectiles: 1, effect: 'kinetic' }, requires: 'heavyArmor', advancedFactory: true, ability: { kind: 'siegeCharge', label: 'Siege Charge', description: 'Deals double damage to Ground Defense emplacements.' } },
   acidBehemoth: { label: 'Acid Behemoth', description: 'A towering reservoir beast that leaves whole formations vulnerable.', cost: pool(148, 84, 40), time: 36, factory: 'ground', hp: 410, shields: 0, range: 23, moveSpeed: 4, weapon: { label: 'Bile Lance', damage: 15, cooldown: 1.15, projectiles: 1, effect: 'plasma' }, requires: 'heavyArmor', advancedFactory: true, ability: { kind: 'corrosiveBile', label: 'Corrosive Torrent', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
@@ -542,8 +546,8 @@ export const LANDING_APPROACH_SPEED = 14;
 export const SYSTEM_EXIT_SPEED = 18;
 export const PHASE_GATE_CHARGE_SECONDS = 2;
 
-export const COALITION_GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
-export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter', 'skitterer', 'carapaceBeast', 'sporeLobber', 'synapseGuard', 'crusherBeast', 'acidBehemoth', 'siegeCrawler'];
+export const COALITION_GROUND_KINDS: GroundUnitKind[] = ['infantry', 'antiVehicle', 'recon', 'lightTank', 'artillery', 'dragonflyScout', 'falconGunship', 'shockTrooper', 'railgunTank', 'plasmaTank', 'siegeWalker'];
+export const BROOD_GROUND_KINDS: GroundUnitKind[] = ['broodling', 'acidSpitter', 'skitterer', 'carapaceBeast', 'sporeLobber', 'razorwing', 'sporewing', 'synapseGuard', 'crusherBeast', 'acidBehemoth', 'siegeCrawler'];
 export const COALITION_SPACE_KINDS: SpaceUnitKind[] = [
   'transport', 'escortFrigate', 'missileFrigate', 'flakFrigate', 'reconCutter', 'phaseSuppressionFrigate',
   'advancedTransport', 'advancedEscortFrigate', 'advancedMissileFrigate', 'advancedFlakFrigate', 'phaseLockCruiser',
@@ -555,6 +559,20 @@ export const BROOD_SPACE_KINDS: SpaceUnitKind[] = [
   'broodCarrier', 'leviathan', 'worldEater',
 ];
 export const GROUND_KINDS: GroundUnitKind[] = [...COALITION_GROUND_KINDS, 'defenseTurret', ...BROOD_GROUND_KINDS, 'spineTower', ...AEGIS_GROUND_KINDS, ...COVENANT_GROUND_KINDS, 'covenantBulwark'];
+export const GROUND_UNIT_VISION_RANGES: Record<GroundUnitKind, number> = {
+  infantry: 22, antiVehicle: 24, recon: 36, lightTank: 20, artillery: 24, dragonflyScout: 40, falconGunship: 30,
+  shockTrooper: 24, railgunTank: 27, plasmaTank: 23, siegeWalker: 28, defenseTurret: 34,
+  broodling: 19, acidSpitter: 25, skitterer: 38, carapaceBeast: 18, sporeLobber: 25, razorwing: 41, sporewing: 33,
+  synapseGuard: 28, crusherBeast: 19, acidBehemoth: 26, siegeCrawler: 30, spineTower: 36,
+  aegisWarden: 25, aegisBastionTank: 22, aegisRampartArtillery: 28, aegisSeraphSkimmer: 42, aegisHaloGunship: 32,
+  aegisPaladinGuard: 24, aegisFortressWalker: 30,
+  covenantCohort: 23, covenantRepairDrone: 34, covenantBastionStrider: 22, covenantFurnaceArtillery: 27,
+  covenantWaspDrone: 40, covenantFurnaceGunship: 30, covenantJuggernaut: 30, covenantBulwark: 36,
+};
+export const groundUnitVisionRange = (unit: Unit) => UNITS[unit.kind].visionRange
+  ?? GROUND_UNIT_VISION_RANGES[unit.kind as GroundUnitKind]
+  ?? 24;
+export const isFlyingGroundUnit = (unit: Unit) => UNITS[unit.kind].factory === 'ground' && UNITS[unit.kind].flying === true;
 const RETIRED_SPACE_KINDS: SpaceUnitKind[] = [
   'lightCruiser', 'destroyer', 'hiveCruiser', 'voidStalker', 'aegisWardCruiser', 'covenantFoundryCruiser',
 ];
@@ -634,6 +652,7 @@ export const requiredSpaceYardKind = (kind: UnitKind) => {
 
 const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'broodling', antiVehicle: 'acidSpitter', recon: 'skitterer', lightTank: 'carapaceBeast', artillery: 'sporeLobber',
+  dragonflyScout: 'razorwing', falconGunship: 'sporewing',
   shockTrooper: 'synapseGuard', railgunTank: 'crusherBeast', plasmaTank: 'acidBehemoth', siegeWalker: 'siegeCrawler', defenseTurret: 'spineTower',
   transport: 'sporeArk', escortFrigate: 'clawFrigate', missileFrigate: 'needleFrigate', reconCutter: 'broodSeeker', phaseSuppressionFrigate: 'voidBinder', phaseLockCruiser: 'greaterVoidBinder', lightCruiser: 'hiveCruiser', destroyer: 'voidStalker',
   advancedTransport: 'greaterSporeArk', advancedEscortFrigate: 'clawCruiser', advancedMissileFrigate: 'needleCruiser', advancedFlakFrigate: 'greaterSporeguard',
@@ -642,6 +661,7 @@ const BROOD_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
 const BROOD_UNIT_KINDS = new Set<UnitKind>([...BROOD_GROUND_KINDS, 'spineTower', ...BROOD_SPACE_KINDS]);
 const AEGIS_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'aegisWarden', antiVehicle: 'aegisWarden', recon: 'aegisWarden', lightTank: 'aegisBastionTank', artillery: 'aegisRampartArtillery',
+  dragonflyScout: 'aegisSeraphSkimmer', falconGunship: 'aegisHaloGunship',
   shockTrooper: 'aegisPaladinGuard', railgunTank: 'aegisFortressWalker', plasmaTank: 'aegisFortressWalker', siegeWalker: 'aegisFortressWalker',
   transport: 'aegisBastionLander', escortFrigate: 'aegisShieldMonitor', missileFrigate: 'aegisLanceFrigate', reconCutter: 'aegisFarcastScout', phaseSuppressionFrigate: 'aegisResonanceAnchor', phaseLockCruiser: 'aegisAnchorCruiser', lightCruiser: 'aegisWardCruiser', destroyer: 'aegisWardCruiser',
   advancedTransport: 'aegisBastionLanderII', advancedEscortFrigate: 'aegisShieldMonitorII', advancedMissileFrigate: 'aegisLanceCruiser', advancedFlakFrigate: 'aegisSentinelCruiser',
@@ -650,6 +670,7 @@ const AEGIS_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
 const AEGIS_UNIT_KINDS = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
 const COVENANT_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   infantry: 'covenantCohort', antiVehicle: 'covenantCohort', recon: 'covenantRepairDrone', lightTank: 'covenantBastionStrider', artillery: 'covenantFurnaceArtillery',
+  dragonflyScout: 'covenantWaspDrone', falconGunship: 'covenantFurnaceGunship',
   shockTrooper: 'covenantRepairDrone', railgunTank: 'covenantJuggernaut', plasmaTank: 'covenantJuggernaut', siegeWalker: 'covenantJuggernaut', defenseTurret: 'covenantBulwark',
   transport: 'covenantAssemblyArk', escortFrigate: 'covenantSalvageFrigate', missileFrigate: 'covenantChainFrigate', reconCutter: 'covenantSurveyorSkiff', phaseSuppressionFrigate: 'covenantLockstepFrigate', phaseLockCruiser: 'covenantLockstepCruiser', lightCruiser: 'covenantFoundryCruiser', destroyer: 'covenantFoundryCruiser',
   advancedTransport: 'covenantAssemblyArkII', advancedEscortFrigate: 'covenantSalvageCruiser', advancedMissileFrigate: 'covenantChainCruiser', advancedFlakFrigate: 'covenantInterdictorCruiser',

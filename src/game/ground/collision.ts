@@ -1,4 +1,5 @@
 import type { Unit } from '../types';
+import { isFlyingGroundUnit } from '../definitions';
 import {
   GROUND_BATTLEFIELD_HEIGHT,
   GROUND_BATTLEFIELD_WIDTH,
@@ -81,7 +82,7 @@ const moveUnitByPixels = (unit: Unit, x: number, y: number, planetId?: string) =
     (unit.battleX ?? 0) + x / GROUND_BATTLEFIELD_WIDTH * 100,
     (unit.battleY ?? 0) + y / GROUND_BATTLEFIELD_HEIGHT * 100,
   );
-  if (planetId && groundPositionBlocked(planetId, position)
+  if (!isFlyingGroundUnit(unit) && planetId && groundPositionBlocked(planetId, position)
     && groundRockCollisionDepth(planetId, position) >= groundRockCollisionDepth(planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) - 1e-6) return false;
   unit.battleX = position.battleX;
   unit.battleY = position.battleY;
@@ -89,6 +90,7 @@ const moveUnitByPixels = (unit: Unit, x: number, y: number, planetId?: string) =
 };
 
 function separatePair(first: Unit, second: Unit, planetId?: string) {
+  if (isFlyingGroundUnit(first) !== isFlyingGroundUnit(second)) return false;
   let vector = pixelVector(
     { battleX: first.battleX ?? 0, battleY: first.battleY ?? 0 },
     { battleX: second.battleX ?? 0, battleY: second.battleY ?? 0 },

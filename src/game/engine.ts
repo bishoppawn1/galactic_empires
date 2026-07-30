@@ -39,7 +39,7 @@ import { seedKnownEmpireHomeworldIntel, updatePlanetIntel } from './visibility';
 import { enemyDefensiveReserve, enemyOrbitalBeachheads, planEnemyFleetOperations } from './ai/fleetOperations';
 import {
   GROUND_FORMATION_X_SPACING, GROUND_FORMATION_Y_SPACING, clampGroundPosition,
-  GROUND_UNIT_SIGHT_RANGE, nearestOpenGroundPosition, separateGroundUnits,
+  nearestOpenGroundPosition, separateGroundUnits,
 } from './ground/collision';
 import {
   GROUND_FOREST_DAMAGE_MULTIPLIER, groundForestAtPosition, groundTerrainMovementStep,
@@ -53,6 +53,7 @@ import {
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
   blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  groundUnitVisionRange, isFlyingGroundUnit,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
@@ -1521,7 +1522,7 @@ function ensureBattlePositions(battle: GroundBattle) {
       requested.battleX,
       requested.battleY,
       occupied,
-      battle.planetId,
+      isFlyingGroundUnit(unit) ? undefined : battle.planetId,
     );
     unit.battleX = position.battleX;
     unit.battleY = position.battleY;
@@ -1605,7 +1606,10 @@ const moveBattleUnitToward = (unit: Unit, x: number, y: number, seconds: number,
   const dx = x - (unit.battleX ?? 0), dy = y - (unit.battleY ?? 0);
   const distance = Math.hypot(dx, dy), travel = UNITS[unit.kind].moveSpeed * seconds;
   if (!distance || !travel) return;
-  const position = groundTerrainMovementStep(
+  const position = isFlyingGroundUnit(unit) ? {
+    battleX: (unit.battleX ?? 0) + dx / distance * Math.min(distance, travel),
+    battleY: (unit.battleY ?? 0) + dy / distance * Math.min(distance, travel),
+  } : groundTerrainMovementStep(
     planetId,
     unit.id,
     { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 },
@@ -1656,7 +1660,7 @@ function recordGroundHit(hits: Map<string, GroundHit>, attacker: Unit, target: U
   const hit = hits.get(target.id)!;
   if (UNITS[attacker.kind].ability?.kind === 'corrosiveBile') hit.corrosionSeconds = 5;
   if (UNITS[target.kind].ability?.kind === 'thornedCarapace') addGroundDamage(hits, attacker.id, amplifiedDamage * .2);
-  if (battleDistance(target, attacker) <= UNITS[target.kind].range) return;
+  if (battleDistance(target, attacker) <= groundUnitVisionRange(target)) return;
   if (amplifiedDamage > hit.strongestRetaliationHit || (amplifiedDamage === hit.strongestRetaliationHit && (!hit.retaliationTargetId || attacker.id < hit.retaliationTargetId))) {
     hit.retaliationTargetId = attacker.id;
     hit.strongestRetaliationHit = amplifiedDamage;
@@ -1711,8 +1715,9 @@ function protectGroundFormation(hits: Map<string, GroundHit>, allies: Unit[]) {
   }
 }
 
-function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, preferredId?: string, power = 1) {
+function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: number, hits: Map<string, GroundHit>, planetId: string, advanceX: number, preferredId?: string, power = 1) {
   const definition = UNITS[unit.kind];
+  const visibleEnemies = enemies.filter(enemy => allies.some(observer => battleDistance(observer, enemy) <= groundUnitVisionRange(observer)));
   if (unit.landedTransport) {
     tickUnitWeapon(unit, seconds, false);
     return;
@@ -1732,7 +1737,6 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
   let retaliationTarget = unit.battleRetaliationTargetId && enemies.find(enemy => enemy.id === unit.battleRetaliationTargetId);
   if (unit.battleRetaliationTargetId && !retaliationTarget) delete unit.battleRetaliationTargetId;
   if (!retaliationTarget && followingOrder) {
-    const visibleEnemies = enemies.filter(enemy => battleDistance(unit, enemy) <= Math.max(GROUND_UNIT_SIGHT_RANGE, definition.range));
     const spottedTarget = nearestBattleTarget(unit, visibleEnemies, preferredId);
     if (spottedTarget) {
       unit.battleRetaliationTargetId = spottedTarget.id;
@@ -1750,7 +1754,7 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
     }
     return;
   }
-  const enemiesInRange = enemies.filter(enemy => battleDistance(unit, enemy) <= definition.range);
+  const enemiesInRange = visibleEnemies.filter(enemy => battleDistance(unit, enemy) <= definition.range);
   const targetInRange = nearestBattleTarget(unit, enemiesInRange, preferredId);
   if (targetInRange) {
     fireGroundWeapon(unit, allies, enemies, targetInRange, seconds, hits, power);
@@ -1762,8 +1766,11 @@ function advanceOrFire(unit: Unit, allies: Unit[], enemies: Unit[], seconds: num
     moveBattleUnitToward(unit, unit.battleTargetX, unit.battleTargetY, seconds, planetId);
     return;
   }
-  const target = nearestBattleTarget(unit, enemies, preferredId);
-  if (!target) return;
+  const target = nearestBattleTarget(unit, visibleEnemies, preferredId);
+  if (!target) {
+    moveBattleUnitToward(unit, advanceX, unit.battleY ?? 50, seconds, planetId);
+    return;
+  }
   const distance = battleDistance(unit, target);
   const travel = Math.min(definition.moveSpeed * seconds, Math.max(0, distance - definition.range * .92));
   if (!travel || !distance) return;
@@ -1795,7 +1802,7 @@ export function maneuverGroundUnits(input: GameState, planetId: string, unitIds:
       center.battleX + (column - (rowCount - 1) / 2) * GROUND_FORMATION_X_SPACING,
       center.battleY + (row - (Math.ceil(units.length / columns) - 1) / 2) * GROUND_FORMATION_Y_SPACING,
       occupied,
-      battle.planetId,
+      isFlyingGroundUnit(unit) ? undefined : battle.planetId,
     );
     unit.battleTargetX = position.battleX;
     unit.battleTargetY = position.battleY;
@@ -1824,6 +1831,69 @@ export function holdGroundUnits(input: GameState, planetId: string, unitIds: str
   return pass(state);
 }
 
+function stowGroundUnit(unit: Unit) {
+  const stored = { ...unit };
+  delete stored.battleX; delete stored.battleY;
+  delete stored.battleTargetX; delete stored.battleTargetY;
+  delete stored.battleRetaliationTargetId;
+  delete stored.battleHoldPosition;
+  delete stored.battleForceMove;
+  delete stored.weaponCooldown;
+  delete stored.weaponFlash;
+  return stored;
+}
+
+export function loadGroundTransport(input: GameState, planetId: string, transportId: string, unitIds: string[]): GameResult {
+  const state = clone(input);
+  const battle = state.battles.find(candidate => candidate.planetId === planetId);
+  const sides = battle ? [battle.attackers, battle.defenders] : [];
+  const side = sides.find(units => units.some(unit => unit.id === transportId));
+  const transport = side?.find(unit => unit.id === transportId);
+  const requested = new Set(unitIds);
+  const units = side?.filter(unit => requested.has(unit.id) && unit.faction === 'player' && !unit.sourceBuildingId && !unit.landedTransport) ?? [];
+  const capacity = transport ? (UNITS[transport.kind].capacity ?? 0) - (transport.cargo?.length ?? 0) : 0;
+  if (!battle || !side || !transport || transport.faction !== 'player' || !transport.landedTransport || !requested.size || units.length !== requested.size) {
+    return fail(input, 'Select friendly squads and a landed transport in the active battle.');
+  }
+  if (capacity <= 0) return fail(input, `${UNITS[transport.kind].label} has no open berths.`);
+  const boarding = units.slice(0, capacity);
+  const boardingIds = new Set(boarding.map(unit => unit.id));
+  side.splice(0, side.length, ...side.filter(unit => !boardingIds.has(unit.id)));
+  transport.cargo = [...(transport.cargo ?? []), ...boarding.map(stowGroundUnit)];
+  transport.loadedUnitIds = transport.cargo.map(unit => unit.id);
+  const waiting = units.length - boarding.length;
+  addMessage(state, `${boarding.length} squad${boarding.length === 1 ? '' : 's'} loaded aboard ${UNITS[transport.kind].label}${waiting ? `; ${waiting} awaiting open berths` : ''}.`);
+  return pass(state);
+}
+
+export function evacuateGroundTransports(input: GameState, planetId: string, transportIds: string[]): GameResult {
+  const state = clone(input);
+  const battle = state.battles.find(candidate => candidate.planetId === planetId);
+  const p = getPlanet(state, planetId);
+  const requested = new Set(transportIds);
+  const combatants = battle ? [...battle.attackers, ...battle.defenders] : [];
+  const transports = combatants.filter(unit => requested.has(unit.id) && unit.faction === 'player' && unit.landedTransport && (unit.cargo?.length ?? 0) > 0);
+  if (!battle || !p || !requested.size || transports.length !== requested.size) return fail(input, 'Select loaded landed transports to evacuate.');
+  const departingIds = new Set(transports.map(unit => unit.id));
+  battle.attackers = battle.attackers.filter(unit => !departingIds.has(unit.id));
+  battle.defenders = battle.defenders.filter(unit => !departingIds.has(unit.id));
+  for (const transport of transports) {
+    delete transport.landedTransport;
+    delete transport.battleX; delete transport.battleY;
+    delete transport.battleTargetX; delete transport.battleTargetY;
+    delete transport.battleRetaliationTargetId;
+    delete transport.battleHoldPosition;
+    delete transport.battleForceMove;
+    transport.orbitX = 0;
+    transport.orbitY = 0;
+    targetOpenOrbit(p, transport, [...p.orbitUnits, ...transports]);
+    p.orbitUnits.push(transport);
+  }
+  addMessage(state, `${transports.length} loaded transport${transports.length === 1 ? '' : 's'} evacuated from ${p.name} to orbit.`);
+  resolveGroundBattleIfDecided(state, battle);
+  return pass(state);
+}
+
 function resolveGroundDefenseBuildings(p: Planet, battle: GroundBattle, survivingDefenders: Unit[]) {
   const deployedIds = new Set(battle.groundDefenseBuildingIds ?? []);
   if (!deployedIds.size) return;
@@ -1847,8 +1917,32 @@ function returnLandedTransportsToOrbit(p: Planet, units: Unit[]) {
   }
 }
 
+function resolveGroundBattleIfDecided(state: GameState, battle: GroundBattle) {
+  if (battle.attackers.length && battle.defenders.length) return false;
+  const p = getPlanet(state, battle.planetId);
+  if (!p) return false;
+  if (!battle.defenders.length && battle.attackers.length) {
+    const attackingUnitFaction = battle.attackers[0].faction;
+    const winner = battle.attackerFaction ?? (attackingUnitFaction === 'neutral' ? 'player' : attackingUnitFaction);
+    resolveGroundDefenseBuildings(p, battle, []);
+    returnLandedTransportsToOrbit(p, battle.attackers);
+    p.owner = winner; p.groundUnits = fieldArmy(battle.attackers);
+    state.battles = state.battles.filter(candidate => candidate.planetId !== battle.planetId);
+    addMessage(state, winner === 'player' ? `${p.name} secured. Ground forces fully restored.` : `${p.name} has fallen to enemy ground forces.`);
+  } else if (!battle.attackers.length && battle.defenders.length) {
+    const winner = battle.defenders[0]?.faction ?? 'enemy';
+    resolveGroundDefenseBuildings(p, battle, battle.defenders);
+    returnLandedTransportsToOrbit(p, battle.defenders);
+    p.owner = winner === 'neutral' ? null : winner;
+    p.groundUnits = fieldArmy(battle.defenders);
+    state.battles = state.battles.filter(candidate => candidate.planetId !== battle.planetId);
+    addMessage(state, winner === 'player' ? `Enemy invasion of ${p.name} repelled.` : winner === 'neutral' ? `Landing on ${p.name} repelled by neutral defenders.` : `Invasion of ${p.name} repelled.`);
+  }
+  return true;
+}
+
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
-  if (!battle.attackers.length || !battle.defenders.length) return;
+  if (resolveGroundBattleIfDecided(state, battle)) return;
   ensureBattlePositions(battle);
   const restoreFactionSystems = (units: Unit[]) => units.map(unit => {
     if (unit.faction === 'neutral') return unit;
@@ -1867,8 +1961,8 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const hits = new Map<string, GroundHit>();
   const power = (unit: Unit) => state.aiFactions?.includes(unit.faction as EmpireFaction) ? enemyDifficultyMultiplier(state.config.difficulty) : 1;
   const focus = (unit: Unit) => unit.faction === 'player' ? battle.focusTargetId : unit.faction === 'enemy' ? battle.enemyFocusTargetId : battle.focusTargetIds?.[unit.faction as EmpireFaction];
-  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, battle.planetId, focus(unit), power(unit)));
-  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, battle.planetId, focus(unit), power(unit)));
+  battle.attackers.forEach(unit => advanceOrFire(unit, battle.attackers, battle.defenders, seconds, hits, battle.planetId, 88, focus(unit), power(unit)));
+  battle.defenders.forEach(unit => advanceOrFire(unit, battle.defenders, battle.attackers, seconds, hits, battle.planetId, 12, focus(unit), power(unit)));
   protectGroundFormation(hits, battle.attackers);
   protectGroundFormation(hits, battle.defenders);
   const p = getPlanet(state, battle.planetId)!;
@@ -1877,7 +1971,7 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const applyHit = (unit: Unit) => {
     const hit = hits.get(unit.id);
     if (!hit) return unit;
-    const terrainDamage = hit.damage * (groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) ? GROUND_FOREST_DAMAGE_MULTIPLIER : 1);
+    const terrainDamage = hit.damage * (!isFlyingGroundUnit(unit) && groundForestAtPosition(battle.planetId, { battleX: unit.battleX ?? 0, battleY: unit.battleY ?? 0 }) ? GROUND_FOREST_DAMAGE_MULTIPLIER : 1);
     if (!hit.retaliationTargetId) return { ...damageUnit(unit, terrainDamage), ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
     const retaliating = { ...unit, battleRetaliationTargetId: hit.retaliationTargetId };
     if (!retaliating.battleForceMove) {
@@ -1893,23 +1987,7 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
   const survivingCombatants = [...battle.attackers, ...battle.defenders];
   harvestBattlefieldBiomass(state, destroyed, participants, `on ${p.name}`);
   harvestBattlefieldSalvage(state, destroyed, participants, survivingCombatants, `on ${p.name}`);
-  if (!battle.defenders.length && battle.attackers.length) {
-    const attackingUnitFaction = battle.attackers[0].faction;
-    const winner = battle.attackerFaction ?? (attackingUnitFaction === 'neutral' ? 'player' : attackingUnitFaction);
-    resolveGroundDefenseBuildings(p, battle, []);
-    returnLandedTransportsToOrbit(p, battle.attackers);
-    p.owner = winner; p.groundUnits = fieldArmy(battle.attackers);
-    state.battles = state.battles.filter(b => b.planetId !== battle.planetId);
-    addMessage(state, winner === 'player' ? `${p.name} secured. Ground forces fully restored.` : `${p.name} has fallen to enemy ground forces.`);
-  } else if (!battle.attackers.length) {
-    const winner = battle.defenders[0]?.faction ?? 'enemy';
-    resolveGroundDefenseBuildings(p, battle, battle.defenders);
-    returnLandedTransportsToOrbit(p, battle.defenders);
-    p.owner = winner === 'neutral' ? null : winner;
-    p.groundUnits = fieldArmy(battle.defenders);
-    state.battles = state.battles.filter(b => b.planetId !== battle.planetId);
-    addMessage(state, winner === 'player' ? `Enemy invasion of ${p.name} repelled.` : winner === 'neutral' ? `Landing on ${p.name} repelled by neutral defenders.` : `Invasion of ${p.name} repelled.`);
-  }
+  resolveGroundBattleIfDecided(state, battle);
 }
 
 export interface OrbitalCombatShot {

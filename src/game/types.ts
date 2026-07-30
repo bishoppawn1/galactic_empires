@@ -27,10 +27,10 @@ export type BuildingKind =
 export type DefenseBuildingKind = 'groundDefense' | 'antiSpaceDefense' | 'spaceDefense';
 
 export type GroundUnitKind =
-  | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
-  | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower'
-  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
-  | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
+  | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'dragonflyScout' | 'falconGunship' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
+  | 'broodling' | 'acidSpitter' | 'skitterer' | 'carapaceBeast' | 'sporeLobber' | 'razorwing' | 'sporewing' | 'synapseGuard' | 'crusherBeast' | 'acidBehemoth' | 'siegeCrawler' | 'spineTower'
+  | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisSeraphSkimmer' | 'aegisHaloGunship' | 'aegisPaladinGuard' | 'aegisFortressWalker'
+  | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantWaspDrone' | 'covenantFurnaceGunship' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
   | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate' | 'reconCutter' | 'phaseSuppressionFrigate'
   | 'advancedTransport' | 'advancedEscortFrigate' | 'advancedMissileFrigate' | 'advancedFlakFrigate' | 'phaseLockCruiser'
@@ -53,6 +53,7 @@ export type UnitAbilityKind =
   | 'shieldWall' | 'bastionAnchor' | 'movingTargetBarrage' | 'paladinIntercept' | 'judgmentShockwave'
   | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
   | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
+  | 'aerialRecon' | 'airSupport'
   | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam'
   | 'antiFighterCannons' | 'reconDrive' | 'phaseControl';
 
@@ -245,7 +246,9 @@ export interface UnitDefinition extends Definition {
   hp: number;
   shields: number;
   range: number;
+  visionRange?: number;
   moveSpeed: number;
+  flying?: boolean;
   orbitSpeedMultiplier?: number;
   weapon: WeaponDefinition;
   advancedFactory?: boolean;

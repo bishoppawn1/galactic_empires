@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, groundPositionBlocked, holdGroundUnits, isGameCommand, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
+import { COALITION_GROUND_KINDS, BROOD_GROUND_KINDS, AEGIS_GROUND_KINDS, COVENANT_GROUND_KINDS, createInitialState, evacuateGroundTransports, groundPositionBlocked, groundUnitVisionRange, holdGroundUnits, isFlyingGroundUnit, isGameCommand, loadGroundTransport, maneuverGroundUnits, ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, tick, UNITS, type GroundUnitKind, type Unit } from './game';
 
 const combatUnit = (id: string, kind: GroundUnitKind, faction: 'player' | 'enemy', battleX: number): Unit => ({
   id,
@@ -20,6 +20,17 @@ describe('manual ground controls', () => {
     expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: Number.NaN, battleY: 57 })).toBe(false);
     expect(isGameCommand({ type: 'battleManeuver', planetId: 'terra', unitIds: ['u1'], battleX: 42, battleY: 57, forceMove: 'yes' })).toBe(false);
     expect(isGameCommand({ type: 'battleHold', planetId: 'terra', unitIds: ['u1'] })).toBe(true);
+    expect(isGameCommand({ type: 'battleLoad', planetId: 'terra', transportId: 't1', unitIds: ['u1'] })).toBe(true);
+    expect(isGameCommand({ type: 'battleEvacuate', planetId: 'terra', transportIds: ['t1'] })).toBe(true);
+  });
+
+  it('adds two flying ground units with distinct sight ranges to every faction roster', () => {
+    const flyingRoster = (kinds: GroundUnitKind[]) => kinds.filter(kind => isFlyingGroundUnit(combatUnit(kind, kind, 'player', 10)));
+    expect(flyingRoster(COALITION_GROUND_KINDS)).toEqual(['dragonflyScout', 'falconGunship']);
+    expect(flyingRoster(BROOD_GROUND_KINDS)).toEqual(['razorwing', 'sporewing']);
+    expect(flyingRoster(AEGIS_GROUND_KINDS)).toEqual(['aegisSeraphSkimmer', 'aegisHaloGunship']);
+    expect(flyingRoster(COVENANT_GROUND_KINDS)).toEqual(['covenantWaspDrone', 'covenantFurnaceGunship']);
+    expect(groundUnitVisionRange(combatUnit('scout', 'dragonflyScout', 'player', 10))).toBeGreaterThan(groundUnitVisionRange(combatUnit('gunship', 'falconGunship', 'player', 10)));
   });
 
   it('moves selected troops toward separate formation positions', () => {
@@ -38,15 +49,15 @@ describe('manual ground controls', () => {
     expect(arrived.battles[0].attackers[0].battleY).toBeCloseTo(arrived.battles[0].attackers[0].battleTargetY!);
   });
 
-  it('keeps newly landed player troops still until their first order', () => {
+  it('keeps explicitly held troops still until their first movement order', () => {
     const state = createInitialState();
-    const landed = { ...combatUnit('landed-squad', 'infantry', 'player', 12), battleHoldPosition: true };
-    state.battles = [{ planetId: 'draven', attackers: [landed], defenders: [combatUnit('defender', 'infantry', 'enemy', 88)] }];
+    const held = { ...combatUnit('held-squad', 'infantry', 'player', 12), battleHoldPosition: true };
+    state.battles = [{ planetId: 'draven', attackers: [held], defenders: [combatUnit('defender', 'infantry', 'enemy', 88)] }];
 
     const holding = tick(state, 3);
     expect(holding.battles[0].attackers[0]).toMatchObject({ battleX: 12, battleY: 50, battleHoldPosition: true });
 
-    const ordered = maneuverGroundUnits(holding, 'draven', [landed.id], 45, 50);
+    const ordered = maneuverGroundUnits(holding, 'draven', [held.id], 45, 50);
     expect(ordered.ok).toBe(true);
     if (!ordered.ok) return;
     expect(ordered.state.battles[0].attackers[0].battleHoldPosition).toBeUndefined();
@@ -58,7 +69,7 @@ describe('manual ground controls', () => {
     state.battles = [{
       planetId: 'draven',
       attackers: [combatUnit('holding-infantry', 'infantry', 'player', 40)],
-      defenders: [combatUnit('attacking-artillery', 'artillery', 'enemy', 70)],
+      defenders: [combatUnit('attacking-artillery', 'artillery', 'enemy', 64)],
     }];
 
     const held = holdGroundUnits(state, 'draven', ['holding-infantry']);
@@ -118,7 +129,7 @@ describe('manual ground controls', () => {
     state.battles = [{
       planetId: 'draven',
       attackers: [combatUnit('scout', 'infantry', 'player', 40)],
-      defenders: [{ ...combatUnit('spotted', 'infantry', 'enemy', 64), weaponCooldown: 999 }],
+      defenders: [{ ...combatUnit('spotted', 'infantry', 'enemy', 61), weaponCooldown: 999 }],
     }];
     const ordered = maneuverGroundUnits(state, 'draven', ['scout'], 20, 50);
     expect(ordered.ok).toBe(true);
@@ -129,6 +140,23 @@ describe('manual ground controls', () => {
     expect(pursuing.battles[0].attackers[0].battleRetaliationTargetId).toBe('spotted');
     expect(pursuing.battles[0].attackers[0].battleTargetX).toBeUndefined();
     expect(pursuing.battles[0].attackers[0].battleTargetY).toBeUndefined();
+  });
+
+  it('does not acquire unseen enemies but still retaliates after an unseen attacker fires', () => {
+    const state = createInitialState();
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [{ ...combatUnit('infantry', 'infantry', 'player', 40), battleHoldPosition: true }],
+      defenders: [{ ...combatUnit('artillery', 'artillery', 'enemy', 64), weaponCooldown: 999 }],
+    }];
+
+    const unaware = tick(state, 1);
+    expect(unaware.battles[0].attackers[0].battleX).toBe(40);
+    expect(unaware.battles[0].attackers[0].battleRetaliationTargetId).toBeUndefined();
+
+    unaware.battles[0].defenders[0].weaponCooldown = 0;
+    const attacked = tick(unaware, 1);
+    expect(attacked.battles[0].attackers[0].battleRetaliationTargetId).toBe('artillery');
   });
 
   it('keeps landed transports stationary, unarmed, and outside maneuver groups', () => {
@@ -159,9 +187,51 @@ describe('manual ground controls', () => {
     expect(advanced.battles[0].defenders[0].shields).toBe(UNITS.infantry.shields);
   });
 
+  it('loads battle squads into a grounded transport and evacuates the loaded craft to orbit', () => {
+    const state = createInitialState();
+    const draven = state.planets.find(planet => planet.id === 'draven')!;
+    const transport: Unit = {
+      id: 'landed-transport',
+      kind: 'transport',
+      faction: 'player',
+      hp: UNITS.transport.hp,
+      maxHp: UNITS.transport.hp,
+      shields: UNITS.transport.shields,
+      maxShields: UNITS.transport.shields,
+      battleX: 20,
+      battleY: 50,
+      landedTransport: true,
+      cargo: [],
+      loadedUnitIds: [],
+    };
+    state.battles = [{
+      planetId: draven.id,
+      attackers: [combatUnit('boarding', 'infantry', 'player', 22), combatUnit('covering', 'infantry', 'player', 24), transport],
+      defenders: [combatUnit('defender', 'infantry', 'enemy', 80)],
+      attackerFaction: 'player',
+    }];
+
+    const loaded = loadGroundTransport(state, draven.id, transport.id, ['boarding']);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const grounded = loaded.state.battles[0].attackers.find(unit => unit.id === transport.id)!;
+    expect(loaded.state.battles[0].attackers.map(unit => unit.id)).not.toContain('boarding');
+    expect(grounded.cargo?.map(unit => unit.id)).toEqual(['boarding']);
+    expect(grounded.loadedUnitIds).toEqual(['boarding']);
+
+    const evacuated = evacuateGroundTransports(loaded.state, draven.id, [transport.id]);
+    expect(evacuated.ok).toBe(true);
+    if (!evacuated.ok) return;
+    expect(evacuated.state.battles[0].attackers.map(unit => unit.id)).toEqual(['covering']);
+    const orbiting = evacuated.state.planets.find(planet => planet.id === draven.id)!.orbitUnits.find(unit => unit.id === transport.id)!;
+    expect(orbiting.landedTransport).toBeUndefined();
+    expect(orbiting.cargo?.map(unit => unit.id)).toEqual(['boarding']);
+    expect(orbiting.orbitX).toBe(0);
+  });
+
   it('pursues an out-of-range artillery unit after taking fire and retaliates in range', () => {
     const state = createInitialState();
-    state.battles = [{ planetId: 'draven', attackers: [combatUnit('infantry', 'infantry', 'player', 40)], defenders: [combatUnit('artillery', 'artillery', 'enemy', 70)] }];
+    state.battles = [{ planetId: 'draven', attackers: [combatUnit('infantry', 'infantry', 'player', 40)], defenders: [combatUnit('artillery', 'artillery', 'enemy', 64)] }];
     const holding = maneuverGroundUnits(state, 'draven', ['infantry'], 40, 50);
     expect(holding.ok).toBe(true);
     if (!holding.ok) return;

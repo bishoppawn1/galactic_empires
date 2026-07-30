@@ -75,14 +75,19 @@ describe('Galactic Empires interface', () => {
     const pirates = state.planets.find(planet => planet.systemKind === 'pirateBase')!;
     const temple = state.planets.find(planet => planet.systemKind === 'ancientTemple')!;
 
-    expect(screen.getByRole('button', { name: `${nebula.name} SENSOR-DARK NEBULA` })).toHaveClass('system-nebula');
+    const nebulaButton = screen.getByRole('button', { name: `${nebula.name} SENSOR-DARK NEBULA` });
+    expect(nebulaButton).toHaveClass('system-nebula');
     expect(screen.getByRole('button', { name: `${star.name} LETHAL STELLAR HAZARD` })).toHaveClass('system-star');
     const pirateButton = screen.getByRole('button', { name: `${pirates.name} PIRATE-OCCUPIED WORLD` });
     expect(pirateButton).toHaveClass('system-pirateBase');
     expect(screen.getByRole('button', { name: `${temple.name} ANCIENT RELIC` })).toHaveClass('system-ancientTemple');
     expect(document.querySelectorAll('.system-object')).toHaveLength(state.planets.filter(planet => ['nebula', 'star', 'ancientTemple'].includes(planet.systemKind ?? 'planet')).length);
+    expect(document.querySelectorAll('.nebula-system-backdrop')).toHaveLength(state.planets.filter(planet => planet.systemKind === 'nebula').length);
+    expect(document.querySelector('.nebula-system-backdrop')).toHaveStyle({ width: '1560px', height: '1560px' });
     expect(document.querySelectorAll('.planet-sphere.pirate-world')).toHaveLength(state.planets.filter(planet => planet.systemKind === 'pirateBase').length);
 
+    fireEvent.click(nebulaButton);
+    expect(screen.getByRole('heading', { name: 'Blind-space phenomenon' })).toBeInTheDocument();
     fireEvent.click(pirateButton);
     expect(screen.getByRole('heading', { name: 'Static pirate garrison' })).toBeInTheDocument();
     expect(screen.getByText(/habitable planet held by a 48-ship pirate armada and ground army/i)).toBeInTheDocument();

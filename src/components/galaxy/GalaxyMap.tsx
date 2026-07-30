@@ -267,6 +267,11 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             return <line key={`${from.id}-${to.id}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={`local-route ${active ? 'active' : ''}`} />;
           })}
         </svg>
+        {state.planets.flatMap(p => systemKind(p) === 'nebula'
+          ? <span key={`nebula-${p.id}`} className={`nebula-system-backdrop ${selectedId === p.id ? 'selected' : ''}`} aria-hidden="true" style={{
+            left: `${p.x}%`, top: `${p.y}%`, width: GRAVITY_WELL_RADIUS * 2, height: GRAVITY_WELL_RADIUS * 2,
+          }} />
+          : [])}
         {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} />}
         <ShipExplosionLayer state={state} />
         <svg className="orbital-fire" viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} preserveAspectRatio="none" aria-hidden="true">

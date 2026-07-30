@@ -1298,10 +1298,11 @@ function unloadTransport(state: GameState, p: Planet, transport: Unit) {
   const cargo = transport.cargo ?? [];
   if (transport.faction === 'neutral') return false;
   const faction = transport.faction;
-  const deployedCargo = cargo.map(unit => ({
-    ...unit,
-    ...(state.aiFactions?.includes(faction) ? {} : { battleHoldPosition: true }),
-  }));
+  const deployedCargo = cargo.map(unit => {
+    const deployed = { ...unit };
+    delete deployed.battleHoldPosition;
+    return deployed;
+  });
   if (!isColonizableWorld(p) || !UNITS[transport.kind].capacity || !cargo.length) return false;
   const activeBattle = state.battles.find(battle => battle.planetId === p.id);
   if (activeBattle) {
@@ -2305,7 +2306,7 @@ function resolveLandingApproaches(state: GameState, p: Planet) {
     delete ship.phaseArrival;
     const joinedBattle = unloadTransport(state, p, ship);
     if (joinedBattle) {
-      addMessage(state, `${UNITS[ship.kind].label} landed and is holding position on the battlefield at ${p.name}.`);
+      addMessage(state, `${UNITS[ship.kind].label} landed and deployed troops onto the battlefield at ${p.name}.`);
     } else {
       ship.orbitX = 0;
       ship.orbitY = 0;

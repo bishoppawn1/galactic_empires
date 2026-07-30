@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundDeploymentForPlanet, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundDeploymentForPlanet, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -2206,12 +2206,15 @@ describe('transport and colonization', () => {
     expect(turret).toMatchObject({ sourceBuildingId: 'nyx-ground-defense', battleX: 88, faction: 'enemy' });
     expect(battle.groundDefenseBuildingIds).toEqual(['nyx-ground-defense']);
     const landedSquads = battle.attackers.filter(unit => !unit.landedTransport);
-    expect(landedSquads.every(unit => unit.battleHoldPosition)).toBe(true);
-
-    const ordered = maneuverGroundUnits(landed, nyx.id, landedSquads.map(unit => unit.id), 75, 50);
-    expectOk(ordered);
-    expect(ordered.state.battles[0].attackers.filter(unit => !unit.landedTransport).every(unit => !unit.battleHoldPosition)).toBe(true);
-    const closedDistance = tick(ordered.state, 10);
+    expect(landedSquads.every(unit => !unit.battleHoldPosition)).toBe(true);
+    const landingPositions = new Map(landedSquads.map(unit => [unit.id, { x: unit.battleX!, y: unit.battleY! }]));
+    const advancing = tick(landed, .25);
+    const advancingSquads = advancing.battles[0].attackers.filter(unit => !unit.landedTransport);
+    expect(advancingSquads.some(unit => {
+      const start = landingPositions.get(unit.id)!;
+      return Math.hypot(unit.battleX! - start.x, unit.battleY! - start.y) > .01;
+    })).toBe(true);
+    const closedDistance = tick(advancing, 9.75);
     const underFire = tick(closedDistance, 1);
     expect(underFire.battles[0].attackers.some(unit => unit.shields < unit.maxShields)).toBe(true);
     expect(underFire.battles[0].defenders.find(unit => unit.kind === 'defenseTurret')?.battleX).toBe(88);

@@ -883,13 +883,19 @@ describe('Galactic Empires interface', () => {
     fireEvent.click(screen.getByRole('button', { name: `${label} orbiting ${home.name}` }));
 
     expect(screen.getByText('TITAN UPGRADES')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Purchase Siege Core/ })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Purchase Shield Matrix/ })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Purchase Farcast Array/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Purchase Siege Core level 1/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Purchase Shield Matrix level 1/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Purchase Farcast Array level 1/ })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core/ }));
-    expect(screen.getByRole('button', { name: 'Installed Siege Core' })).toBeDisabled();
-    expect(screen.getByText(`Siege Core installed aboard ${label}.`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core level 1/ }));
+    expect(screen.getByRole('button', { name: /Purchase Siege Core level 2/ })).toBeEnabled();
+    expect(screen.getByText(/battery damage per level · LEVEL 1/)).toBeInTheDocument();
+    expect(screen.getByText(`Siege Core level 1 installed aboard ${label}.`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core level 2/ }));
+    expect(screen.getByRole('button', { name: /Purchase Siege Core level 3/ })).toBeEnabled();
+    expect(screen.getByText(/battery damage per level · LEVEL 2/)).toBeInTheDocument();
+    expect(screen.getByText(`Siege Core level 2 installed aboard ${label}.`)).toBeInTheDocument();
   });
 
   it('shows a prominent capacity badge on transports and marks a full hold', () => {

@@ -56,7 +56,7 @@ import {
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
-  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitAvailableToCivilization,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -704,10 +704,11 @@ export function migrateGameState(input: GameState): GameState {
       savedUnit.fighterDamage = Math.max(0, Math.min(FIGHTER_HIT_POINTS - Number.EPSILON, savedUnit.fighterDamage ?? 0));
     }
     if (isTitanKind(savedUnit.kind)) {
-      const installed = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
-      savedUnit.titanUpgrades = [...new Set(installed.filter(id => id in TITAN_UPGRADES))];
-      if (savedUnit.titanUpgrades.includes('shieldMatrix')) {
-        const upgradedMaximum = Math.round(UNITS[savedUnit.kind].shields * 1.4);
+      const installed: unknown[] = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
+      savedUnit.titanUpgrades = installed.filter((id): id is TitanUpgradeId => typeof id === 'string' && id in TITAN_UPGRADES);
+      const shieldMatrixLevel = titanUpgradeLevel(savedUnit, 'shieldMatrix');
+      if (shieldMatrixLevel) {
+        const upgradedMaximum = Math.round(UNITS[savedUnit.kind].shields * (1 + shieldMatrixLevel * .4));
         if (savedUnit.maxShields < upgradedMaximum) {
           savedUnit.shields = Math.min(upgradedMaximum, savedUnit.shields + upgradedMaximum - savedUnit.maxShields);
           savedUnit.maxShields = upgradedMaximum;
@@ -1123,17 +1124,17 @@ export function upgradeTitan(input: GameState, planetId: string, unitId: string,
     ?? state.fleets.find(fleet => fleet.originId === planetId && fleet.unit.id === unitId && fleet.faction === 'player' && isTitanKind(fleet.unit.kind))?.unit;
   if (!titan) return fail(input, 'That Titan is not available for an upgrade.');
   if (!(upgradeId in TITAN_UPGRADES)) return fail(input, 'Unknown Titan upgrade.');
-  if (titan.titanUpgrades?.includes(upgradeId)) return fail(input, 'That Titan upgrade is already installed.');
   const upgrade = TITAN_UPGRADES[upgradeId];
   if (!canPlayerAfford(state, upgrade.cost)) return fail(input, insufficientPlayerResources(state));
   spendPlayerResources(state, upgrade.cost);
+  const nextLevel = titanUpgradeLevel(titan, upgradeId) + 1;
   titan.titanUpgrades = [...(titan.titanUpgrades ?? []), upgradeId];
   if (upgradeId === 'shieldMatrix') {
     const oldMaximum = titan.maxShields;
-    titan.maxShields = Math.round(oldMaximum * 1.4);
+    titan.maxShields = Math.round(UNITS[titan.kind].shields * (1 + nextLevel * .4));
     titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximum);
   }
-  addMessage(state, `${upgrade.label} installed aboard ${UNITS[titan.kind].label}.`);
+  addMessage(state, `${upgrade.label} level ${nextLevel} installed aboard ${UNITS[titan.kind].label}.`);
   return pass(state);
 }
 

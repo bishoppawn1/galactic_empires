@@ -1,6 +1,6 @@
 import {
   TITAN_UPGRADES, UNITS, biomassCost, canAfford, carrierFighterCount, empireCivilization,
-  formatFactionCost, isTitanKind, type GameState, type TitanUpgradeId, type Unit,
+  formatFactionCost, isTitanKind, titanUpgradeLevel, type GameState, type TitanUpgradeId, type Unit,
 } from '../../game';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
@@ -51,7 +51,7 @@ export function FleetSelectionHud({ state, ships, onUpgradeTitan }: {
         <strong>TITAN UPGRADES</strong>
       </div>
       <div className="titan-upgrades">{(Object.keys(TITAN_UPGRADES) as TitanUpgradeId[]).map(id => {
-        const installed = titan.titanUpgrades?.includes(id);
+        const level = titanUpgradeLevel(titan, id);
         const upgrade = TITAN_UPGRADES[id];
         const costLabel = formatFactionCost(upgrade.cost, civilization);
         const affordable = civilization === 'brood'
@@ -59,10 +59,10 @@ export function FleetSelectionHud({ state, ships, onUpgradeTitan }: {
           : canAfford(state.resources, upgrade.cost);
         return <button
           key={id}
-          disabled={installed || !affordable}
+          disabled={!affordable}
           onClick={() => onUpgradeTitan(titan.id, id)}
-          aria-label={installed ? `Installed ${upgrade.label}` : `Purchase ${upgrade.label} for ${costLabel}`}
-        ><b>{upgrade.label}</b><span>{installed ? 'INSTALLED' : upgrade.description}</span>{!installed && <em>{costLabel}</em>}</button>;
+          aria-label={`Purchase ${upgrade.label} level ${level + 1} for ${costLabel}`}
+        ><b>{upgrade.label}</b><span>{upgrade.description} · LEVEL {level}</span><em>{costLabel}</em></button>;
       })}</div>
     </div>}
     <small>{controllable ? 'Right-click to maneuver · Right-click any reachable system for the shortest route' : 'HULL INTEGRITY · SHIELD STRENGTH'}</small>

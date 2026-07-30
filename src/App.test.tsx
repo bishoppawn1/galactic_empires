@@ -9,8 +9,8 @@ import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojec
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
 import { GROUND_UNIT_DISPLAY_SCALES, GroundUnitImage } from './components/shared/GroundUnitImage';
-import { ShipImage } from './components/shared/ShipImage';
-import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { shipDisplaySize, shipImageSource, ShipImage } from './components/shared/ShipImage';
+import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, TIER_TWO_COPY_BY_TIER_ONE, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -150,12 +150,22 @@ describe('Galactic Empires interface', () => {
     expect(GROUND_UNIT_DISPLAY_SCALES.lightTank).toBeLessThan(GROUND_UNIT_DISPLAY_SCALES.siegeWalker);
   });
 
-  it('uses dedicated Brood artwork while Tier 2 counterparts retain their recognizable silhouettes', () => {
+  it('uses dedicated artwork for every Brood ship, including Tier 2 evolutions', () => {
     const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
     const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
     expect(broodShipArt).toHaveLength(14);
-    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(9);
+    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(14);
     broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
+  });
+
+  it('gives every direct Tier 2 counterpart unique art and a visibly larger display scale', () => {
+    const tierPairs = Object.entries(TIER_TWO_COPY_BY_TIER_ONE) as [Parameters<typeof shipImageSource>[0], Parameters<typeof shipImageSource>[0]][];
+
+    expect(tierPairs).toHaveLength(20);
+    tierPairs.forEach(([tierOne, tierTwo]) => {
+      expect(shipImageSource(tierTwo)).not.toBe(shipImageSource(tierOne));
+      expect(shipDisplaySize(tierTwo)).toBeGreaterThanOrEqual(shipDisplaySize(tierOne) * 1.3);
+    });
   });
 
   it('starts an Iron Covenant campaign with its exclusive mechanical roster and artwork', () => {

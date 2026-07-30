@@ -15,8 +15,10 @@ export default defineConfig(({ command }) => ({
         port: 5173,
         strictPort: true,
     },
-    test: {
-        environment: 'jsdom',
-        setupFiles: './src/test/setup.ts',
-    },
+  test: {
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.codex-worktrees/**'],
+  },
 }));

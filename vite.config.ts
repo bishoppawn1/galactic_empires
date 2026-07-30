@@ -18,7 +18,9 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   test: {
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.codex-worktrees/**'],
   },
 }));

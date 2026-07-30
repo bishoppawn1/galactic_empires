@@ -31,17 +31,17 @@ export type GroundUnitKind =
   | 'aegisWarden' | 'aegisBastionTank' | 'aegisRampartArtillery' | 'aegisPaladinGuard' | 'aegisFortressWalker'
   | 'covenantCohort' | 'covenantRepairDrone' | 'covenantBastionStrider' | 'covenantFurnaceArtillery' | 'covenantJuggernaut' | 'covenantBulwark';
 export type SpaceUnitKind =
-  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate'
-  | 'advancedTransport' | 'advancedEscortFrigate' | 'advancedMissileFrigate' | 'advancedFlakFrigate'
+  | 'transport' | 'escortFrigate' | 'missileFrigate' | 'flakFrigate' | 'reconCutter' | 'phaseSuppressionFrigate'
+  | 'advancedTransport' | 'advancedEscortFrigate' | 'advancedMissileFrigate' | 'advancedFlakFrigate' | 'phaseLockCruiser'
   | 'lightCruiser' | 'destroyer' | 'assaultCarrier' | 'battlecruiser' | 'dreadnought'
-  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard'
-  | 'greaterSporeArk' | 'clawCruiser' | 'needleCruiser' | 'greaterSporeguard'
+  | 'sporeArk' | 'clawFrigate' | 'needleFrigate' | 'broodSporeguard' | 'broodSeeker' | 'voidBinder'
+  | 'greaterSporeArk' | 'clawCruiser' | 'needleCruiser' | 'greaterSporeguard' | 'greaterVoidBinder'
   | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
-  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate'
-  | 'aegisBastionLanderII' | 'aegisShieldMonitorII' | 'aegisLanceCruiser' | 'aegisSentinelCruiser'
+  | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate' | 'aegisFarcastScout' | 'aegisResonanceAnchor'
+  | 'aegisBastionLanderII' | 'aegisShieldMonitorII' | 'aegisLanceCruiser' | 'aegisSentinelCruiser' | 'aegisAnchorCruiser'
   | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
-  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor'
-  | 'covenantAssemblyArkII' | 'covenantSalvageCruiser' | 'covenantChainCruiser' | 'covenantInterdictorCruiser'
+  | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor' | 'covenantSurveyorSkiff' | 'covenantLockstepFrigate'
+  | 'covenantAssemblyArkII' | 'covenantSalvageCruiser' | 'covenantChainCruiser' | 'covenantInterdictorCruiser' | 'covenantLockstepCruiser'
   | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';
 export type UnitKind = GroundUnitKind | SpaceUnitKind;
 export type WeaponEffect = 'laser' | 'missile' | 'pulse' | 'kinetic' | 'artillery' | 'railgun' | 'plasma' | 'siege' | 'drone';
@@ -53,7 +53,7 @@ export type UnitAbilityKind =
   | 'armoredApproach' | 'shieldProjection' | 'rangeCalibration' | 'wardInterception' | 'repairDrones' | 'sovereignBarrage'
   | 'modularTargeting' | 'fieldRepair' | 'ablativePlating' | 'shieldBreaker' | 'forgeShockwave'
   | 'assemblyLine' | 'salvageArray' | 'focusFire' | 'foundryAura' | 'fabricatorSwarm' | 'ironcladArmor' | 'dismantlerBeam'
-  | 'antiFighterCannons';
+  | 'antiFighterCannons' | 'reconDrive' | 'phaseControl';
 
 export interface ResourcePool { metal: number; crystal: number; gold: number; biomass?: number }
 export interface Building {
@@ -147,6 +147,7 @@ export interface Fleet {
   departureY?: number;
   route?: string[];
   finalDestinationId?: string;
+  phaseGateLocked?: boolean;
 }
 export interface GroundBattle {
   planetId: string;
@@ -243,6 +244,7 @@ export interface UnitDefinition extends Definition {
   shields: number;
   range: number;
   moveSpeed: number;
+  orbitSpeedMultiplier?: number;
   weapon: WeaponDefinition;
   advancedFactory?: boolean;
   capacity?: number;

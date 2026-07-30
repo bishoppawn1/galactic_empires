@@ -51,10 +51,11 @@ import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
-  civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
-  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipWeaponBatteries, unitAvailableToCivilization,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -1155,6 +1156,7 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
   const path = findPlanetPath(state.planets, origin.id, destination.id);
   if (!path || path.length < 2) return false;
   const firstDestination = getPlanet(state, path[1])!;
+  const phaseLockedIds = new Set(ships.filter(ship => hasTierTwoPhaseLock(origin.orbitUnits, ship)).map(ship => ship.id));
   const selected = new Set(ships.map(ship => ship.id));
   origin.orbitUnits = origin.orbitUnits.filter(unit => !selected.has(unit.id));
   for (const ship of ships) {
@@ -1165,7 +1167,7 @@ function dispatchFactionUnits(state: GameState, origin: Planet, ships: Unit[], d
     delete ship.pendingLanding;
     delete ship.pendingEmbark;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
-    const fleet: Fleet = { id: `f${state.nextId++}`, faction, originId: origin.id, destinationId: firstDestination.id, unit: ship, progress: 0, travelTime: 0, route: path.slice(2), finalDestinationId: destination.id };
+    const fleet: Fleet = { id: `f${state.nextId++}`, faction, originId: origin.id, destinationId: firstDestination.id, unit: ship, progress: 0, travelTime: 0, route: path.slice(2), finalDestinationId: destination.id, phaseGateLocked: phaseLockedIds.has(ship.id) };
     beginSystemExit(fleet, origin, firstDestination, departureX, departureY, state.config.mapSize);
     state.fleets.push(fleet);
   }
@@ -1874,6 +1876,37 @@ export interface OrbitalCombatShot {
 
 const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) => Math.hypot(toX - fromX, toY - fromY);
 
+export function phaseControlStackCount(combatants: Unit[], target: Unit) {
+  return combatants.filter(source => source.id !== target.id
+    && source.hp > 0
+    && source.faction !== target.faction
+    && isPhaseControlShipKind(source.kind)
+    && orbitDistance(source.orbitX ?? 0, source.orbitY ?? 0, target.orbitX ?? 0, target.orbitY ?? 0) <= UNITS[source.kind].range).length;
+}
+
+function hasTierTwoPhaseLock(combatants: Unit[], target: Unit) {
+  return combatants.some(source => source.id !== target.id
+    && source.hp > 0
+    && source.faction !== target.faction
+    && blocksPhaseGate(source.kind)
+    && orbitDistance(source.orbitX ?? 0, source.orbitY ?? 0, target.orbitX ?? 0, target.orbitY ?? 0) <= UNITS[source.kind].range);
+}
+
+function phaseFieldUnitsForFleet(state: GameState, fleet: Fleet) {
+  const origin = getPlanet(state, fleet.originId);
+  const candidates = [
+    ...(origin?.orbitUnits ?? []),
+    ...state.fleets.filter(other => other.originId === fleet.originId && (other.phase === 'exiting' || other.phase === 'charging')).map(other => other.unit),
+  ];
+  return [...new Map(candidates.map(unit => [unit.id, unit])).values()];
+}
+
+export const fleetPhaseControlStackCount = (state: GameState, fleet: Fleet) =>
+  phaseControlStackCount(phaseFieldUnitsForFleet(state, fleet), fleet.unit);
+
+export const phaseGateBlocked = (_state: GameState, fleet: Fleet) =>
+  fleet.phase === 'charging' && !!fleet.phaseGateLocked;
+
 export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shots: OrbitalCombatShot[] = [];
   const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
@@ -1998,8 +2031,11 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   defenses.forEach(ensureOrbitalDefenseHealth);
   const shots = orbitalCombatShots(p);
   if (!shots.length) {
-    p.orbitUnits.forEach(unit => shipWeaponBatteries(unit.kind as SpaceUnitKind)
-      .forEach((_, weaponIndex) => tickShipWeapon(unit, weaponIndex, seconds, false)));
+    p.orbitUnits.forEach(unit => {
+      const effectiveSeconds = seconds * phaseControlRateMultiplier(phaseControlStackCount(p.orbitUnits, unit));
+      shipWeaponBatteries(unit.kind as SpaceUnitKind)
+        .forEach((_, weaponIndex) => tickShipWeapon(unit, weaponIndex, effectiveSeconds, false));
+    });
     return;
   }
   const combatantsBefore = [...p.orbitUnits];
@@ -2021,9 +2057,10 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
     const factionScale = (unit.faction !== 'neutral' && state.aiFactions?.includes(unit.faction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
       * (unit.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, unit.faction).completedResearch))
       * (unit.faction !== 'neutral' && controlsAncientRelic(state, unit.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
+    const effectiveSeconds = seconds * phaseControlRateMultiplier(phaseControlStackCount(p.orbitUnits, unit));
     shipWeaponBatteries(unit.kind as SpaceUnitKind).forEach((_, weaponIndex) => {
       const weaponShots = attackerShots.filter(shot => shot.weaponIndex === weaponIndex);
-      const perMountDamage = tickShipWeapon(unit, weaponIndex, seconds, weaponShots.length > 0);
+      const perMountDamage = tickShipWeapon(unit, weaponIndex, effectiveSeconds, weaponShots.length > 0);
       if (!weaponShots.length || !perMountDamage) return;
       const fighterScale = fighterWing && weaponIndex === 0 ? carrierFighterCount(unit) / fighterWing.capacity : 1;
       if (fighterWing && weaponIndex === 0) applyCarrierFighterAttrition(unit, seconds);
@@ -2143,13 +2180,15 @@ function turnShipTowardVector(ship: Unit, dx: number, dy: number, seconds: numbe
   return Math.min(availableSeconds, turnDegrees / SHIP_TURN_RATE_DEGREES_PER_SECOND);
 }
 
-function tickOrbitUnitMovement(ship: Unit, seconds: number) {
+function tickOrbitUnitMovement(p: Planet, ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
   const turnSeconds = turnShipTowardVector(ship, dx, dy, seconds);
   const movementSeconds = Math.max(0, seconds - turnSeconds);
-  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * movementSeconds;
+  const movementMultiplier = shipMovementSpeedMultiplier(ship.kind)
+    * phaseControlRateMultiplier(phaseControlStackCount(p.orbitUnits, ship));
+  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * movementSeconds * movementMultiplier;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
@@ -2192,7 +2231,7 @@ function directAiOrbitalShips(state: GameState, p: Planet) {
 }
 
 function tickOrbitMovement(p: Planet, seconds: number) {
-  for (const ship of p.orbitUnits) tickOrbitUnitMovement(ship, seconds);
+  for (const ship of p.orbitUnits) tickOrbitUnitMovement(p, ship, seconds);
 }
 
 function resolveLandingApproaches(state: GameState, p: Planet) {
@@ -2381,16 +2420,22 @@ function runEnemyStrategicAction(state: GameState) {
       const carrierCount = [...localShips.map(ship => ship.kind), ...queuedKinds].filter(kind => (UNITS[kind].capacity ?? 0) > 0).length;
       const needsCarrier = carrierCount < transportTarget;
       const hasFlakFrigate = [...localShips.map(ship => ship.kind), ...queuedKinds].some(isFlakFrigateKind);
+      const hasReconShip = [...localShips.map(ship => ship.kind), ...queuedKinds].some(kind => UNITS[kind].ability?.kind === 'reconDrive');
+      const hasTierOnePhaseShip = [...localShips.map(ship => ship.kind), ...queuedKinds].some(kind => isPhaseControlShipKind(kind) && UNITS[kind].spaceTier === 1);
+      const hasTierTwoPhaseShip = [...localShips.map(ship => ship.kind), ...queuedKinds].some(kind => isPhaseControlShipKind(kind) && UNITS[kind].spaceTier === 2);
       let desired: SpaceUnitKind;
       if (yard.kind === 'spaceFactory') {
         desired = needsCarrier ? spaceKind('transport')
           : !hasFlakFrigate ? spaceKind('flakFrigate')
-            : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
+            : !hasReconShip ? spaceKind('reconCutter')
+              : !hasTierOnePhaseShip ? spaceKind('phaseSuppressionFrigate')
+                : spaceKind(state.nextId % 2 ? 'missileFrigate' : 'escortFrigate');
       } else if (yard.kind === 'advancedSpaceFactory') {
         const advancedLine: SpaceUnitKind[] = ['advancedEscortFrigate', 'advancedMissileFrigate'];
         desired = needsCarrier ? spaceKind('advancedTransport')
           : !hasFlakFrigate ? spaceKind('advancedFlakFrigate')
-            : spaceKind(advancedLine[state.nextId % advancedLine.length]);
+            : !hasTierTwoPhaseShip ? spaceKind('phaseLockCruiser')
+              : spaceKind(advancedLine[state.nextId % advancedLine.length]);
       } else {
         const titan = spaceKind('dreadnought');
         const capital = spaceKind('battlecruiser');
@@ -2529,6 +2574,7 @@ export function tick(input: GameState, seconds: number): GameState {
     let timeLeft = seconds, arrived = false;
     while (timeLeft > 0 && !arrived) {
       if (fleet.phase === 'exiting') {
+        if (hasTierTwoPhaseLock(phaseFieldUnitsForFleet(state, fleet), fleet.unit)) fleet.phaseGateLocked = true;
         const origin = getPlanet(state, fleet.originId), destination = getPlanet(state, fleet.destinationId);
         if (origin && destination) {
           const border = systemBorderOffset(origin, destination, state.config.mapSize);
@@ -2542,12 +2588,16 @@ export function tick(input: GameState, seconds: number): GameState {
           if (timeLeft <= 1e-9) break;
         }
       }
+      const progressRate = fleet.phase === 'exiting'
+        ? shipMovementSpeedMultiplier(fleet.unit.kind) * phaseControlRateMultiplier(fleetPhaseControlStackCount(state, fleet))
+        : 1;
       const remainingPhaseTime = Math.max(0, fleet.travelTime - fleet.progress);
-      if (timeLeft + 1e-9 < remainingPhaseTime) {
-        fleet.progress += timeLeft;
+      const actualSecondsRemaining = remainingPhaseTime / progressRate;
+      if (timeLeft + 1e-9 < actualSecondsRemaining) {
+        fleet.progress += timeLeft * progressRate;
         timeLeft = 0;
       } else {
-        timeLeft = Math.max(0, timeLeft - remainingPhaseTime);
+        timeLeft = Math.max(0, timeLeft - actualSecondsRemaining);
         const origin = getPlanet(state, fleet.originId)!;
         const waypoint = getPlanet(state, fleet.destinationId)!;
         if (fleet.phase === 'exiting') {
@@ -2555,15 +2605,22 @@ export function tick(input: GameState, seconds: number): GameState {
           fleet.progress = 0;
           fleet.travelTime = PHASE_GATE_CHARGE_SECONDS;
         } else if (fleet.phase === 'charging') {
+          if (phaseGateBlocked(state, fleet)) {
+            fleet.progress = fleet.travelTime;
+            timeLeft = 0;
+            break;
+          }
           fleet.phase = 'tunnel';
           fleet.progress = 0;
-          fleet.travelTime = phaseTravelTime(origin, waypoint) * phaseTravelMultiplier(empireEconomy(state, fleet.faction).completedResearch);
+          fleet.travelTime = phaseTravelTime(origin, waypoint) * phaseTravelMultiplier(empireEconomy(state, fleet.faction).completedResearch)
+            / shipMovementSpeedMultiplier(fleet.unit.kind);
         } else if (fleet.route?.length) {
           const nextId = fleet.route.shift()!;
           const next = getPlanet(state, nextId)!;
           const inboundBorder = systemBorderOffset(waypoint, origin, state.config.mapSize);
           fleet.originId = waypoint.id;
           fleet.destinationId = next.id;
+          fleet.phaseGateLocked = hasTierTwoPhaseLock(waypoint.orbitUnits, { ...fleet.unit, orbitX: inboundBorder.x, orbitY: inboundBorder.y });
           beginSystemExit(fleet, waypoint, next, inboundBorder.x, inboundBorder.y, state.config.mapSize);
         } else {
           placeAtSystemEdge(origin, waypoint, fleet.unit, state.config.mapSize);
@@ -2585,7 +2642,7 @@ export function tick(input: GameState, seconds: number): GameState {
   for (const [planetId, landedFleets] of arrivals) {
     const p = getPlanet(state, planetId)!;
     directAiOrbitalShips(state, p);
-    for (const arrival of landedFleets) tickOrbitUnitMovement(arrival.unit, arrival.seconds);
+    for (const arrival of landedFleets) tickOrbitUnitMovement(p, arrival.unit, arrival.seconds);
     const combatSeconds = Math.max(0, ...landedFleets.map(arrival => arrival.seconds));
     if (combatSeconds) tickOrbitCombat(state, p, combatSeconds);
     resolveLandingApproaches(state, p);

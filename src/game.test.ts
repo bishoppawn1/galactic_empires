@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, UNITS, isRepeatableResearch, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -114,18 +114,22 @@ describe('unit weapon definitions', () => {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
       const tierTwoShips = roster.filter(kind => UNITS[kind].spaceTier === 2);
-      expect(tierTwoShips).toHaveLength(4);
+      expect(tierTwoShips).toHaveLength(5);
       expect(tierTwoShips.every(kind => UNITS[kind].label.includes('Cruiser'))).toBe(true);
     }
   });
 
-  it('gives every Tier 1 ship in every faction a stronger Tier 2 counterpart', () => {
+  it('gives every Tier 1 role except recon a stronger Tier 2 counterpart', () => {
     for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
       const tierOneShips = roster.filter(kind => UNITS[kind].spaceTier === 1);
-      expect(tierOneShips).toHaveLength(4);
-      const tierTwoCopies = tierOneShips.map(kind => TIER_TWO_COPY_BY_TIER_ONE[kind]);
-      expect(new Set(tierTwoCopies).size).toBe(tierOneShips.length);
-      tierOneShips.forEach((kind, index) => {
+      expect(tierOneShips).toHaveLength(6);
+      const recon = tierOneShips.filter(kind => RECON_SHIP_KINDS.has(kind));
+      expect(recon).toHaveLength(1);
+      expect(TIER_TWO_COPY_BY_TIER_ONE[recon[0]]).toBeUndefined();
+      const copiedTierOneShips = tierOneShips.filter(kind => !RECON_SHIP_KINDS.has(kind));
+      const tierTwoCopies = copiedTierOneShips.map(kind => TIER_TWO_COPY_BY_TIER_ONE[kind]);
+      expect(new Set(tierTwoCopies).size).toBe(copiedTierOneShips.length);
+      copiedTierOneShips.forEach((kind, index) => {
         const copy = tierTwoCopies[index]!;
         expect(roster).toContain(copy);
         expect(UNITS[copy].spaceTier).toBe(2);
@@ -139,6 +143,24 @@ describe('unit weapon definitions', () => {
         if (UNITS[kind].capacity) expect(UNITS[copy].capacity).toBeGreaterThan(UNITS[kind].capacity!);
       });
     }
+  });
+
+  it('defines one fast, lightly armed Tier 1 recon and two phase-control ships per faction', () => {
+    for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
+      const recon = roster.filter(kind => RECON_SHIP_KINDS.has(kind));
+      expect(recon).toHaveLength(1);
+      expect(UNITS[recon[0]].spaceTier).toBe(1);
+      expect(shipMovementSpeedMultiplier(recon[0])).toBe(2.5);
+      expect(UNITS[recon[0]].weapon.damage * UNITS[recon[0]].weapon.projectiles / UNITS[recon[0]].weapon.cooldown).toBeLessThan(1);
+
+      const controllers = roster.filter(kind => PHASE_CONTROL_SHIP_KINDS.has(kind));
+      expect(controllers).toHaveLength(2);
+      expect(controllers.map(kind => UNITS[kind].spaceTier).sort()).toEqual([1, 2]);
+    }
+    expect(phaseControlRateMultiplier(0)).toBe(1);
+    expect(phaseControlRateMultiplier(1)).toBe(.75);
+    expect(phaseControlRateMultiplier(2)).toBe(.5625);
+    expect(phaseControlRateMultiplier(3)).toBe(.421875);
   });
 });
 
@@ -478,7 +500,7 @@ describe('starter faction foundations', () => {
 
   it('provides a complete production roster that never overlaps Coalition units', () => {
     expect(BROOD_GROUND_KINDS).toHaveLength(9);
-    expect(BROOD_SPACE_KINDS).toHaveLength(11);
+    expect(BROOD_SPACE_KINDS).toHaveLength(14);
     const coalitionKinds = new Set<UnitKind>([...COALITION_GROUND_KINDS, ...COALITION_SPACE_KINDS]);
     expect(BROOD_GROUND_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
     expect(BROOD_SPACE_KINDS.filter(kind => coalitionKinds.has(kind))).toEqual([]);
@@ -509,7 +531,7 @@ describe('starter faction foundations', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(AEGIS_GROUND_KINDS).toHaveLength(5);
-    expect(AEGIS_SPACE_KINDS).toHaveLength(10);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(13);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
@@ -521,7 +543,7 @@ describe('starter faction foundations', () => {
     const kinds = [...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS];
     const abilities = kinds.map(kind => UNITS[kind].ability?.kind);
     expect(abilities.every(Boolean)).toBe(true);
-    AEGIS_SPACE_KINDS.filter(kind => UNITS[kind].spaceTier === 1).forEach(kind => {
+    AEGIS_SPACE_KINDS.filter(kind => UNITS[kind].spaceTier === 1 && !RECON_SHIP_KINDS.has(kind)).forEach(kind => {
       expect(UNITS[TIER_TWO_COPY_BY_TIER_ONE[kind]!].ability?.kind).toBe(UNITS[kind].ability?.kind);
     });
   });
@@ -1479,6 +1501,97 @@ describe('enemy strategy', () => {
 });
 
 describe('transport and colonization', () => {
+  it('moves recon ships 2.5 times faster inside a gravity well', () => {
+    const distanceAfterOneSecond = (kind: 'escortFrigate' | 'reconCutter') => {
+      const state = createInitialState();
+      state.enemyActionClock = 9999;
+      state.enemyAttackClock = 9999;
+      const ship = {
+        ...makeUnit(`maneuver-${kind}`, kind, 'player'),
+        orbitX: 0, orbitY: 0, orbitTargetX: 200, orbitTargetY: 0,
+        heading: headingForVector(200, 0),
+      };
+      state.planets[0].orbitUnits = [ship];
+      return tick(state, 1).planets[0].orbitUnits[0].orbitX!;
+    };
+
+    expect(distanceAfterOneSecond('reconCutter')).toBeCloseTo(distanceAfterOneSecond('escortFrigate') * 2.5);
+  });
+
+  it('stacks phase-control movement and weapon-cycle penalties multiplicatively', () => {
+    const resultWithFields = (fieldCount: number) => {
+      const state = createInitialState();
+      state.enemyActionClock = 9999;
+      state.enemyAttackClock = 9999;
+      const target = {
+        ...makeUnit('phase-target', 'escortFrigate', 'player'),
+        orbitX: 0, orbitY: 0, orbitTargetX: 200, orbitTargetY: 0,
+        heading: headingForVector(200, 0),
+        weaponCooldown: 1,
+        weaponCooldowns: [1],
+      };
+      const controllers = Array.from({ length: fieldCount }, (_, index) => ({
+        ...makeUnit(`phase-controller-${index}`, 'phaseSuppressionFrigate', 'enemy'),
+        orbitX: 20 + index * 20, orbitY: 20,
+      }));
+      const hostileTarget = { ...makeUnit('hostile-target', 'missileFrigate', 'enemy'), orbitX: 100, orbitY: 0, weaponCooldown: 999 };
+      state.planets[0].orbitUnits = [target, hostileTarget, ...controllers];
+      const advanced = tick(state, .2);
+      return advanced.planets[0].orbitUnits.find(unit => unit.id === target.id)!;
+    };
+
+    const unimpeded = resultWithFields(0);
+    const oneField = resultWithFields(1);
+    const twoFields = resultWithFields(2);
+    expect(unimpeded.orbitX).toBeCloseTo(ORBIT_MANEUVER_SPEED * .2);
+    expect(oneField.orbitX).toBeCloseTo(ORBIT_MANEUVER_SPEED * .2 * .75);
+    expect(twoFields.orbitX).toBeCloseTo(ORBIT_MANEUVER_SPEED * .2 * .5625);
+    expect(unimpeded.weaponCooldown).toBeCloseTo(.8);
+    expect(oneField.weaponCooldown).toBeCloseTo(.85);
+    expect(twoFields.weaponCooldown).toBeCloseTo(.8875);
+  });
+
+  it('phase-locks only affected ships in a mixed gate order while the rest travel through', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 9999;
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const phaseLocked = { ...makeUnit('phase-locked-ship', 'escortFrigate', 'player'), orbitX: 20, orbitY: 0 };
+    const free = { ...makeUnit('free-ship', 'escortFrigate', 'player'), orbitX: 650, orbitY: 0 };
+    const controller = { ...makeUnit('phase-lock-source', 'phaseLockCruiser', 'enemy'), orbitX: 0, orbitY: 0, weaponCooldown: 999 };
+    terra.orbitUnits = [phaseLocked, free, controller];
+
+    const order = dispatchSpaceUnits(state, terra.id, [phaseLocked.id, free.id], 'halcyon');
+    expectOk(order);
+    expect(order.state.fleets.find(fleet => fleet.unit.id === phaseLocked.id)?.phaseGateLocked).toBe(true);
+    expect(order.state.fleets.find(fleet => fleet.unit.id === free.id)?.phaseGateLocked).toBe(false);
+
+    order.state.planets.find(planet => planet.id === terra.id)!.orbitUnits = [];
+    let advanced = order.state;
+    for (let step = 0; step < 240; step += 1) advanced = tick(advanced, .5);
+
+    const lockedFleet = advanced.fleets.find(fleet => fleet.unit.id === phaseLocked.id)!;
+    expect(lockedFleet).toMatchObject({ phase: 'charging', phaseGateLocked: true });
+    expect(lockedFleet.progress).toBe(lockedFleet.travelTime);
+    expect(Math.hypot(lockedFleet.unit.orbitX!, lockedFleet.unit.orbitY!)).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS);
+    const freePassedGate = advanced.fleets.some(fleet => fleet.unit.id === free.id && fleet.phase === 'tunnel')
+      || advanced.planets.some(planet => planet.orbitUnits.some(unit => unit.id === free.id));
+    expect(freePassedGate).toBe(true);
+  });
+
+  it('does not phase-lock gate travel with a Tier 1 phase-control ship', () => {
+    const state = createInitialState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    const traveler = { ...makeUnit('tier-one-field-target', 'escortFrigate', 'player'), orbitX: 20, orbitY: 0 };
+    terra.orbitUnits = [
+      traveler,
+      { ...makeUnit('tier-one-controller', 'phaseSuppressionFrigate', 'enemy'), orbitX: 0, orbitY: 0 },
+    ];
+    const order = dispatchSpaceUnit(state, terra.id, traveler.id, 'halcyon');
+    expectOk(order);
+    expect(order.state.fleets[0].phaseGateLocked).toBe(false);
+  });
+
   it('clears the gravity well, charges at the border, then enters a faster phase tunnel', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     const order = dispatchSpaceUnit(state, 'terra', transport.id, 'halcyon'); expectOk(order);

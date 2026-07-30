@@ -148,8 +148,8 @@ describe('Galactic Empires interface', () => {
   it('uses dedicated Brood artwork while Tier 2 counterparts retain their recognizable silhouettes', () => {
     const { container } = render(<>{BROOD_SPACE_KINDS.map(kind => <ShipImage key={kind} kind={kind} />)}</>);
     const broodShipArt = [...container.querySelectorAll<HTMLImageElement>('.ship-image')];
-    expect(broodShipArt).toHaveLength(11);
-    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(7);
+    expect(broodShipArt).toHaveLength(14);
+    expect(new Set(broodShipArt.map(image => image.src)).size).toBe(9);
     broodShipArt.forEach(image => expect(image.src).toContain('/assets/brood/ships/'));
   });
 
@@ -169,7 +169,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('button', { name: /^Infantry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Transport/i })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(5);
-    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(11);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(14);
   });
 
   it('puts join game below multiplayer start and accepts a six-character lobby code', () => {

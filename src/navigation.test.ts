@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PHASE_LANE_DISTANCE,
+  MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT,
+  PHASE_LANE_MAX_DEGREE,
+  PHASE_LANE_RANDOMNESS,
   PHASE_LANE_TARGET_DENSITY,
   PHASE_TUNNEL_MIN_SECONDS,
   PHASE_TUNNEL_SECONDS_PER_MAP_UNIT,
   STAR_PHASE_LANE_DISTANCE,
+  STAR_PHASE_LANE_MAX_DEGREE,
   SHIP_TURN_RATE_DEGREES_PER_SECOND,
   createInitialState,
   findPlanetPath,
@@ -27,6 +31,10 @@ describe('sparse phase-lane navigation', () => {
 
   it('builds seeded branching networks with several alternate routes', () => {
     expect(PHASE_LANE_TARGET_DENSITY).toBe(1.4);
+    expect(MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT).toBe(4);
+    expect(PHASE_LANE_MAX_DEGREE).toBe(4);
+    expect(STAR_PHASE_LANE_MAX_DEGREE).toBe(6);
+    expect(PHASE_LANE_RANDOMNESS).toBeLessThan(.5);
     const topologies = new Set<string>();
     for (let mapSeed = 1; mapSeed <= 20; mapSeed += 1) {
       const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed });
@@ -42,6 +50,9 @@ describe('sparse phase-lane navigation', () => {
         degree.set(connection.from.id, degree.get(connection.from.id)! + 1);
         degree.set(connection.to.id, degree.get(connection.to.id)! + 1);
       });
+      state.planets.forEach(planet => expect(degree.get(planet.id)!).toBeLessThanOrEqual(
+        planet.systemKind === 'star' ? STAR_PHASE_LANE_MAX_DEGREE : PHASE_LANE_MAX_DEGREE,
+      ));
       topologies.add(connections
         .map(connection => [connection.from.id, connection.to.id].sort().join(':'))
         .sort()
@@ -57,6 +68,17 @@ describe('sparse phase-lane navigation', () => {
       expect([...degree.values()].filter(value => value >= 3).length).toBeGreaterThanOrEqual(
         Math.floor(state.planets.length * .3),
       );
+
+      const candidateDistances = state.planets.flatMap((planet, index) => state.planets.slice(index + 1).flatMap(other => {
+        const distance = Math.hypot(other.x - planet.x, other.y - planet.y);
+        const range = planet.systemKind === 'star' || other.systemKind === 'star'
+          ? STAR_PHASE_LANE_DISTANCE
+          : MAX_PHASE_LANE_DISTANCE;
+        return distance <= range ? [distance] : [];
+      }));
+      const selectedMeanDistance = connections.reduce((sum, connection) => sum + connection.distance, 0) / connections.length;
+      const candidateMeanDistance = candidateDistances.reduce((sum, distance) => sum + distance, 0) / candidateDistances.length;
+      expect(selectedMeanDistance).toBeLessThan(candidateMeanDistance);
     }
     expect(topologies.size).toBe(20);
   });
@@ -84,14 +106,16 @@ describe('sparse phase-lane navigation', () => {
     }
   });
 
-  it('keeps star lanes local instead of making the star a wide phase-lane hub', () => {
+  it('lets the star form a six-way local hub without adding distant lanes', () => {
     let omittedWideApproach = false;
+    let maximumStarConnections = 0;
     for (let mapSeed = 1; mapSeed <= 20; mapSeed += 1) {
       const state = createInitialState({ mapSize: 'galactic', difficulty: 'commander', mapSeed });
       const star = state.planets.find(system => system.systemKind === 'star')!;
       const connections = localPlanetConnections(state.planets);
       const starConnections = connections.filter(connection =>
         connection.from.id === star.id || connection.to.id === star.id);
+      maximumStarConnections = Math.max(maximumStarConnections, starConnections.length);
       const formerlyNearby = state.planets.filter(system => {
         const distance = Math.hypot(system.x - star.x, system.y - star.y);
         return system.id !== star.id && distance > STAR_PHASE_LANE_DISTANCE && distance <= MAX_PHASE_LANE_DISTANCE;
@@ -103,6 +127,7 @@ describe('sparse phase-lane navigation', () => {
         connection.from.id === system.id || connection.to.id === system.id));
     }
     expect(omittedWideApproach).toBe(true);
+    expect(maximumStarConnections).toBe(STAR_PHASE_LANE_MAX_DEGREE);
   });
 
   it('makes Galactic maps physically wider without shrinking their height', () => {

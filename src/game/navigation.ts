@@ -21,9 +21,14 @@ export const turnHeadingToward = (current: number, target: number, maximumTurn: 
 
 export const MAX_PHASE_LANE_DISTANCE = 42;
 export const STAR_PHASE_LANE_DISTANCE = 32;
-export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 3;
+export const MUTUAL_PHASE_LANE_NEIGHBOR_LIMIT = 4;
 export const PHASE_LANE_TARGET_DENSITY = 1.4;
 export const PHASE_LANE_MAX_DEGREE = 4;
+export const STAR_PHASE_LANE_MAX_DEGREE = 6;
+export const PHASE_LANE_RANDOMNESS = .22;
+
+export const phaseLaneDegreeLimit = (planet: Planet) =>
+  planet.systemKind === 'star' ? STAR_PHASE_LANE_MAX_DEGREE : PHASE_LANE_MAX_DEGREE;
 
 const laneRandomValue = (connection: PlanetConnection) => {
   const systems = [connection.from, connection.to].sort((a, b) => a.id.localeCompare(b.id));
@@ -50,7 +55,7 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   }
   const priority = new Map(candidates.map(connection => [
     connection,
-    laneRandomValue(connection) + connection.distance / maxDistance * .15,
+    connection.distance / maxDistance + laneRandomValue(connection) * PHASE_LANE_RANDOMNESS,
   ]));
   const randomizedCandidates = candidates.sort((a, b) =>
     priority.get(a)! - priority.get(b)!
@@ -75,9 +80,10 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
     degree.set(connection.from.id, degree.get(connection.from.id)! + 1);
     degree.set(connection.to.id, degree.get(connection.to.id)! + 1);
   };
+  const hasOpenLane = (planet: Planet) => degree.get(planet.id)! < phaseLaneDegreeLimit(planet);
   for (const connection of randomizedCandidates) {
     const fromRoot = root(connection.from.id), toRoot = root(connection.to.id);
-    if (fromRoot === toRoot) continue;
+    if (fromRoot === toRoot || !hasOpenLane(connection.from) || !hasOpenLane(connection.to)) continue;
     parent.set(toRoot, fromRoot);
     addConnection(connection);
   }
@@ -90,9 +96,22 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
       const other = candidate.from.id === planet.id ? candidate.to
         : candidate.to.id === planet.id ? candidate.from
           : undefined;
-      return !!other && degree.get(other.id)! < PHASE_LANE_MAX_DEGREE;
+      return !!other && hasOpenLane(planet) && hasOpenLane(other);
     });
     if (connection) addConnection(connection);
+  }
+
+  // Let the central hazard form a larger local junction before ordinary
+  // shortcuts consume the remaining connection capacity of nearby systems.
+  for (const star of planets.filter(planet => planet.systemKind === 'star')) {
+    for (const connection of randomizedCandidates) {
+      if (!hasOpenLane(star)) break;
+      if (selected.has(connectionKey(connection))) continue;
+      const other = connection.from.id === star.id ? connection.to
+        : connection.to.id === star.id ? connection.from
+          : undefined;
+      if (other && hasOpenLane(other)) addConnection(connection);
+    }
   }
 
   const targetCount = Math.min(
@@ -102,8 +121,8 @@ export function localPlanetConnections(planets: Planet[], maxDistance = MAX_PHAS
   for (const connection of randomizedCandidates) {
     if (connections.length >= targetCount) break;
     if (selected.has(connectionKey(connection))
-      || degree.get(connection.from.id)! >= PHASE_LANE_MAX_DEGREE
-      || degree.get(connection.to.id)! >= PHASE_LANE_MAX_DEGREE) continue;
+      || !hasOpenLane(connection.from)
+      || !hasOpenLane(connection.to)) continue;
     addConnection(connection);
   }
   return connections.sort((a, b) => a.distance - b.distance

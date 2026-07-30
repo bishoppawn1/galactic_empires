@@ -163,6 +163,21 @@ describe('fog of war', () => {
     expect(visible.groundUnits.map(candidate => candidate.id)).toEqual(['occupier']);
   });
 
+  it('immediately shows the new owner color when an empire loses one of its planets', () => {
+    let canonical = createInitialState();
+    let terra = planet(canonical, 'terra');
+    const knownBuildings = terra.buildings.map(building => building.id);
+
+    terra.owner = 'enemy';
+    terra.groundUnits = [unit('enemy-occupier', 'infantry', 'enemy')];
+    canonical = refreshPlanetIntel(canonical);
+
+    terra = planet(visibleStateForPlayer(canonical), 'terra');
+    expect(terra).toMatchObject({ owner: 'enemy', intelStatus: 'stale' });
+    expect(terra.buildings.map(building => building.id)).toEqual(knownBuildings);
+    expect(terra.groundUnits).toEqual([]);
+  });
+
   it('shows hostile fleets only when the current jump touches a visible system', () => {
     const canonical = createInitialState();
     canonical.fleets = [

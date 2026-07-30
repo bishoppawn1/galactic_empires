@@ -60,11 +60,14 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
   const dimensions = galaxyCanvasDimensions(state.config.mapSize);
   const connections = localPlanetConnections(state.planets);
   const ownershipCounts = {
-    player: state.planets.filter(planet => planet.owner === 'player').length,
-    enemy: state.planets.filter(planet => planet.owner === 'enemy').length,
-    rival2: state.planets.filter(planet => planet.owner === 'rival2').length,
-    rival3: state.planets.filter(planet => planet.owner === 'rival3').length,
-    neutral: state.planets.filter(planet => planet.owner === null).length,
+    player: state.planets.filter(planet => isColonizableWorld(planet) && planet.owner === 'player').length,
+    enemy: state.planets.filter(planet => isColonizableWorld(planet) && planet.owner === 'enemy').length,
+    rival2: state.planets.filter(planet => isColonizableWorld(planet) && planet.owner === 'rival2').length,
+    rival3: state.planets.filter(planet => isColonizableWorld(planet) && planet.owner === 'rival3').length,
+    neutral: state.planets.filter(planet => systemKind(planet) === 'planet' && planet.owner === null).length,
+    nebula: state.planets.filter(planet => systemKind(planet) === 'nebula').length,
+    pirateBase: state.planets.filter(planet => systemKind(planet) === 'pirateBase' && planet.owner === null).length,
+    star: state.planets.filter(planet => systemKind(planet) === 'star').length,
   };
   const pressedPanKeysRef = useRef(new Set<string>());
   const cameraDragRef = useRef<{ x: number; y: number; camera: GalaxyCamera } | undefined>(undefined);
@@ -454,6 +457,6 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
       if (planetId) onUpgradeTitan?.(planetId, unitId, upgradeId);
     }} />
     {selectedYardIds.length > 0 && <div className="fleet-command-hint yard-command-hint">{selectedYardIds.length} SPACE YARD{selectedYardIds.length === 1 ? '' : 'S'} {selectedYardIds.length > 1 ? 'GROUPED' : 'INSPECTED'} <span>{selectedYardIds.length > 1 ? 'Each order builds once at every grouped yard' : 'Orders still auto-rotate · Shift-click another yard for grouped production'}</span></div>}
-    <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span></div>
+    <div className="map-key" role="region" aria-label="Planet ownership legend"><span className="player"><i className="key-dot player" /><b>YOUR EMPIRE</b><strong>{ownershipCounts.player}</strong></span><span className="enemy"><i className="key-dot enemy" /><b>RIVAL A</b><strong>{ownershipCounts.enemy}</strong></span>{state.additionalEmpires?.rival2 && <span className="rival2"><i className="key-dot rival2" /><b>RIVAL B</b><strong>{ownershipCounts.rival2}</strong></span>}{state.additionalEmpires?.rival3 && <span className="rival3"><i className="key-dot rival3" /><b>RIVAL C</b><strong>{ownershipCounts.rival3}</strong></span>}<span className="neutral"><i className="key-dot neutral" /><b>NEUTRAL</b><strong>{ownershipCounts.neutral}</strong></span><span className="nebula"><i className="key-dot nebula" /><b>NEBULAS</b><strong>{ownershipCounts.nebula}</strong></span><span className="pirateBase"><i className="key-dot pirateBase" /><b>PIRATE BASES</b><strong>{ownershipCounts.pirateBase}</strong></span><span className="star"><i className="key-dot star" /><b>STARS</b><strong>{ownershipCounts.star}</strong></span></div>
   </main>;
 }

@@ -16,11 +16,11 @@ import {
   type GameResult,
 } from './engine';
 import { BUILDINGS, RESEARCH, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, TITAN_UPGRADES, UNITS } from './definitions';
-import type { BuildingKind, GameState, ResearchId, Resource, TitanUpgradeId, UnitKind } from './types';
+import { PRODUCTION_QUANTITIES, type BuildingKind, type GameState, type ProductionQuantity, type ResearchId, type Resource, type TitanUpgradeId, type UnitKind } from './types';
 
 export type GameCommand =
   | { type: 'construct'; planetId: string; kind: BuildingKind }
-  | { type: 'queueUnit'; planetId: string; kind: UnitKind; yardIds?: string[] }
+  | { type: 'queueUnit'; planetId: string; kind: UnitKind; yardIds?: string[]; quantity?: ProductionQuantity }
   | { type: 'beginResearch'; id: ResearchId }
   | { type: 'trade'; from: Resource; to: Resource; amount: number }
   | { type: 'dock'; planetId: string; unitIds: string[] }
@@ -45,7 +45,9 @@ export function isGameCommand(value: unknown): value is GameCommand {
   if (!isRecord(value) || !isString(value.type)) return false;
   switch (value.type) {
     case 'construct': return isString(value.planetId) && isString(value.kind) && value.kind in BUILDINGS;
-    case 'queueUnit': return isString(value.planetId) && isString(value.kind) && value.kind in UNITS && (value.yardIds === undefined || isStringArray(value.yardIds));
+    case 'queueUnit': return isString(value.planetId) && isString(value.kind) && value.kind in UNITS
+      && (value.yardIds === undefined || isStringArray(value.yardIds))
+      && (value.quantity === undefined || PRODUCTION_QUANTITIES.some(quantity => quantity === value.quantity));
     case 'beginResearch': return isString(value.id) && value.id in RESEARCH;
     case 'trade': return isResource(value.from) && isResource(value.to) && value.from !== value.to
       && Number.isSafeInteger(value.amount) && Number(value.amount) >= RESOURCE_TRADE_RATE && Number(value.amount) <= RESOURCE_TRADE_MAX_SPEND;
@@ -68,7 +70,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
 export function applyGameCommand(state: GameState, command: GameCommand): GameResult {
   switch (command.type) {
     case 'construct': return constructBuilding(state, command.planetId, command.kind);
-    case 'queueUnit': return queueUnit(state, command.planetId, command.kind, command.yardIds);
+    case 'queueUnit': return queueUnit(state, command.planetId, command.kind, command.yardIds, command.quantity);
     case 'beginResearch': return beginResearch(state, command.id);
     case 'trade': return tradeResources(state, command.from, command.to, command.amount);
     case 'dock': return dockSpaceUnits(state, command.planetId, command.unitIds);

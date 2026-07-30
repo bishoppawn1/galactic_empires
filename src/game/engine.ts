@@ -18,6 +18,8 @@ import {
   type Planet,
   type PlanetConnection,
   type PlayableFaction,
+  PRODUCTION_QUANTITIES,
+  type ProductionQuantity,
   type QueueItem,
   type ResearchId,
   type Resource,
@@ -959,8 +961,9 @@ export function constructBuilding(input: GameState, planetId: string, kind: Buil
   return pass(state);
 }
 
-export function queueUnit(input: GameState, planetId: string, kind: UnitKind, yardIds?: string[]): GameResult {
+export function queueUnit(input: GameState, planetId: string, kind: UnitKind, yardIds?: string[], quantity: ProductionQuantity = 1): GameResult {
   const state = clone(input); const p = getPlanet(state, planetId); const def = UNITS[kind];
+  if (!PRODUCTION_QUANTITIES.some(option => option === quantity)) return fail(input, 'Production quantity must be 1, 5, or 25.');
   if (kind === 'defenseTurret' || kind === 'spineTower' || kind === 'covenantBulwark') return fail(input, 'Defensive emplacements deploy automatically from Ground Defenses.');
   if (!p || !isColonizableWorld(p) || p.owner !== 'player') return fail(input, 'Production requires a friendly colony.');
   const civilization = empireCivilization(state);
@@ -971,10 +974,15 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   if (!hasResearch(state, def.requires)) return fail(input, `Requires ${RESEARCH[def.requires!].label}.`);
   if (def.factory === 'ground') {
     if (def.advancedFactory && !p.buildings.some(building => building.kind === 'advancedGroundFactory')) return fail(input, 'Requires an Advanced Ground Factory.');
-    if (!canPlayerAfford(state, def.cost)) return fail(input, insufficientPlayerResources(state));
-    spendPlayerResources(state, def.cost);
-    p.groundQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
-    addMessage(state, `${def.label} added to ${p.name} production.`);
+    const totalCost = pool(def.cost.metal * quantity, def.cost.crystal * quantity, def.cost.gold * quantity);
+    if (!canPlayerAfford(state, totalCost)) return fail(input, insufficientPlayerResources(state));
+    spendPlayerResources(state, totalCost);
+    for (let index = 0; index < quantity; index += 1) {
+      p.groundQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
+    }
+    addMessage(state, quantity === 1
+      ? `${def.label} added to ${p.name} production.`
+      : `${quantity} ${def.label} units added to ${p.name} production.`);
     return pass(state);
   }
 
@@ -990,17 +998,33 @@ export function queueUnit(input: GameState, planetId: string, kind: UnitKind, ya
   if (targets.some(yard => !yard)) return fail(input, 'Select a friendly Space Yard at this colony.');
   if (targets.some(yard => yard?.kind !== requiredYard)) return fail(input, `Tier ${tier} hulls require a ${yardLabel}.`);
   if (isTitanKind(kind) && targets.length > 1) return fail(input, 'A Titan may only be commissioned at one Experimental Space Yard.');
+  if (isTitanKind(kind) && quantity > 1) return fail(input, 'A unique Titan must be commissioned with a 1× production order.');
   const titanStatus = isTitanKind(kind) ? factionTitanStatus(input, 'player') : undefined;
   if (titanStatus) return fail(input, `This faction already has a Titan ${titanStatus === 'deployed' ? 'deployed' : 'under construction'}.`);
-  const totalCost = pool(def.cost.metal * targets.length, def.cost.crystal * targets.length, def.cost.gold * targets.length);
-  if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${targets.length} ship${targets.length === 1 ? '' : 's'}.`);
+  const orderCount = quantity * (yardIds?.length ? targets.length : 1);
+  const totalCost = pool(def.cost.metal * orderCount, def.cost.crystal * orderCount, def.cost.gold * orderCount);
+  if (!canPlayerAfford(state, totalCost)) return fail(input, usesBiomass(state) ? 'Insufficient biomass.' : `Insufficient resources to queue ${orderCount} ship${orderCount === 1 ? '' : 's'}.`);
   spendPlayerResources(state, totalCost);
-  for (const yard of targets as Building[]) {
-    yard.spaceQueue ??= [];
-    yard.spaceQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
+  if (yardIds?.length) {
+    for (const yard of targets as Building[]) {
+      yard.spaceQueue ??= [];
+      for (let index = 0; index < quantity; index += 1) {
+        yard.spaceQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
+      }
+    }
+  } else {
+    for (let index = 0; index < quantity; index += 1) {
+      const target = eligibleYards.reduce((best, yard) => (yard.spaceQueue?.length ?? 0) < (best.spaceQueue?.length ?? 0) ? yard : best);
+      target.spaceQueue ??= [];
+      target.spaceQueue.push({ id: `q${state.nextId++}`, kind, remaining: def.time!, total: def.time! });
+    }
   }
-  if (yardIds?.length) addMessage(state, `${def.label} added to ${targets.length} Space Yard queue${targets.length === 1 ? '' : 's'} at ${p.name}.`);
-  else addMessage(state, `${def.label} auto-routed to Space Yard ${yards.indexOf(automaticYard) + 1} at ${p.name}.`);
+  if (yardIds?.length) addMessage(state, quantity === 1
+    ? `${def.label} added to ${targets.length} Space Yard queue${targets.length === 1 ? '' : 's'} at ${p.name}.`
+    : `${orderCount} ${def.label} units added across ${targets.length} Space Yard queue${targets.length === 1 ? '' : 's'} at ${p.name} — ${quantity} per yard.`);
+  else addMessage(state, quantity === 1
+    ? `${def.label} auto-routed to Space Yard ${yards.indexOf(automaticYard) + 1} at ${p.name}.`
+    : `${quantity} ${def.label} units auto-distributed across matching Space Yards at ${p.name}.`);
   return pass(state);
 }
 

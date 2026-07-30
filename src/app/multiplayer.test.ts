@@ -75,10 +75,10 @@ describe('multiplayer state transport', () => {
   });
 
   it('omits undefined optional fields before binary command serialization', () => {
-    const command: GameCommand = { type: 'queueUnit', planetId: 'cygnus', kind: 'transport', yardIds: undefined };
+    const command: GameCommand = { type: 'queueUnit', planetId: 'cygnus', kind: 'transport', yardIds: undefined, quantity: 25 };
     const prepared = prepareOutgoingCommand(command);
 
-    expect(prepared).toEqual({ type: 'queueUnit', planetId: 'cygnus', kind: 'transport' });
+    expect(prepared).toEqual({ type: 'queueUnit', planetId: 'cygnus', kind: 'transport', quantity: 25 });
     expect(Object.hasOwn(prepared, 'yardIds')).toBe(false);
     expect(isGameCommand(prepared)).toBe(true);
   });

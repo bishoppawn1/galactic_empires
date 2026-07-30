@@ -447,6 +447,47 @@ describe('Galactic Empires interface', () => {
     expect(battlecruiserOrder).toBeEnabled();
   });
 
+  it('uses the 1×, 5×, and 25× controls for subsequent production clicks', () => {
+    const state = createInitialState();
+    state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+
+    const quantity = screen.getByRole('group', { name: 'Production quantity' });
+    const one = within(quantity).getByRole('button', { name: '1×' });
+    const five = within(quantity).getByRole('button', { name: '5×' });
+    const twentyFive = within(quantity).getByRole('button', { name: '25×' });
+    expect(one).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(five);
+    expect(five).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')).toHaveTextContent('ORDER 5×');
+    fireEvent.click(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')!);
+    expect(screen.getByText('5. Infantry')).toBeInTheDocument();
+
+    fireEvent.click(twentyFive);
+    expect(twentyFive).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByText('Infantry', { selector: '.unit-button b' }).closest('button')!);
+    expect(screen.getByText('30. Infantry')).toBeInTheDocument();
+    expect(screen.getByText('25 Infantry units added to Terra Nova production.')).toBeInTheDocument();
+  });
+
+  it('keeps unique Titan production restricted to 1× orders', () => {
+    const state = createInitialState();
+    state.completedResearch.push('advancedIndustry', 'orbitalEngineering', 'capitalShips', 'titanEngineering');
+    state.planets[0].buildings.push({ id: 'batch-titan-yard', kind: 'experimentalSpaceFactory', spaceQueue: [] });
+    saveState(state);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'forces' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Production quantity' })).getByRole('button', { name: '5×' }));
+
+    const titanOrder = screen.getByText('Titan Dreadnought', { selector: '.unit-button b' }).closest('button')!;
+    expect(titanOrder).toBeDisabled();
+    expect(titanOrder).toHaveTextContent('TITAN ORDERS REQUIRE 1×');
+    expect(screen.getByText('Battlecruiser', { selector: '.unit-button b' }).closest('button')).toBeEnabled();
+  });
+
   it('shows the dedicated Aegis roster and faction-specific research unlocks', () => {
     const state = createInitialState({ mapSize: 'medium', difficulty: 'commander', playerFaction: 'aegis' });
     saveState(state);

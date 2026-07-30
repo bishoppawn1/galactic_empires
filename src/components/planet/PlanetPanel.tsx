@@ -1,16 +1,16 @@
 import {
-  BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, UNITS,
+  BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, PRODUCTION_QUANTITIES, UNITS,
   ANCIENT_RELIC_DAMAGE_MULTIPLIER, ANCIENT_RELIC_ECONOMY_MULTIPLIER, BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isColonizableWorld, isDefenseBuildingKind, isTitanKind, shipArmor, shipWeaponBatteries, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier, systemKind, visibleOrbitUnits,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
-  type BuildingKind, type GameCommand, type GameState, type Planet, type QueueItem, type SpaceShipTier, type SpaceUnitKind, type Unit, type UnitKind,
+  type BuildingKind, type GameCommand, type GameState, type Planet, type ProductionQuantity, type QueueItem, type SpaceShipTier, type SpaceUnitKind, type Unit, type UnitKind,
 } from '../../game';
 import type { PlanetTab, ProductionFocus } from '../../app/types';
 import { buildingIcon, factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { GroundUnitImage } from '../shared/GroundUnitImage';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
-export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle, onSurface }: {
-  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void; onSurface: () => void;
+export function PlanetPanel({ state, planet, tab, setTab, productionFocus, productionQuantity, setProductionQuantity, selectedYardIds, act, onBattle, onSurface }: {
+  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; productionQuantity: ProductionQuantity; setProductionQuantity: (quantity: ProductionQuantity) => void; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void; onSurface: () => void;
 }) {
   const kind = systemKind(planet);
   const world = isColonizableWorld(planet);
@@ -31,7 +31,7 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
     <div className="panel-scroll">
       {tab === 'command' && <Command state={state} planet={planet} />}
       {tab === 'construction' && <Construction state={state} planet={planet} act={act} />}
-      {tab === 'forces' && <Forces state={state} planet={planet} focus={productionFocus} selectedYardIds={selectedYardIds} act={act} />}
+      {tab === 'forces' && <Forces state={state} planet={planet} focus={productionFocus} quantity={productionQuantity} setQuantity={setProductionQuantity} selectedYardIds={selectedYardIds} act={act} />}
       {tab === 'surface' && <section><SectionTitle kicker="SURFACE COMMAND" title="No surface intelligence" /><Locked text="Scout this planet before opening its ground deployment map." /></section>}
     </div>
   </aside>;
@@ -115,7 +115,7 @@ function Queue({ items, speed = 1, showEmpty = false }: { items: QueueItem[]; sp
   return <div className="queue"><b>PRODUCTION QUEUE · {speed}× SPEED</b>{items.length ? items.map((item, index) => <div key={item.id}><span>{index + 1}. {UNITS[item.kind].label}</span><div><i style={{ width: `${100 * (1 - item.remaining / item.total)}%` }} /></div><em>{formatProductionSeconds(item.remaining / speed)}</em></div>) : <small>QUEUE EMPTY</small>}</div>;
 }
 
-function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
+function Forces({ state, planet, focus, quantity, setQuantity, selectedYardIds, act }: { state: GameState; planet: Planet; focus?: ProductionFocus; quantity: ProductionQuantity; setQuantity: (quantity: ProductionQuantity) => void; selectedYardIds: string[]; act: (command: GameCommand) => void }) {
   if (planet.intelStatus === 'unscouted') return <section><SectionTitle kicker="FORCE COMMAND" title="No force intelligence" /><Locked text="Bring one of your ships into this system to reveal deployed ground and orbital forces." /></section>;
   const civilization = empireCivilization(state);
   const groundKinds = groundUnitKindsForCivilization(civilization);
@@ -135,6 +135,7 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     if (titanStatus === 'under-construction') return 'TITAN ALREADY IN PRODUCTION';
     if (titanStatus === 'deployed') return 'TITAN ALREADY DEPLOYED';
     if (isTitanKind(kind) && groupedYards.length > 1) return 'SELECT ONE YARD FOR TITAN';
+    if (isTitanKind(kind) && quantity > 1) return 'TITAN ORDERS REQUIRE 1×';
     if (def.factory === 'ground' && def.advancedFactory && !hasAdvancedGroundFactory) return 'ADVANCED FACTORY REQUIRED';
     if (def.factory === 'space') {
       const tier = spaceTierForUnit(kind)!;
@@ -147,14 +148,14 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   };
   const groundProduction = <div className={`production-group ${focus === 'ground' ? 'focused' : ''}`}>
     <h3>Ground factories · {groundFactoryCount} online · {groundSpeed}× speed</h3>
-    <div className="unit-grid">{groundKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={groundSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
+    <div className="unit-grid">{groundKinds.map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={groundSpeed} quantity={quantity} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, quantity })} lockReason={lockReason(kind)} />)}</div><Queue items={planet.groundQueue} speed={groundSpeed} />
   </div>;
   const spaceProduction = <div className={`production-group ${focus === 'space' ? 'focused' : ''}`}>
     <h3>Space yards · {yards.length} online · {spaceSpeed}× speed · {groupedYards.length ? `${groupedYards.length} grouped override` : 'auto-distribution'}</h3>
     {focus === 'space' && <p className="production-link">ORBITAL NETWORK ACTIVE — {groupedYards.length ? `grouped orders require every selected yard to match the hull tier` : 'orders rotate across yards of the matching tier; constructing another yard rebalances compatible waiting hulls'}.</p>}
     {([1, 2, 3] as SpaceShipTier[]).map(tier => <div className={`ship-tier tier-${tier}`} key={tier}>
       <h4>TIER {tier} · {tier === 1 ? 'FRIGATES & TRANSPORTS' : tier === 2 ? 'ADVANCED SHIPS' : 'SUPER CAPITALS'}</h4>
-      <div className="unit-grid">{spaceKinds.filter(kind => spaceTierForUnit(kind) === tier).map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined })} lockReason={lockReason(kind)} />)}</div>
+      <div className="unit-grid">{spaceKinds.filter(kind => spaceTierForUnit(kind) === tier).map(kind => <UnitButton key={kind} kind={kind} faction={civilization} speed={spaceSpeed} quantity={quantity} onClick={() => act({ type: 'queueUnit', planetId: planet.id, kind, yardIds: groupedYards.length ? groupedYards.map(yard => yard.id) : undefined, quantity })} lockReason={lockReason(kind)} />)}</div>
     </div>)}
     <div className="yard-queue-list">{yards.map((yard, index) => {
       const tier = spaceYardTier(yard)!;
@@ -163,7 +164,10 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
     })}</div>
   </div>;
   return <section><SectionTitle kicker="FORCE COMMAND" title="Production & deployment" />
-    {planet.owner === 'player' && isColonizableWorld(planet) && <>{focus === 'space' ? <>{spaceProduction}{groundProduction}</> : <>{groundProduction}{spaceProduction}</>}</>}
+    {planet.owner === 'player' && isColonizableWorld(planet) && <><div className="production-quantity" role="group" aria-label="Production quantity">
+      <div><b>ORDER SIZE</b><small>{quantity} per production click{groupedYards.length ? ' at every grouped yard' : ''}</small></div>
+      <span>{PRODUCTION_QUANTITIES.map(option => <button key={option} type="button" aria-pressed={quantity === option} onClick={() => setQuantity(option)}>{option}×</button>)}</span>
+    </div>{focus === 'space' ? <>{spaceProduction}{groundProduction}</> : <>{groundProduction}{spaceProduction}</>}</>}
     <h3>Deployed forces</h3>
     <div className="force-summary"><span>GROUND <b>{planet.groundUnits.length}</b></span><span>VISIBLE ORBIT <b>{visibleUnits.length}</b></span></div>
     {planet.groundUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}{visibleUnits.map(unit => <UnitRow key={unit.id} unit={unit} />)}
@@ -175,16 +179,17 @@ function Forces({ state, planet, focus, selectedYardIds, act }: { state: GameSta
   </section>;
 }
 
-function UnitButton({ kind, faction, onClick, lockReason, speed = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number }) {
+function UnitButton({ kind, faction, onClick, lockReason, speed = 1, quantity = 1 }: { kind: UnitKind; faction: ReturnType<typeof empireCivilization>; onClick: () => void; lockReason?: string; speed?: number; quantity?: ProductionQuantity }) {
   const definition = UNITS[kind];
   const spaceUnit = isSpaceUnit(kind);
   const shipSystems = spaceUnit ? shipWeaponBatteries(kind as SpaceUnitKind)
     .map(weapon => `${weapon.mounts}× ${weapon.label} · ${weapon.damage} DMG · ${weapon.cooldown}s · RNG ${weapon.range}`)
     .join(' + ') : '';
   const details = spaceUnit
-    ? `TIER ${definition.spaceTier}${isTitanKind(kind) ? ' · UNIQUE TITAN' : ''} · ${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · ARMOR ${Math.round(shipArmor(kind as SpaceUnitKind) * 100)}% · ${shipSystems}${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
-    : `${formatFactionCost(definition.cost, faction)} · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
-  return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? details}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
+    ? `TIER ${definition.spaceTier}${isTitanKind(kind) ? ' · UNIQUE TITAN' : ''} · ${formatFactionCost(definition.cost, faction)} EACH · ${formatProductionSeconds(definition.time! / speed)} · ARMOR ${Math.round(shipArmor(kind as SpaceUnitKind) * 100)}% · ${shipSystems}${definition.fighterWing ? ` · ${definition.fighterWing.capacity} FIGHTERS · ${definition.fighterWing.rebuildTime}s REBUILD` : ''}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`
+    : `${formatFactionCost(definition.cost, faction)} EACH · ${formatProductionSeconds(definition.time! / speed)} · HP ${definition.hp} · RNG ${definition.range}${definition.ability ? ` · ${definition.ability.label.toUpperCase()}` : ''}`;
+  const quantityLabel = quantity > 1 ? ` · ORDER ${quantity}×` : '';
+  return <button className="unit-button" onClick={onClick} disabled={!!lockReason}><span>{spaceUnit ? <ShipImage kind={kind} /> : <GroundUnitImage kind={kind} />}</span><b>{definition.label}</b><small>{lockReason ?? `${details}${quantityLabel}`}</small>{definition.ability && <em>{definition.ability.description}</em>}</button>;
 }
 function UnitRow({ unit }: { unit: Unit }) {
   const definition = UNITS[unit.kind];

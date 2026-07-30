@@ -998,6 +998,10 @@ describe('production and research', () => {
       ok: false,
       error: expect.stringContaining('one Experimental Space Yard'),
     });
+    expect(queueUnit(state, 'terra', 'dreadnought', ['experimental-yard-a'], 5)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('1× production order'),
+    });
     expect(factionTitanStatus(state, 'player')).toBeUndefined();
     const titan = queueUnit(state, 'terra', 'dreadnought', ['experimental-yard-b']); expectOk(titan);
     expect(factionTitanStatus(titan.state, 'player')).toBe('under-construction');
@@ -1194,6 +1198,59 @@ describe('production and research', () => {
     const queued = queueUnit(state, 'terra', 'transport'); expectOk(queued);
     const progressed = tick(queued.state, 5);
     expect(spaceYards(progressed.planets[0])[0].spaceQueue![0].remaining).toBe(13);
+  });
+
+  it('queues atomic 5× and 25× ground-unit batches at their full cost', () => {
+    const state = createInitialState();
+    state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    expect(isGameCommand({ type: 'queueUnit', planetId: 'terra', kind: 'infantry', quantity: 5 })).toBe(true);
+    expect(isGameCommand({ type: 'queueUnit', planetId: 'terra', kind: 'infantry', quantity: 25 })).toBe(true);
+    expect(isGameCommand({ type: 'queueUnit', planetId: 'terra', kind: 'infantry', quantity: 10 })).toBe(false);
+
+    const five = queueUnit(state, 'terra', 'infantry', undefined, 5); expectOk(five);
+    expect(five.state.planets[0].groundQueue).toHaveLength(5);
+    expect(five.state.planets[0].groundQueue.every(item => item.kind === 'infantry')).toBe(true);
+    expect(five.state.resources).toEqual({
+      metal: 10_000 - UNITS.infantry.cost.metal * 5,
+      crystal: 10_000 - UNITS.infantry.cost.crystal * 5,
+      gold: 10_000 - UNITS.infantry.cost.gold * 5,
+    });
+
+    const twentyFive = queueUnit(five.state, 'terra', 'antiVehicle', undefined, 25); expectOk(twentyFive);
+    expect(twentyFive.state.planets[0].groundQueue).toHaveLength(30);
+    expect(twentyFive.state.planets[0].groundQueue.filter(item => item.kind === 'antiVehicle')).toHaveLength(25);
+
+    const unaffordable = createInitialState();
+    unaffordable.resources = { metal: 0, crystal: 0, gold: 0 };
+    const rejected = queueUnit(unaffordable, 'terra', 'infantry', undefined, 25);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.state.planets[0].groundQueue).toEqual([]);
+    expect(rejected.state.resources).toEqual({ metal: 0, crystal: 0, gold: 0 });
+  });
+
+  it('auto-distributes ship batches and applies the batch to every explicitly grouped yard', () => {
+    const automaticState = createInitialState(); const automaticTerra = automaticState.planets[0];
+    automaticState.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    automaticTerra.buildings.push({ id: 'automatic-second-yard', kind: 'spaceFactory', spaceQueue: [] });
+    const automatic = queueUnit(automaticState, 'terra', 'transport', undefined, 5); expectOk(automatic);
+    expect(spaceYards(automatic.state.planets[0]).map(yard => yard.spaceQueue?.length)).toEqual([3, 2]);
+    expect(automatic.state.resources).toEqual({
+      metal: 10_000 - UNITS.transport.cost.metal * 5,
+      crystal: 10_000 - UNITS.transport.cost.crystal * 5,
+      gold: 10_000 - UNITS.transport.cost.gold * 5,
+    });
+
+    const groupedState = createInitialState(); const groupedTerra = groupedState.planets[0];
+    groupedState.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
+    groupedTerra.buildings.push({ id: 'grouped-second-yard', kind: 'spaceFactory', spaceQueue: [] });
+    const yardIds = spaceYards(groupedTerra).map(yard => yard.id);
+    const grouped = queueUnit(groupedState, 'terra', 'transport', yardIds, 5); expectOk(grouped);
+    expect(spaceYards(grouped.state.planets[0]).map(yard => yard.spaceQueue?.length)).toEqual([5, 5]);
+    expect(grouped.state.resources).toEqual({
+      metal: 10_000 - UNITS.transport.cost.metal * 10,
+      crystal: 10_000 - UNITS.transport.cost.crystal * 10,
+      gold: 10_000 - UNITS.transport.cost.gold * 10,
+    });
   });
 
   it('gives grouped Space Yards independent production queues', () => {

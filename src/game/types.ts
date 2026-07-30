@@ -7,6 +7,8 @@ export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
 export type SystemKind = 'planet' | 'nebula' | 'star' | 'pirateBase' | 'ancientTemple';
+export const PRODUCTION_QUANTITIES = [1, 5, 25] as const;
+export type ProductionQuantity = typeof PRODUCTION_QUANTITIES[number];
 
 export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction; mapSeed?: number }
 export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };

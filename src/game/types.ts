@@ -5,6 +5,7 @@ export type UnitFaction = Exclude<Faction, null> | 'neutral';
 export type MapSize = 'small' | 'medium' | 'large' | 'huge' | 'massive' | 'galactic';
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
+export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
 export type SystemKind = 'planet' | 'nebula' | 'star' | 'pirateBase' | 'ancientTemple';
 
 export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction; mapSeed?: number }
@@ -104,6 +105,7 @@ export interface Unit {
   fighterBuildProgress?: number;
   fighterLossProgress?: number;
   fighterDamage?: number;
+  titanUpgrades?: TitanUpgradeId[];
 }
 export interface QueueItem { id: string; kind: UnitKind; remaining: number; total: number }
 export interface Planet {

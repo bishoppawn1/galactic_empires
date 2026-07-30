@@ -26,6 +26,7 @@ import {
   type SpaceUnitKind,
   type SpaceYardKind,
   type SystemKind,
+  type TitanUpgradeId,
   type Unit,
   type UnitDefinition,
   type UnitFaction,
@@ -50,12 +51,12 @@ import {
 import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
-  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, UNITS, pool,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
   blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
-  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, unitAvailableToCivilization,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitAvailableToCivilization,
 } from './definitions';
 
 export * from './types';
@@ -75,6 +76,7 @@ const unit = (id: string, kind: UnitKind, faction: UnitFaction): Unit => ({
   shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
   ...(UNITS[kind].capacity || kind === 'transport' ? { loadedUnitIds: [] } : {}),
   ...(UNITS[kind].fighterWing ? { fighterCount: UNITS[kind].fighterWing.capacity, fighterBuildProgress: 0, fighterLossProgress: 0, fighterDamage: 0 } : {}),
+  ...(isTitanKind(kind) ? { titanUpgrades: [] } : {}),
 });
 
 const orbitSlot = (index: number) => {
@@ -701,6 +703,19 @@ export function migrateGameState(input: GameState): GameState {
       savedUnit.fighterLossProgress = Math.max(0, Math.min(fighterWing.attritionTime, savedUnit.fighterLossProgress ?? 0));
       savedUnit.fighterDamage = Math.max(0, Math.min(FIGHTER_HIT_POINTS - Number.EPSILON, savedUnit.fighterDamage ?? 0));
     }
+    if (isTitanKind(savedUnit.kind)) {
+      const installed = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
+      savedUnit.titanUpgrades = [...new Set(installed.filter(id => id in TITAN_UPGRADES))];
+      if (savedUnit.titanUpgrades.includes('shieldMatrix')) {
+        const upgradedMaximum = Math.round(UNITS[savedUnit.kind].shields * 1.4);
+        if (savedUnit.maxShields < upgradedMaximum) {
+          savedUnit.shields = Math.min(upgradedMaximum, savedUnit.shields + upgradedMaximum - savedUnit.maxShields);
+          savedUnit.maxShields = upgradedMaximum;
+        }
+      }
+    } else {
+      delete savedUnit.titanUpgrades;
+    }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
   for (const p of state.planets) {
@@ -1101,6 +1116,26 @@ export function maneuverSpaceUnits(input: GameState, planetId: string, unitIds: 
 }
 
 export const maneuverSpaceUnit = (input: GameState, planetId: string, unitId: string, orbitX: number, orbitY: number) => maneuverSpaceUnits(input, planetId, [unitId], orbitX, orbitY);
+
+export function upgradeTitan(input: GameState, planetId: string, unitId: string, upgradeId: TitanUpgradeId): GameResult {
+  const state = clone(input); const p = getPlanet(state, planetId);
+  const titan = p?.orbitUnits.find(ship => ship.id === unitId && ship.faction === 'player' && isTitanKind(ship.kind))
+    ?? state.fleets.find(fleet => fleet.originId === planetId && fleet.unit.id === unitId && fleet.faction === 'player' && isTitanKind(fleet.unit.kind))?.unit;
+  if (!titan) return fail(input, 'That Titan is not available for an upgrade.');
+  if (!(upgradeId in TITAN_UPGRADES)) return fail(input, 'Unknown Titan upgrade.');
+  if (titan.titanUpgrades?.includes(upgradeId)) return fail(input, 'That Titan upgrade is already installed.');
+  const upgrade = TITAN_UPGRADES[upgradeId];
+  if (!canPlayerAfford(state, upgrade.cost)) return fail(input, insufficientPlayerResources(state));
+  spendPlayerResources(state, upgrade.cost);
+  titan.titanUpgrades = [...(titan.titanUpgrades ?? []), upgradeId];
+  if (upgradeId === 'shieldMatrix') {
+    const oldMaximum = titan.maxShields;
+    titan.maxShields = Math.round(oldMaximum * 1.4);
+    titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximum);
+  }
+  addMessage(state, `${upgrade.label} installed aboard ${UNITS[titan.kind].label}.`);
+  return pass(state);
+}
 
 export const PHASE_TUNNEL_MIN_SECONDS = 4;
 export const PHASE_TUNNEL_SECONDS_PER_MAP_UNIT = .28;
@@ -1944,7 +1979,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
     const ability = UNITS[attacker.kind].ability?.kind;
     const fighterWing = UNITS[attacker.kind].fighterWing;
     shipWeaponBatteries(attacker.kind as SpaceUnitKind).forEach((weapon, weaponIndex) => {
-      const weaponRange = weapon.range;
+      const weaponRange = weapon.range * titanWeaponRangeMultiplier(attacker);
       const shipInRange = (target: Unit) => {
         const to = shipPosition(target);
         return orbitDistance(attackerPosition.x, attackerPosition.y, to.x, to.y) <= weaponRange;
@@ -1954,6 +1989,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
         return orbitDistance(attackerPosition.x, attackerPosition.y, target.x, target.y) <= weaponRange;
       };
       const emit = (targetId: string, targetType: OrbitalCombatShot['targetType'], damageMultiplier = 1, piercingFraction = 0) => {
+        const effectiveDamageMultiplier = damageMultiplier * titanWeaponDamageMultiplier(attacker);
         for (let mountIndex = 0; mountIndex < weapon.mounts; mountIndex += 1) {
           shots.push({
             attackerId: attacker.id,
@@ -1968,7 +2004,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
             mountIndex,
             mountCount: weapon.mounts,
             weaponRange,
-            damageMultiplier,
+            damageMultiplier: effectiveDamageMultiplier,
             ...(piercingFraction ? { piercingFraction } : {}),
           });
         }

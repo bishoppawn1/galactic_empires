@@ -867,6 +867,31 @@ describe('Galactic Empires interface', () => {
     expect(within(card).getByLabelText('Transport shield value')).toHaveTextContent(`${Math.ceil(transport.shields)}/${transport.maxShields}`);
   });
 
+  it.each([
+    { civilization: 'human' as const, kind: 'dreadnought' as const, label: 'Titan Dreadnought' },
+    { civilization: 'brood' as const, kind: 'worldEater' as const, label: 'World Eater' },
+    { civilization: 'aegis' as const, kind: 'aegisSovereignDreadnought' as const, label: 'Sovereign Titan' },
+    { civilization: 'covenant' as const, kind: 'covenantDreadforge' as const, label: 'Dreadforge Titan' },
+  ])('shows and operates the upgrade menu for the $label', ({ civilization, kind, label }) => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: civilization });
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000, ...(civilization === 'brood' ? { biomass: 5000 } : {}) };
+    const home = state.planets.find(planet => planet.owner === 'player')!;
+    home.orbitUnits = [{ ...makeUnit('refit-titan', kind, 'player'), orbitX: 180, orbitY: 0 }];
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: `${label} orbiting ${home.name}` }));
+
+    expect(screen.getByText('TITAN UPGRADES')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Purchase Siege Core/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Purchase Shield Matrix/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Purchase Farcast Array/ })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core/ }));
+    expect(screen.getByRole('button', { name: 'Installed Siege Core' })).toBeDisabled();
+    expect(screen.getByText(`Siege Core installed aboard ${label}.`)).toBeInTheDocument();
+  });
+
   it('shows a prominent capacity badge on transports and marks a full hold', () => {
     const state = stateWithPlayerForces();
     const transport = state.planets[0].orbitUnits.find(unit => unit.kind === 'transport')!;

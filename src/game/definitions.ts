@@ -1,4 +1,4 @@
-import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, MapSize, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, UnitDefinition, UnitKind, WeaponDefinition } from './types';
+import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, MapSize, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, TitanUpgradeId, Unit, UnitDefinition, UnitKind, WeaponDefinition } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
 import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
@@ -582,7 +582,16 @@ export const blocksPhaseGate = (kind: UnitKind) => isPhaseControlShipKind(kind) 
 export const shipMovementSpeedMultiplier = (kind: UnitKind) => UNITS[kind].orbitSpeedMultiplier ?? 1;
 export const phaseControlRateMultiplier = (stacks: number) => PHASE_CONTROL_RATE_MULTIPLIER ** Math.max(0, Math.floor(stacks));
 export const TITAN_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['dreadnought', 'worldEater', 'aegisSovereignDreadnought', 'covenantDreadforge']);
+export const TITAN_UPGRADES: Record<TitanUpgradeId, { label: string; description: string; cost: ResourcePool }> = {
+  siegeCore: { label: 'Siege Core', description: '+35% damage for every weapon battery', cost: pool(360, 280, 180) },
+  shieldMatrix: { label: 'Shield Matrix', description: '+40% maximum shields', cost: pool(300, 340, 200) },
+  farcastArray: { label: 'Farcast Array', description: '+25% range for every weapon battery', cost: pool(260, 300, 240) },
+};
 export const isTitanKind = (kind: UnitKind): kind is SpaceUnitKind => TITAN_KINDS.has(kind as SpaceUnitKind);
+export const titanWeaponDamageMultiplier = (unit: Unit) => unit.titanUpgrades?.includes('siegeCore') ? 1.35 : 1;
+export const titanWeaponRangeMultiplier = (unit: Unit) => unit.titanUpgrades?.includes('farcastArray') ? 1.25 : 1;
+export const unitMaximumWeaponRange = (unit: Unit) => Math.max(...shipWeaponBatteries(unit.kind as SpaceUnitKind).map(weapon => weapon.range))
+  * titanWeaponRangeMultiplier(unit);
 export const TIER_TWO_COPY_BY_TIER_ONE: Readonly<Partial<Record<SpaceUnitKind, SpaceUnitKind>>> = {
   transport: 'advancedTransport',
   escortFrigate: 'advancedEscortFrigate',

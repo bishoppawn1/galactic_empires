@@ -113,7 +113,9 @@ describe('unit weapon definitions', () => {
     for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
-      expect(roster.filter(kind => UNITS[kind].spaceTier === 2)).toHaveLength(4);
+      const tierTwoShips = roster.filter(kind => UNITS[kind].spaceTier === 2);
+      expect(tierTwoShips).toHaveLength(4);
+      expect(tierTwoShips.every(kind => UNITS[kind].label.includes('Cruiser'))).toBe(true);
     }
   });
 

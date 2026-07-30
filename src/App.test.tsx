@@ -345,10 +345,10 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Siege Walker', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Shock Troopers', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.getByText('Railgun Tank', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Transport Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Escort Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Missile Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
-    expect(screen.getByText('Flak Frigate Mk II', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Transport Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Escort Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Missile Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
+    expect(screen.getByText('Flak Cruiser', { selector: '.unit-button b' })).toBeInTheDocument();
     expect(screen.queryByText('Light Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.queryByText('Phase Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.getByText('Atlas Mega Carrier', { selector: '.unit-button b' })).toBeInTheDocument();
@@ -408,7 +408,7 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
 
-    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Bastion Lander II', 'Shield Monitor II', 'Lance Cruiser', 'Sentinel Flak Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Bastion Lander Cruiser', 'Shield Monitor Cruiser', 'Lance Cruiser', 'Sentinel Flak Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
       expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Ward Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();

@@ -1606,6 +1606,16 @@ describe('enemy strategy', () => {
 });
 
 describe('transport and colonization', () => {
+  it('builds every faction Tier 1 recon scout in ten seconds', () => {
+    expect(Object.fromEntries([...RECON_SHIP_KINDS].map(kind => [kind, UNITS[kind].time]))).toEqual({
+      reconCutter: 10,
+      broodSeeker: 10,
+      aegisFarcastScout: 10,
+      covenantSurveyorSkiff: 10,
+    });
+    expect([...RECON_SHIP_KINDS].every(kind => UNITS[kind].factory === 'space' && UNITS[kind].spaceTier === 1)).toBe(true);
+  });
+
   it('moves recon ships 2.5 times faster inside a gravity well', () => {
     const distanceAfterOneSecond = (kind: 'escortFrigate' | 'reconCutter') => {
       const state = createInitialState();

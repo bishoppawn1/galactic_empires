@@ -32,7 +32,7 @@ export const BUILDINGS: Record<BuildingKind, Definition> = {
   groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25), time: 8 },
   antiSpaceDefense: { label: 'Anti-Space Battery', description: 'Damages hostile ships in orbit.', cost: pool(130, 75, 55), time: 10 },
   spaceDefense: { label: 'Orbital Defenses', description: 'Protects the planet’s orbital space.', cost: pool(180, 100, 75), time: 12 },
-  researchLab: { label: 'Research Lab', description: 'Unlocks strategic research.', cost: pool(190, 160, 130) },
+  researchLab: { label: 'Research Lab', description: 'Unlocks strategic research; every additional lab compounds research speed by 1.5×.', cost: pool(190, 160, 130) },
 };
 
 export const UNITS: Record<UnitKind, UnitDefinition> = {

@@ -928,6 +928,24 @@ describe('Galactic Empires interface', () => {
     expect(parseFloat(carrierNode.style.top) + parseFloat(carrierNode.style.height)).toBeLessThanOrEqual(parseFloat(shieldNode.style.top));
   });
 
+  it('shows compounded Research Lab speed and real-time completion estimates', () => {
+    const state = createInitialState();
+    state.planets[0].buildings.push(
+      { id: 'research-lab-primary', kind: 'researchLab' },
+      { id: 'research-lab-secondary', kind: 'researchLab' },
+      { id: 'research-lab-tertiary', kind: 'researchLab' },
+    );
+    state.researchQueue.push({ id: 'advancedIndustry', remaining: 30, total: 45 });
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
+    expect(document.querySelector('.research-stats')).toHaveTextContent('3 LABS');
+    expect(document.querySelector('.research-stats')).toHaveTextContent('2.25× SPEED');
+    const node = document.querySelector('[data-tech-id="advancedIndustry"]') as HTMLElement;
+    expect(within(node).getByRole('button', { name: '14s' })).toBeDisabled();
+  });
+
   it('enables Spore Migration for the Brood after Evolved Industry', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'brood' });
     state.planets[0].buildings.push({ id: 'brood-research-lab-test', kind: 'researchLab' });

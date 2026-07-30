@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchProductionMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -797,6 +797,24 @@ describe('competitive multiplayer', () => {
     expect(rivalView.planets[0].orbitFocusTargetId).toBe('rival-target');
     expect(swapPlayerPerspective(rivalView)).toEqual(state);
   });
+
+  it('compounds each multiplayer empire research queue from its own labs', () => {
+    const state = createCompetitiveState();
+    const hostHome = state.planets.find(planet => planet.owner === 'player')!;
+    const guestHome = state.planets.find(planet => planet.owner === 'enemy')!;
+    hostHome.buildings.push({ id: 'host-lab', kind: 'researchLab' });
+    guestHome.buildings.push(
+      { id: 'guest-lab-1', kind: 'researchLab' },
+      { id: 'guest-lab-2', kind: 'researchLab' },
+      { id: 'guest-lab-3', kind: 'researchLab' },
+    );
+    state.researchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
+    state.enemyResearchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
+
+    const progressed = tick(state, 10);
+    expect(progressed.researchQueue[0].remaining).toBe(35);
+    expect(progressed.enemyResearchQueue[0].remaining).toBe(22.5);
+  });
 });
 
 describe('galaxy routes', () => {
@@ -822,6 +840,41 @@ describe('galaxy routes', () => {
 });
 
 describe('production and research', () => {
+  it('compounds empire research speed by 1.5 for each additional Research Lab', () => {
+    const state = createInitialState();
+    const terra = state.planets[0];
+    expect(researchLabCount(state)).toBe(0);
+    expect(researchSpeedMultiplier(state)).toBe(0);
+
+    terra.buildings.push({ id: 'lab-1', kind: 'researchLab' });
+    expect(researchSpeedMultiplier(state)).toBe(1);
+    terra.buildings.push({ id: 'lab-2', kind: 'researchLab' });
+    expect(researchSpeedMultiplier(state)).toBe(1.5);
+
+    const nyx = state.planets.find(planet => planet.id === 'nyx')!;
+    nyx.owner = 'player';
+    nyx.buildings.push({ id: 'lab-3', kind: 'researchLab' }, { id: 'lab-4', kind: 'researchLab' });
+    expect(researchLabCount(state)).toBe(4);
+    expect(researchSpeedMultiplier(state)).toBe(3.375);
+  });
+
+  it('uses compounded lab speed for active research and pauses without a lab', () => {
+    const state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    state.planets[0].buildings.push(
+      { id: 'lab-primary', kind: 'researchLab' },
+      { id: 'lab-secondary', kind: 'researchLab' },
+      { id: 'lab-tertiary', kind: 'researchLab' },
+    );
+    const started = beginResearch(state, 'advancedIndustry'); expectOk(started);
+    const progressed = tick(started.state, 10);
+    expect(progressed.researchQueue[0].remaining).toBe(22.5);
+
+    progressed.planets[0].buildings = progressed.planets[0].buildings.filter(building => building.kind !== 'researchLab');
+    const paused = tick(progressed, 10);
+    expect(paused.researchQueue[0].remaining).toBe(22.5);
+  });
+
   it('allows every civilization to queue its Tier 1 flak frigate without research', () => {
     (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach(playerFaction => {
       const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction });

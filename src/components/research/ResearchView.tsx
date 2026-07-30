@@ -1,6 +1,6 @@
 import {
   PLAYABLE_FACTION_DEFINITIONS, REPEATABLE_RESEARCH, empireCivilization, formatFactionCost, isRepeatableResearch,
-  researchCost, researchDefinitionForCivilization, researchLevel, researchTime, researchUnlocksForCivilization,
+  researchCost, researchDefinitionForCivilization, researchLabCount, researchLevel, researchSpeedMultiplier, researchTime, researchUnlocksForCivilization,
   researchTreeForCivilization,
   type GameCommand, type GameState, type PlayableFaction, type ResearchId, type ResearchTreeNode,
 } from '../../game';
@@ -40,8 +40,8 @@ const layoutResearchNodes = (nodes: ResearchTreeNode[]) => {
   return nodes.map(node => ({ ...node, y: topById.get(node.id)! }));
 };
 
-function ResearchNode({ node, state, hasLab, civilization, act }: {
-  node: ResearchTreeNode; state: GameState; hasLab: boolean; civilization: PlayableFaction; act: (command: GameCommand) => void;
+function ResearchNode({ node, state, hasLab, speed, civilization, act }: {
+  node: ResearchTreeNode; state: GameState; hasLab: boolean; speed: number; civilization: PlayableFaction; act: (command: GameCommand) => void;
 }) {
   const { id } = node;
   const definition = researchDefinitionForCivilization(id, civilization);
@@ -52,7 +52,7 @@ function ResearchNode({ node, state, hasLab, civilization, act }: {
   const prerequisiteMet = !definition.requires || state.completedResearch.includes(definition.requires);
   const status = done ? 'complete' : active ? 'active-research' : !prerequisiteMet || !hasLab ? 'locked-tech' : level ? 'repeatable-ready' : 'available-tech';
   const buttonLabel = done ? 'COMPLETE'
-    : active ? `${Math.ceil(active.remaining)}s`
+    : active ? (speed ? `${Math.ceil(active.remaining / speed)}s` : 'OFFLINE')
       : !hasLab ? 'LAB REQUIRED'
         : !prerequisiteMet ? 'PREREQUISITE NOT COMPLETED'
           : repeatable ? `ITERATE · LV ${level + 1}` : 'RESEARCH';
@@ -76,14 +76,15 @@ function ResearchNode({ node, state, hasLab, civilization, act }: {
     <div className="tech-node-footer">
       {active
         ? <div className="research-progress" aria-label={`${definition.label} progress`}><i style={{ width: `${100 * (1 - active.remaining / active.total)}%` }} /></div>
-        : <em>{formatFactionCost(cost, civilization)} · {time}s</em>}
+        : <em>{formatFactionCost(cost, civilization)} · {speed ? Math.ceil(time / speed) : time}s</em>}
       <button disabled={done || !!active || !hasLab || !prerequisiteMet} onClick={() => act({ type: 'beginResearch', id })}>{buttonLabel}</button>
     </div>
   </article>;
 }
 
 export function ResearchView({ state, act }: { state: GameState; act: (command: GameCommand) => void }) {
-  const labs = state.planets.reduce((sum, planet) => sum + (planet.owner === 'player' ? planet.buildings.filter(building => building.kind === 'researchLab').length : 0), 0);
+  const labs = researchLabCount(state);
+  const speed = researchSpeedMultiplier(state);
   const hasLab = labs > 0;
   const civilization = empireCivilization(state);
   const faction = PLAYABLE_FACTION_DEFINITIONS[civilization];
@@ -94,7 +95,7 @@ export function ResearchView({ state, act }: { state: GameState; act: (command: 
   const iterations = REPEATABLE_RESEARCH.reduce((total, id) => total + researchLevel(state.completedResearch, id), 0);
   return <main className={`research-view research-${civilization}`} aria-label="Research tech tree">
     <header className="research-hero"><div><small>{faction.label.toUpperCase()} // STRATEGIC RESEARCH MATRIX</small><h1>{faction.label} technology lattice</h1><p>{FACTION_RESEARCH_INTRO[civilization]}</p></div>
-      <div className="research-stats"><span><b>{discoveries}</b> DISCOVERIES</span><span><b>{iterations}</b> ITERATIONS</span><span><b>{state.researchQueue.length}</b> ACTIVE</span><span><b>{labs}</b> LABS</span></div>
+      <div className="research-stats"><span><b>{discoveries}</b> DISCOVERIES</span><span><b>{iterations}</b> ITERATIONS</span><span><b>{state.researchQueue.length}</b> ACTIVE</span><span><b>{labs}</b> LABS</span><span><b>{Number(speed.toFixed(3))}×</b> SPEED</span></div>
     </header>
     {!hasLab && <div className="research-warning"><span>⌾</span><div><b>RESEARCH NETWORK OFFLINE</b><p>Construct a Research Lab on any colony to activate the technology lattice.</p></div></div>}
     <section className="tech-tree expanded-tech-tree research-graph" aria-label={`${faction.label} technology prerequisites`}>
@@ -112,7 +113,7 @@ export function ResearchView({ state, act }: { state: GameState; act: (command: 
             return [<path key={`${requires}-${node.id}`} d={graphPath(prerequisite, node)} className={online ? 'online' : ''} data-from={requires} data-to={node.id} />];
           })}
         </svg>
-        {nodes.map(node => <ResearchNode key={node.id} node={node} state={state} hasLab={hasLab} civilization={civilization} act={act} />)}
+        {nodes.map(node => <ResearchNode key={node.id} node={node} state={state} hasLab={hasLab} speed={speed} civilization={civilization} act={act} />)}
       </div>
     </section>
   </main>;

@@ -817,6 +817,12 @@ export const researchProductionMultiplier = (completed: ResearchId[]) => (comple
   * (completed.includes('broodSpawningPools') ? 1.2 : 1)
   * (completed.includes('aegisPatientAssembly') ? 1.1 : 1)
   * (completed.includes('covenantOverclockedForges') ? 1.2 : 1);
+export const researchLabCount = (state: GameState, faction: EmpireFaction = 'player') => state.planets.reduce((total, planet) =>
+  total + (planet.owner === faction ? planet.buildings.filter(building => building.kind === 'researchLab').length : 0), 0);
+export const researchSpeedMultiplier = (state: GameState, faction: EmpireFaction = 'player') => {
+  const labs = researchLabCount(state, faction);
+  return labs ? 1.5 ** (labs - 1) : 0;
+};
 export const phaseTravelMultiplier = (completed: ResearchId[]) => (completed.includes('phaseMastery') ? .75 : 1)
   * (completed.includes('humanPhaseCouriers') ? .9 : 1)
   * (completed.includes('broodVoidSenses') ? .85 : 1)
@@ -2497,7 +2503,7 @@ export function tick(input: GameState, seconds: number): GameState {
   }
 
   if (state.researchQueue.length) {
-    state.researchQueue[0].remaining -= seconds;
+    state.researchQueue[0].remaining -= seconds * researchSpeedMultiplier(state);
     if (state.researchQueue[0].remaining <= 0) {
       const done = state.researchQueue.shift()!; state.completedResearch.push(done.id);
       const definition = researchDefinitionForCivilization(done.id, empireCivilization(state));
@@ -2508,7 +2514,7 @@ export function tick(input: GameState, seconds: number): GameState {
   for (const faction of EMPIRE_FACTIONS.filter(faction => faction !== 'player')) {
     const economy = empireEconomy(state, faction);
     if (economy.researchQueue.length) {
-      economy.researchQueue[0].remaining -= seconds;
+      economy.researchQueue[0].remaining -= seconds * researchSpeedMultiplier(state, faction);
       if (economy.researchQueue[0].remaining <= 0) economy.completedResearch.push(economy.researchQueue.shift()!.id);
     }
   }

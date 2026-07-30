@@ -292,6 +292,25 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('Active queues').parentElement).toHaveClass('wide');
   });
 
+  it('marks only ships inside phase-control range without exposing field counts', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999;
+    state.enemyAttackClock = 9999;
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    terra.orbitUnits = [
+      { ...makeUnit('suppressed-ship', 'escortFrigate', 'player'), orbitX: 80, orbitY: 0 },
+      { ...makeUnit('free-ship', 'missileFrigate', 'player'), orbitX: -650, orbitY: 0 },
+      { ...makeUnit('phase-source', 'phaseSuppressionFrigate', 'enemy'), orbitX: 120, orbitY: 0 },
+    ];
+    saveState(state);
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: /Escort Frigate orbiting Terra Nova, phase suppressed/i })).toHaveClass('phase-slowed');
+    expect(screen.getByRole('button', { name: /^Missile Frigate orbiting Terra Nova$/i })).not.toHaveClass('phase-slowed');
+    expect(screen.getAllByText('PHASE SUPPRESSED')).toHaveLength(1);
+    expect(screen.queryByText(/PHASE ×/)).not.toBeInTheDocument();
+  });
+
   it('identifies the rival homeworld while withholding its details before scouting', () => {
     render(<App />);
     const hiddenHome = screen.getByRole('button', { name: 'Cygnus Reach HOSTILE' });

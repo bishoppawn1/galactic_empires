@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -1549,6 +1549,19 @@ describe('transport and colonization', () => {
     expect(unimpeded.weaponCooldown).toBeCloseTo(.8);
     expect(oneField.weaponCooldown).toBeCloseTo(.85);
     expect(twoFields.weaponCooldown).toBeCloseTo(.8875);
+  });
+
+  it('limits phase-control fields to positioned hostile ships', () => {
+    const controller = { ...makeUnit('phase-controller', 'phaseSuppressionFrigate', 'enemy'), orbitX: 20, orbitY: 20 };
+    const ship = { ...makeUnit('phase-ship', 'escortFrigate', 'player'), orbitX: 0, orbitY: 0 };
+    const groundUnit = { ...makeUnit('phase-ground', 'infantry', 'player'), orbitX: 0, orbitY: 0 };
+    const unpositionedShip = makeUnit('phase-unpositioned', 'escortFrigate', 'player');
+    const distantShip = { ...makeUnit('phase-distant', 'escortFrigate', 'player'), orbitX: 700, orbitY: 0 };
+
+    expect(phaseControlStackCount([controller, ship], ship)).toBe(1);
+    expect(phaseControlStackCount([controller, groundUnit], groundUnit)).toBe(0);
+    expect(phaseControlStackCount([controller, unpositionedShip], unpositionedShip)).toBe(0);
+    expect(phaseControlStackCount([controller, distantShip], distantShip)).toBe(0);
   });
 
   it('phase-locks only affected ships in a mixed gate order while the rest travel through', () => {

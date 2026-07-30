@@ -1878,19 +1878,29 @@ export interface OrbitalCombatShot {
 const orbitDistance = (fromX: number, fromY: number, toX: number, toY: number) => Math.hypot(toX - fromX, toY - fromY);
 
 export function phaseControlStackCount(combatants: Unit[], target: Unit) {
+  if (!SPACE_KINDS.includes(target.kind as SpaceUnitKind)
+    || !Number.isFinite(target.orbitX)
+    || !Number.isFinite(target.orbitY)) return 0;
   return combatants.filter(source => source.id !== target.id
     && source.hp > 0
     && source.faction !== target.faction
     && isPhaseControlShipKind(source.kind)
-    && orbitDistance(source.orbitX ?? 0, source.orbitY ?? 0, target.orbitX ?? 0, target.orbitY ?? 0) <= UNITS[source.kind].range).length;
+    && Number.isFinite(source.orbitX)
+    && Number.isFinite(source.orbitY)
+    && orbitDistance(source.orbitX!, source.orbitY!, target.orbitX!, target.orbitY!) <= UNITS[source.kind].range).length;
 }
 
 function hasTierTwoPhaseLock(combatants: Unit[], target: Unit) {
-  return combatants.some(source => source.id !== target.id
+  return SPACE_KINDS.includes(target.kind as SpaceUnitKind)
+    && Number.isFinite(target.orbitX)
+    && Number.isFinite(target.orbitY)
+    && combatants.some(source => source.id !== target.id
     && source.hp > 0
     && source.faction !== target.faction
     && blocksPhaseGate(source.kind)
-    && orbitDistance(source.orbitX ?? 0, source.orbitY ?? 0, target.orbitX ?? 0, target.orbitY ?? 0) <= UNITS[source.kind].range);
+    && Number.isFinite(source.orbitX)
+    && Number.isFinite(source.orbitY)
+    && orbitDistance(source.orbitX!, source.orbitY!, target.orbitX!, target.orbitY!) <= UNITS[source.kind].range);
 }
 
 function phaseFieldUnitsForFleet(state: GameState, fleet: Fleet) {

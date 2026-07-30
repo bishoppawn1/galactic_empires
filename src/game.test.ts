@@ -284,6 +284,23 @@ describe('economy and construction', () => {
     expect('tier' in state.planets[0].buildings[0]).toBe(false);
   });
 
+  it('allows only one Research Lab per planet while supporting a multi-colony network', () => {
+    let state = createInitialState();
+    state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+
+    const firstLab = constructBuilding(state, 'terra', 'researchLab'); expectOk(firstLab); state = firstLab.state;
+    expect(constructBuilding(state, 'terra', 'researchLab')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Research Lab limit'),
+    });
+
+    const secondColony = state.planets.find(planet => planet.id === 'nyx')!;
+    secondColony.owner = 'player';
+    const secondLab = constructBuilding(state, secondColony.id, 'researchLab'); expectOk(secondLab);
+    expect(researchLabCount(secondLab.state)).toBe(2);
+    expect(researchSpeedMultiplier(secondLab.state)).toBe(1.5);
+  });
+
   it('allows unlimited factories and space yards on every planet', () => {
     let state = createInitialState();
     state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
@@ -321,12 +338,13 @@ describe('economy and construction', () => {
     }
   });
 
-  it('migrates saves to the four, three, and ten defense limits', () => {
+  it('migrates saves to the current defense and Research Lab limits', () => {
     const state = createInitialState();
     state.planets.forEach(planet => {
       planet.buildingLimits.groundDefense = 10;
       planet.buildingLimits.antiSpaceDefense = 10;
       planet.buildingLimits.spaceDefense = 3;
+      planet.buildingLimits.researchLab = 2;
     });
 
     const migrated = migrateGameState(state);
@@ -335,6 +353,7 @@ describe('economy and construction', () => {
         groundDefense: 4,
         antiSpaceDefense: 3,
         spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP,
+        researchLab: 1,
       });
     });
   });
@@ -824,12 +843,13 @@ describe('competitive multiplayer', () => {
     const state = createCompetitiveState();
     const hostHome = state.planets.find(planet => planet.owner === 'player')!;
     const guestHome = state.planets.find(planet => planet.owner === 'enemy')!;
+    const guestColonies = state.planets.filter(planet => planet.owner === null).slice(0, 2);
     hostHome.buildings.push({ id: 'host-lab', kind: 'researchLab' });
-    guestHome.buildings.push(
-      { id: 'guest-lab-1', kind: 'researchLab' },
-      { id: 'guest-lab-2', kind: 'researchLab' },
-      { id: 'guest-lab-3', kind: 'researchLab' },
-    );
+    guestHome.buildings.push({ id: 'guest-lab-1', kind: 'researchLab' });
+    guestColonies.forEach((planet, index) => {
+      planet.owner = 'enemy';
+      planet.buildings.push({ id: `guest-lab-${index + 2}`, kind: 'researchLab' });
+    });
     state.researchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
     state.enemyResearchQueue.push({ id: 'advancedIndustry', remaining: 45, total: 45 });
 
@@ -864,18 +884,18 @@ describe('galaxy routes', () => {
 describe('production and research', () => {
   it('compounds empire research speed by 1.5 for each additional Research Lab', () => {
     const state = createInitialState();
-    const terra = state.planets[0];
     expect(researchLabCount(state)).toBe(0);
     expect(researchSpeedMultiplier(state)).toBe(0);
 
-    terra.buildings.push({ id: 'lab-1', kind: 'researchLab' });
+    const colonies = state.planets.slice(0, 4);
+    colonies.forEach(planet => { planet.owner = 'player'; });
+    colonies[0].buildings.push({ id: 'lab-1', kind: 'researchLab' });
     expect(researchSpeedMultiplier(state)).toBe(1);
-    terra.buildings.push({ id: 'lab-2', kind: 'researchLab' });
+    colonies[1].buildings.push({ id: 'lab-2', kind: 'researchLab' });
     expect(researchSpeedMultiplier(state)).toBe(1.5);
 
-    const nyx = state.planets.find(planet => planet.id === 'nyx')!;
-    nyx.owner = 'player';
-    nyx.buildings.push({ id: 'lab-3', kind: 'researchLab' }, { id: 'lab-4', kind: 'researchLab' });
+    colonies[2].buildings.push({ id: 'lab-3', kind: 'researchLab' });
+    colonies[3].buildings.push({ id: 'lab-4', kind: 'researchLab' });
     expect(researchLabCount(state)).toBe(4);
     expect(researchSpeedMultiplier(state)).toBe(3.375);
   });
@@ -883,16 +903,17 @@ describe('production and research', () => {
   it('uses compounded lab speed for active research and pauses without a lab', () => {
     const state = createInitialState();
     state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
-    state.planets[0].buildings.push(
-      { id: 'lab-primary', kind: 'researchLab' },
-      { id: 'lab-secondary', kind: 'researchLab' },
-      { id: 'lab-tertiary', kind: 'researchLab' },
-    );
+    state.planets.slice(0, 3).forEach((planet, index) => {
+      planet.owner = 'player';
+      planet.buildings.push({ id: `lab-${index + 1}`, kind: 'researchLab' });
+    });
     const started = beginResearch(state, 'advancedIndustry'); expectOk(started);
     const progressed = tick(started.state, 10);
     expect(progressed.researchQueue[0].remaining).toBe(22.5);
 
-    progressed.planets[0].buildings = progressed.planets[0].buildings.filter(building => building.kind !== 'researchLab');
+    progressed.planets.forEach(planet => {
+      planet.buildings = planet.buildings.filter(building => building.kind !== 'researchLab');
+    });
     const paused = tick(progressed, 10);
     expect(paused.researchQueue[0].remaining).toBe(22.5);
   });

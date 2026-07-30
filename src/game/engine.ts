@@ -290,7 +290,7 @@ const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, nu
   metalMine: mineMax.metal, crystalMine: mineMax.crystal, goldMine: mineMax.gold,
   groundFactory: industryMax, advancedGroundFactory: Math.max(1, industryMax - 1),
   spaceFactory: industryMax, advancedSpaceFactory: Math.max(1, industryMax - 1), experimentalSpaceFactory: 1,
-  groundDefense: 4, antiSpaceDefense: 3, spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP, researchLab: 2,
+  groundDefense: 4, antiSpaceDefense: 3, spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP, researchLab: 1,
 });
 
 const planet = (id: string, name: string, x: number, y: number, color: string, owner: Faction, resourceYield: ResourcePool, mineMax: ResourcePool, industryMax = 3): Planet => ({
@@ -729,6 +729,7 @@ export function migrateGameState(input: GameState): GameState {
     p.buildingLimits.groundDefense = 4;
     p.buildingLimits.antiSpaceDefense = 3;
     p.buildingLimits.spaceDefense = ORBITAL_DEFENSE_BUILDING_CAP;
+    p.buildingLimits.researchLab = 1;
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
     p.defenseRebuildCooldowns ??= {};
     for (const kind of Object.keys(p.defenseRebuildCooldowns) as DefenseBuildingKind[]) {

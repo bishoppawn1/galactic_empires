@@ -1104,11 +1104,10 @@ describe('Galactic Empires interface', () => {
 
   it('shows compounded Research Lab speed and real-time completion estimates', () => {
     const state = createInitialState();
-    state.planets[0].buildings.push(
-      { id: 'research-lab-primary', kind: 'researchLab' },
-      { id: 'research-lab-secondary', kind: 'researchLab' },
-      { id: 'research-lab-tertiary', kind: 'researchLab' },
-    );
+    state.planets.slice(0, 3).forEach((planet, index) => {
+      planet.owner = 'player';
+      planet.buildings.push({ id: `research-lab-${index + 1}`, kind: 'researchLab' });
+    });
     state.researchQueue.push({ id: 'advancedIndustry', remaining: 30, total: 45 });
     saveState(state);
     render(<App />);

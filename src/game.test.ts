@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundDeploymentForPlanet, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, maneuverGroundUnits, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -2436,5 +2436,26 @@ describe('positional ground combat', () => {
     const resolved = tick(state, 1);
     expect(resolved.battles).toHaveLength(0);
     expect(resolved.planets.find(p => p.id === draven.id)!.buildings.some(building => building.id === 'ground-defense-doomed')).toBe(false);
+  });
+
+  it('builds a deterministic read-only deployment from stationed troops and ground defenses', () => {
+    const state = createInitialState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    terra.groundUnits = [makeUnit('surface-infantry', 'infantry', 'player'), makeUnit('surface-tank', 'lightTank', 'player')];
+    terra.buildings.push({ id: 'surface-defense', kind: 'groundDefense' });
+
+    const first = groundDeploymentForPlanet(state, terra.id)!;
+    const second = groundDeploymentForPlanet(state, terra.id)!;
+
+    expect(first.attackers).toEqual([]);
+    expect(first.defenders).toHaveLength(3);
+    expect(first.defenders.find(unit => unit.id === 'ground-defense-surface-defense')).toMatchObject({
+      kind: 'defenseTurret',
+      faction: 'player',
+      sourceBuildingId: 'surface-defense',
+    });
+    expect(first.defenders.every(unit => typeof unit.battleX === 'number' && typeof unit.battleY === 'number')).toBe(true);
+    expect(first.defenders.map(unit => [unit.id, unit.battleX, unit.battleY])).toEqual(second.defenders.map(unit => [unit.id, unit.battleX, unit.battleY]));
+    expect(terra.groundUnits.every(unit => unit.battleX === undefined && unit.battleY === undefined)).toBe(true);
   });
 });

@@ -1522,6 +1522,34 @@ describe('Galactic Empires interface', () => {
     expect(within(screen.getByRole('group', { name: 'Ground map controls' })).getByText(`${Math.round(expectedFit * 100)}%`)).toBeInTheDocument();
   });
 
+  it('opens a read-only surface tab with stationed ground forces and defenses', () => {
+    const state = createInitialState();
+    const terra = state.planets.find(planet => planet.id === 'terra')!;
+    terra.groundUnits = [
+      makeUnit('surface-infantry', 'infantry', 'player'),
+      makeUnit('surface-tank', 'lightTank', 'player'),
+    ];
+    terra.buildings.push({ id: 'surface-defense', kind: 'groundDefense' });
+    saveState(state);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'surface' }));
+
+    expect(screen.getByText('GROUND DEPLOYMENT // TERRA NOVA')).toBeInTheDocument();
+    expect(screen.getByText('2 GROUND UNITS · 1 DEFENSE')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inspect Infantry surface-infantry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inspect Light Tank surface-tank' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Inspect Defense Turret ground-defense-surface-defense' })).toHaveClass('fortification');
+    expect(document.querySelector('.ground-fog')).not.toBeInTheDocument();
+    expect(document.querySelector('.front-line')).not.toBeInTheDocument();
+    expect(document.querySelector('.battle-selection-status')).not.toBeInTheDocument();
+    expect(screen.getByText(/Deployment overview is visual only/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to galaxy' }));
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'surface' })).toBeInTheDocument();
+  });
+
   it('zooms and pans the ground battlefield with its camera controls', () => {
     const state = createInitialState();
     state.battles = [{ planetId: 'terra', attackers: [{ ...makeUnit('attacker', 'infantry', 'player'), battleX: 20, battleY: 45 }], defenders: [{ ...makeUnit('defender', 'infantry', 'enemy'), battleX: 80, battleY: 55 }] }];

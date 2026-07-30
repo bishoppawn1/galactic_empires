@@ -1260,6 +1260,23 @@ function ensureGroundDefenseBattleUnits(state: GameState, battle: GroundBattle) 
   battle.defenders.push(...defenses.filter(building => !existingSources.has(building.id)).map(building => groundDefenseUnit(state, building, p.owner!)));
 }
 
+export function groundDeploymentForPlanet(state: GameState, planetId: string): GroundBattle | undefined {
+  const p = getPlanet(state, planetId);
+  if (!p || !isColonizableWorld(p)) return undefined;
+  const defenses = p.owner
+    ? p.buildings.filter(building => building.kind === 'groundDefense' && isBuildingOperational(building))
+      .map(building => groundDefenseUnit(state, building, p.owner!))
+    : [];
+  const deployment: GroundBattle = {
+    planetId,
+    attackers: [],
+    defenders: [...p.groundUnits.map(unit => structuredClone(unit)), ...defenses],
+    groundDefenseBuildingIds: defenses.map(unit => unit.sourceBuildingId!),
+  };
+  ensureBattlePositions(deployment);
+  return deployment;
+}
+
 function groundTransport(p: Planet, transport: Unit) {
   transport.cargo = [];
   transport.loadedUnitIds = [];

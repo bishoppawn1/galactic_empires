@@ -9,8 +9,8 @@ import { buildingIcon, factionName, fleetPhaseLabel, planetDisplayColor } from '
 import { GroundUnitImage } from '../shared/GroundUnitImage';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
-export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle }: {
-  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void;
+export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selectedYardIds, act, onBattle, onSurface }: {
+  state: GameState; planet: Planet; tab: PlanetTab; setTab: (tab: PlanetTab) => void; productionFocus?: ProductionFocus; selectedYardIds: string[]; act: (command: GameCommand) => void; onBattle: () => void; onSurface: () => void;
 }) {
   const kind = systemKind(planet);
   const world = isColonizableWorld(planet);
@@ -26,12 +26,13 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, selec
     </header>
     {state.battles.some(b => b.planetId === planet.id) && <button className="battle-alert" onClick={onBattle}><span>⚔</span><b>GROUND BATTLE ACTIVE</b><small>Enter battlefield →</small></button>}
     <nav className="tabs" aria-label="Planet sections">
-      {(['command', ...(world ? ['construction'] : []), 'forces'] as PlanetTab[]).map(section => <button key={section} className={tab === section ? 'active' : ''} onClick={() => setTab(section)}>{section}</button>)}
+      {(['command', ...(world ? ['construction'] : []), 'forces', ...(world ? ['surface'] : [])] as PlanetTab[]).map(section => <button key={section} className={tab === section ? 'active' : ''} onClick={() => section === 'surface' ? onSurface() : setTab(section)}>{section}</button>)}
     </nav>
     <div className="panel-scroll">
       {tab === 'command' && <Command state={state} planet={planet} />}
       {tab === 'construction' && <Construction state={state} planet={planet} act={act} />}
       {tab === 'forces' && <Forces state={state} planet={planet} focus={productionFocus} selectedYardIds={selectedYardIds} act={act} />}
+      {tab === 'surface' && <section><SectionTitle kicker="SURFACE COMMAND" title="No surface intelligence" /><Locked text="Scout this planet before opening its ground deployment map." /></section>}
     </div>
   </aside>;
 }

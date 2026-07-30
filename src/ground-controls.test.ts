@@ -195,6 +195,33 @@ describe('manual ground controls', () => {
     expect(bombarded.battles[0].defenders[0].hp).toBe(target.hp - 2 * 2 * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP);
   });
 
+  it('focuses orbital bombardment on one ground target until that target is destroyed', () => {
+    const state = createInitialState();
+    const draven = state.planets.find(planet => planet.id === 'draven')!;
+    const primary = { ...combatUnit('primary-target', 'infantry', 'enemy', 88), hp: 3, shields: 0 };
+    const secondary = { ...combatUnit('secondary-target', 'infantry', 'enemy', 96), shields: 0 };
+    state.battles = [{
+      planetId: draven.id,
+      attackers: [combatUnit('attacker', 'infantry', 'player', 12)],
+      defenders: [primary, secondary],
+    }];
+    draven.orbitUnits = [
+      { id: 'support-1', kind: 'escortFrigate', faction: 'player', hp: 260, maxHp: 260, shields: 130, maxShields: 130 },
+      { id: 'support-2', kind: 'transport', faction: 'player', hp: 360, maxHp: 360, shields: 180, maxShields: 180 },
+    ];
+
+    const focused = tick(state, 1);
+    expect(focused.battles[0].defenders.find(unit => unit.id === primary.id)?.hp).toBe(1);
+    expect(focused.battles[0].defenders.find(unit => unit.id === secondary.id)?.hp).toBe(secondary.hp);
+
+    const destroyed = tick(focused, 1);
+    expect(destroyed.battles[0].defenders.map(unit => unit.id)).toEqual([secondary.id]);
+    expect(destroyed.battles[0].defenders[0].hp).toBe(secondary.hp);
+
+    const reacquired = tick(destroyed, 1);
+    expect(reacquired.battles[0].defenders[0].hp).toBeLessThan(secondary.hp);
+  });
+
   it('suppresses orbital bombardment while an opposing ship remains in the system', () => {
     const state = createInitialState();
     const draven = state.planets.find(planet => planet.id === 'draven')!;

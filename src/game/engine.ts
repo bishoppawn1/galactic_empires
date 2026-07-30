@@ -1585,8 +1585,9 @@ function recordOrbitalBombardment(p: Planet, battle: GroundBattle, seconds: numb
     const orbitContested = p.orbitUnits.some(unit => unit.faction !== 'neutral' && unit.faction !== faction);
     const targets = combatants.filter(unit => unit.faction !== faction);
     if (!supportingShips.length || orbitContested || !targets.length) continue;
-    const damagePerTarget = supportingShips.length * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP * seconds / targets.length;
-    targets.forEach(target => addGroundDamage(hits, target.id, damagePerTarget));
+    const target = targets[0];
+    const damage = supportingShips.length * ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP * seconds;
+    addGroundDamage(hits, target.id, damage);
   }
 }
 

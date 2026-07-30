@@ -468,6 +468,46 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByRole('button', { name: 'Show Whole Map' })).toHaveAttribute('title', 'Show Whole Map');
   });
 
+  it('replaces player and enemy hull art with role and tier markers at strategic zoom', () => {
+    const state = createInitialState();
+    state.planets[0].orbitUnits = [
+      { ...makeUnit('strategic-player-t1', 'transport', 'player'), orbitX: -180, orbitY: 0 },
+      { ...makeUnit('strategic-player-t2', 'advancedTransport', 'player'), orbitX: -120, orbitY: 0 },
+      { ...makeUnit('strategic-enemy-t1', 'escortFrigate', 'enemy'), orbitX: 120, orbitY: 0 },
+      { ...makeUnit('strategic-enemy-t2', 'advancedEscortFrigate', 'enemy'), orbitX: 180, orbitY: 0 },
+    ];
+    saveState(state);
+    render(<App />);
+
+    const galaxy = screen.getByRole('main', { name: 'Galaxy map' });
+    const hostileCanvas = document.querySelector('.ship-canvas-layer')!;
+    expect(galaxy).toHaveAttribute('data-strategic-ship-markers', 'false');
+    expect(document.querySelectorAll('.orbit-ship.player > img.ship-image')).toHaveLength(2);
+    expect(hostileCanvas).toHaveAttribute('data-marker-mode', 'artwork');
+
+    const zoomOut = screen.getByRole('button', { name: 'Zoom out' });
+    for (let step = 0; step < 5; step += 1) fireEvent.click(zoomOut);
+
+    expect(screen.getByText('40%', { selector: 'output' })).toBeInTheDocument();
+    expect(galaxy).toHaveAttribute('data-strategic-ship-markers', 'true');
+    const playerMarkers = document.querySelectorAll('.orbit-ship.player > .strategic-ship-marker');
+    expect(playerMarkers).toHaveLength(2);
+    expect(playerMarkers[0]).toHaveAttribute('data-ship-role', 'transport');
+    expect(playerMarkers[0]).toHaveAttribute('data-ship-tier', '1');
+    expect(playerMarkers[0]).toHaveTextContent('I');
+    expect(playerMarkers[1]).toHaveAttribute('data-ship-role', 'transport');
+    expect(playerMarkers[1]).toHaveAttribute('data-ship-tier', '2');
+    expect(playerMarkers[1]).toHaveTextContent('II');
+    expect(document.querySelectorAll('.orbit-ship.player > img.ship-image')).toHaveLength(0);
+    expect(hostileCanvas).toHaveAttribute('data-marker-mode', 'strategic');
+    expect(hostileCanvas).toHaveAttribute('data-tier-one-marker-count', '1');
+    expect(hostileCanvas).toHaveAttribute('data-tier-two-marker-count', '1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
+    expect(galaxy).toHaveAttribute('data-strategic-ship-markers', 'false');
+    expect(document.querySelectorAll('.orbit-ship.player > img.ship-image')).toHaveLength(2);
+  });
+
   it('renders the galaxy backdrop without repeated nebula elements', () => {
     render(<App />);
     const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;

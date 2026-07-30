@@ -273,6 +273,23 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
+  it('counts neutral worlds, nebulas, uncaptured pirate bases, and stars separately', () => {
+    const state = createInitialState({ mapSize: 'huge', difficulty: 'commander', mapSeed: 142857 });
+    const capturedPirateBase = state.planets.find(planet => planet.systemKind === 'pirateBase')!;
+    capturedPirateBase.owner = 'enemy';
+    capturedPirateBase.orbitUnits.push(makeUnit('captured-base-scout', 'escortFrigate', 'player'));
+    saveState(state);
+    render(<App />);
+
+    const legend = screen.getByRole('region', { name: 'Planet ownership legend' });
+    const countFor = (label: string) => within(legend).getByText(label).parentElement;
+    expect(countFor('NEUTRAL')).toHaveTextContent(String(state.planets.filter(planet => (planet.systemKind ?? 'planet') === 'planet' && planet.owner === null).length));
+    expect(countFor('NEBULAS')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'nebula').length));
+    expect(countFor('PIRATE BASES')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'pirateBase' && planet.owner === null).length));
+    expect(countFor('STARS')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'star').length));
+    expect(countFor('RIVAL A')).toHaveTextContent(String(state.planets.filter(planet => ['planet', 'pirateBase'].includes(planet.systemKind ?? 'planet') && planet.owner === 'enemy').length));
+  });
+
   it('separates player-controlled and enemy ships in the selected planet command overview', () => {
     const state = createInitialState();
     const terra = state.planets.find(planet => planet.id === 'terra')!;

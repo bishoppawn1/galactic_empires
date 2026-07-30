@@ -47,6 +47,11 @@ export function updatePlanetIntel(state: GameState): void {
     for (const planet of state.planets) {
       if (isSystemVisibleToFaction(state, planet.id, faction)) {
         factionIntel[planet.id] = snapshotPlanet(planet, state.elapsed);
+      } else if (factionIntel[planet.id]?.owner === faction && planet.owner !== faction) {
+        // An empire always knows when it loses one of its own systems, even
+        // after its last forces there have been destroyed. Keep the old
+        // surface report, but immediately correct the strategic owner.
+        factionIntel[planet.id] = { ...factionIntel[planet.id], owner: planet.owner };
       }
     }
   }

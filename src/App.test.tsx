@@ -1191,14 +1191,15 @@ describe('Galactic Empires interface', () => {
     const missile = document.querySelector('.orbital-fire .weapon-fire.weapon-missile');
     expect(missile).not.toBeNull();
     expect(missile).toHaveAttribute('data-projectiles', '1');
-    expect(missile).toHaveAttribute('data-projectile-size', '6');
+    expect(missile).toHaveAttribute('data-projectile-size', '10');
     expect(missile!.querySelectorAll('.weapon-projectile')).toHaveLength(1);
     expect(missile!.querySelectorAll('.weapon-projectile-core')).toHaveLength(1);
     const projectile = missile!.querySelector('.weapon-projectile')!;
     expect(projectile.getAttribute('href')).toContain('missile');
-    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(19.2);
-    expect(Number(projectile.getAttribute('height'))).toBe(18);
-    expect(Number(missile!.querySelector('.weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(1.2);
+    expect(Number(projectile.getAttribute('width'))).toBeCloseTo(32);
+    expect(Number(projectile.getAttribute('height'))).toBe(30);
+    expect(Number(missile!.querySelector('.weapon-projectile-core')?.getAttribute('r'))).toBeCloseTo(2);
+    expect(missile!.querySelector('.weapon-projectile-core')).toHaveAttribute('vector-effect', 'non-scaling-stroke');
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
   });
 
@@ -1251,7 +1252,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '1');
   });
 
-  it('marks a destroyed player ship with a brief explosion at its last orbit position', () => {
+  it('marks every destroyed visible ship with a brief explosion at its last orbit position', () => {
     vi.useFakeTimers();
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = [
@@ -1270,10 +1271,11 @@ describe('Galactic Empires interface', () => {
     const explosion = screen.getByRole('img', { name: 'Escort Frigate destroyed' });
     expect(explosion).toHaveStyle({ left: `${dimensions.width * terra.x / 100 + 120}px`, top: `${dimensions.height * terra.y / 100 - 45}px` });
     expect(explosion.querySelectorAll('.ship-explosion-debris')).toHaveLength(8);
-    expect(screen.queryByRole('img', { name: 'Missile Frigate destroyed' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Missile Frigate destroyed' })).toHaveStyle({ left: `${dimensions.width * terra.x / 100 + 180}px`, top: `${dimensions.height * terra.y / 100 + 30}px` });
 
     act(() => vi.advanceTimersByTime(SHIP_EXPLOSION_DURATION_MS));
     expect(screen.queryByRole('img', { name: 'Escort Frigate destroyed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Missile Frigate destroyed' })).not.toBeInTheDocument();
     view.unmount();
     vi.useRealTimers();
   });

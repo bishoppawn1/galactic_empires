@@ -37,7 +37,7 @@ const flightDurations: Record<WeaponEffect, number> = {
 // shells much smaller than their firing unit while leaving the transparent
 // source art enough room to render cleanly.
 export const GROUND_PROJECTILE_SIZE = .18;
-export const ORBITAL_PROJECTILE_SIZE = 6;
+export const ORBITAL_PROJECTILE_SIZE = 10;
 
 export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, className = '' }: {
   id: string;
@@ -77,7 +77,7 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
             ? <animate attributeName="opacity" values=".35;1;.55" dur={`${duration}s`} begin={`${index * .035}s`} repeatCount="indefinite" />
             : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
         </image>
-        {!beam && <circle className="weapon-projectile-core" cx={imageWidth / 2} cy={offset} r={Math.max(.08, size * .2)}>
+        {!beam && <circle className="weapon-projectile-core" cx={imageWidth / 2} cy={offset} r={Math.max(.08, size * .2)} vectorEffect="non-scaling-stroke">
           <animate attributeName="cx" from={imageWidth / 2} to={travel + imageWidth / 2} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
           <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
         </circle>}

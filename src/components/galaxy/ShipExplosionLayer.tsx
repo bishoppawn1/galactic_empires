@@ -9,26 +9,34 @@ interface ShipSnapshot {
   label: string;
   x: number;
   y: number;
+  trackDestruction: boolean;
 }
 
 interface ShipExplosion extends ShipSnapshot {
   effectId: number;
 }
 
-const playerShipSnapshots = (state: GameState) => {
+const visibleShipSnapshots = (state: GameState) => {
   const snapshots = new Map<string, ShipSnapshot>();
   const dimensions = galaxyCanvasDimensions(state.config.mapSize);
   state.planets.forEach(planet => planet.orbitUnits.forEach((ship, index) => {
-    if (ship.faction !== 'player') return;
     const position = shipMapPosition(planet, ship, index, dimensions);
-    snapshots.set(ship.id, { id: ship.id, label: UNITS[ship.kind].label, ...position });
+    snapshots.set(ship.id, {
+      id: ship.id,
+      label: UNITS[ship.kind].label,
+      trackDestruction: ship.faction === 'player' || planet.intelStatus === undefined || planet.intelStatus === 'current',
+      ...position,
+    });
   }));
   state.fleets.forEach(fleet => {
-    if (fleet.faction !== 'player') return;
     const position = fleetMapPosition(fleet, state.planets, dimensions);
+    const origin = state.planets.find(planet => planet.id === fleet.originId);
     snapshots.set(fleet.unit.id, {
       id: fleet.unit.id,
       label: UNITS[fleet.unit.kind].label,
+      trackDestruction: fleet.faction === 'player'
+        || ((fleet.phase === 'exiting' || fleet.phase === 'charging')
+          && (origin?.intelStatus === undefined || origin?.intelStatus === 'current')),
       x: position.x,
       y: position.y,
     });
@@ -48,11 +56,11 @@ export function ShipExplosionLayer({ state }: { state: GameState }) {
   const [explosions, setExplosions] = useState<ShipExplosion[]>([]);
 
   useEffect(() => {
-    const ships = playerShipSnapshots(state);
+    const ships = visibleShipSnapshots(state);
     const previous = previousRef.current;
     if (previous && state.elapsed > previous.elapsed) {
       const survivingIds = allShipIds(state);
-      const destroyed = [...previous.ships.values()].filter(ship => !survivingIds.has(ship.id));
+      const destroyed = [...previous.ships.values()].filter(ship => ship.trackDestruction && !survivingIds.has(ship.id));
       if (destroyed.length) {
         const effects = destroyed.map(ship => ({ ...ship, effectId: nextEffectIdRef.current++ }));
         setExplosions(current => [...current, ...effects]);

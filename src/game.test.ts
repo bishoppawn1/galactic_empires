@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_UPGRADES, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_UPGRADES, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -1978,16 +1978,18 @@ describe('transport and colonization', () => {
     expect(moved.state.planets[0].orbitUnits[0].orbitY).toBe(-180);
     const turning = tick(moved.state, .5);
     expect(turning.planets[0].orbitUnits[0].heading).toBeCloseTo(SHIP_TURN_RATE_DEGREES_PER_SECOND * .5);
-    expect(turning.planets[0].orbitUnits[0]).toMatchObject({ orbitX: 0, orbitY: -180 });
+    expect(turning.planets[0].orbitUnits[0].orbitX).toBeGreaterThan(0);
+    expect(turning.planets[0].orbitUnits[0].orbitY).toBeLessThan(-180);
+    expect(Math.hypot(turning.planets[0].orbitUnits[0].orbitX!, turning.planets[0].orbitUnits[0].orbitY! + 180)).toBeCloseTo(ORBIT_MANEUVER_SPEED * .5 * SHIP_TURN_COAST_SPEED_MULTIPLIER);
     const underway = tick(turning, 1.5);
-    expect(underway.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
     expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeGreaterThan(0);
     expect(Math.hypot(underway.planets[0].orbitUnits[0].orbitX!, underway.planets[0].orbitUnits[0].orbitY! + 180)).toBeLessThan(ORBIT_MANEUVER_SPEED * 1.5);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeGreaterThan(-180);
     expect(underway.planets[0].orbitUnits[0].orbitY).toBeLessThan(25);
+    const finalApproachHeading = headingForVector(40 - underway.planets[0].orbitUnits[0].orbitX!, 25 - underway.planets[0].orbitUnits[0].orbitY!);
     const positioned = tick(underway, 20);
     expect(positioned.planets[0].orbitUnits[0]).toMatchObject({ orbitX: 40, orbitY: 25 });
-    expect(positioned.planets[0].orbitUnits[0].heading).toBeCloseTo(headingForVector(40, 205));
+    expect(positioned.planets[0].orbitUnits[0].heading).toBeCloseTo(finalApproachHeading);
     const docked = dockSpaceUnit(positioned, 'terra', transport.id); expectOk(docked);
     expect(docked.state.planets[0].orbitUnits[0]).toMatchObject({ pendingEmbark: true, orbitTargetX: 0, orbitTargetY: 0 });
     expect(docked.state.planets[0].orbitUnits[0].cargo).toBeUndefined();
@@ -2019,9 +2021,10 @@ describe('transport and colonization', () => {
     const halfTurn = tick(dispatched.state, 1);
     expect(halfTurn.fleets[0].progress).toBe(0);
     expect(Math.abs(shortestHeadingDelta(halfTurn.fleets[0].unit.heading!, routeHeading))).toBeCloseTo(90);
+    expect(Math.hypot(halfTurn.fleets[0].departureX! - fleet.departureX!, halfTurn.fleets[0].departureY! - fleet.departureY!)).toBeCloseTo(SYSTEM_EXIT_SPEED * SHIP_TURN_COAST_SPEED_MULTIPLIER);
     const aligned = tick(halfTurn, 1);
     expect(aligned.fleets[0].progress).toBe(0);
-    expect(aligned.fleets[0].unit.heading).toBeCloseTo(routeHeading);
+    expect(Math.abs(shortestHeadingDelta(aligned.fleets[0].unit.heading!, routeHeading))).toBeLessThan(5);
     const underway = tick(aligned, .5);
     expect(underway.fleets[0].progress).toBeCloseTo(.5);
   });

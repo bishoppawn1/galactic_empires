@@ -56,7 +56,7 @@ import {
 } from './factions';
 import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
-  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_RATE_DEGREES_PER_SECOND,
+  ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
   blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   canGroundUnitAttackTarget, groundUnitVisionRange, isFlyingGroundUnit, isInfantryGroundUnit,
@@ -2441,34 +2441,58 @@ function tickSpecialSystem(state: GameState, system: Planet, seconds: number) {
 }
 
 function turnShipTowardVector(ship: Unit, dx: number, dy: number, seconds: number) {
-  const current = ship.heading ?? 0;
-  const target = headingForVector(dx, dy, current);
-  const turnDegrees = Math.abs(shortestHeadingDelta(current, target));
+  const startHeading = ship.heading ?? 0;
+  const targetHeading = headingForVector(dx, dy, startHeading);
+  const turnDegrees = Math.abs(shortestHeadingDelta(startHeading, targetHeading));
   const availableSeconds = Math.max(0, seconds);
-  ship.heading = turnHeadingToward(
-    current,
-    target,
+  const endHeading = turnHeadingToward(
+    startHeading,
+    targetHeading,
     SHIP_TURN_RATE_DEGREES_PER_SECOND * availableSeconds,
   );
-  return Math.min(availableSeconds, turnDegrees / SHIP_TURN_RATE_DEGREES_PER_SECOND);
+  ship.heading = endHeading;
+  return {
+    seconds: Math.min(availableSeconds, turnDegrees / SHIP_TURN_RATE_DEGREES_PER_SECOND),
+    startHeading,
+    endHeading,
+  };
 }
+
+const headingVector = (heading: number) => {
+  const radians = heading * Math.PI / 180;
+  return { x: Math.sin(radians), y: -Math.cos(radians) };
+};
+
+const coastPositionThroughTurn = (x: number, y: number, distance: number, startHeading: number, endHeading: number) => {
+  const midpointHeading = startHeading + shortestHeadingDelta(startHeading, endHeading) / 2;
+  const direction = headingVector(midpointHeading);
+  return clampOrbitPoint(x + direction.x * distance, y + direction.y * distance);
+};
 
 function tickOrbitUnitMovement(p: Planet, ship: Unit, seconds: number) {
   if (typeof ship.orbitTargetX !== 'number' || typeof ship.orbitTargetY !== 'number') return;
   const currentX = ship.orbitX ?? 0, currentY = ship.orbitY ?? 0;
   const dx = ship.orbitTargetX - currentX, dy = ship.orbitTargetY - currentY;
-  const turnSeconds = turnShipTowardVector(ship, dx, dy, seconds);
-  const movementSeconds = Math.max(0, seconds - turnSeconds);
   const movementMultiplier = shipMovementSpeedMultiplier(ship.kind)
     * phaseControlRateMultiplier(phaseControlStackCount(p.orbitUnits, ship));
-  const distance = Math.hypot(dx, dy), step = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * movementSeconds * movementMultiplier;
+  const speed = (ship.pendingLanding || ship.pendingEmbark ? LANDING_APPROACH_SPEED : ORBIT_MANEUVER_SPEED) * movementMultiplier;
+  const turn = turnShipTowardVector(ship, dx, dy, seconds);
+  const coastDistance = speed * turn.seconds * SHIP_TURN_COAST_SPEED_MULTIPLIER;
+  const coast = coastPositionThroughTurn(currentX, currentY, coastDistance, turn.startHeading, turn.endHeading);
+  const movementSeconds = Math.max(0, seconds - turn.seconds);
+  const remainingDx = ship.orbitTargetX - coast.x, remainingDy = ship.orbitTargetY - coast.y;
+  const distance = Math.hypot(remainingDx, remainingDy), step = speed * movementSeconds;
   if (distance <= step || distance === 0) {
     ship.orbitX = ship.orbitTargetX; ship.orbitY = ship.orbitTargetY;
     delete ship.orbitTargetX; delete ship.orbitTargetY;
     if (!ship.pendingLanding) delete ship.phaseArrival;
+  } else if (movementSeconds > 0) {
+    ship.heading = headingForVector(remainingDx, remainingDy, ship.heading);
+    ship.orbitX = coast.x + remainingDx / distance * step;
+    ship.orbitY = coast.y + remainingDy / distance * step;
   } else {
-    ship.orbitX = currentX + dx / distance * step;
-    ship.orbitY = currentY + dy / distance * step;
+    ship.orbitX = coast.x;
+    ship.orbitY = coast.y;
   }
 }
 
@@ -2851,13 +2875,35 @@ export function tick(input: GameState, seconds: number): GameState {
         const origin = getPlanet(state, fleet.originId), destination = getPlanet(state, fleet.destinationId);
         if (origin && destination) {
           const border = systemBorderOffset(origin, destination, state.config.mapSize);
-          const turnSeconds = turnShipTowardVector(
+          const turn = turnShipTowardVector(
             fleet.unit,
             border.x - (fleet.unit.orbitX ?? fleet.departureX ?? 0),
             border.y - (fleet.unit.orbitY ?? fleet.departureY ?? 0),
             timeLeft,
           );
-          timeLeft -= turnSeconds;
+          if (turn.seconds > 0) {
+            const movementMultiplier = shipMovementSpeedMultiplier(fleet.unit.kind)
+              * phaseControlRateMultiplier(fleetPhaseControlStackCount(state, fleet));
+            const coastDistance = SYSTEM_EXIT_SPEED * movementMultiplier * turn.seconds * SHIP_TURN_COAST_SPEED_MULTIPLIER;
+            const coast = coastPositionThroughTurn(
+              fleet.unit.orbitX ?? fleet.departureX ?? 0,
+              fleet.unit.orbitY ?? fleet.departureY ?? 0,
+              coastDistance,
+              turn.startHeading,
+              turn.endHeading,
+            );
+            fleet.departureX = coast.x;
+            fleet.departureY = coast.y;
+            fleet.unit.orbitX = coast.x;
+            fleet.unit.orbitY = coast.y;
+            fleet.progress = 0;
+            fleet.travelTime = Math.max(.1, Math.hypot(border.x - coast.x, border.y - coast.y) / SYSTEM_EXIT_SPEED);
+            const coastHeading = headingForVector(border.x - coast.x, border.y - coast.y, fleet.unit.heading);
+            if (turn.seconds < timeLeft - 1e-9 || Math.abs(shortestHeadingDelta(fleet.unit.heading ?? coastHeading, coastHeading)) < 5) {
+              fleet.unit.heading = coastHeading;
+            }
+          }
+          timeLeft -= turn.seconds;
           if (timeLeft <= 1e-9) break;
         }
       }

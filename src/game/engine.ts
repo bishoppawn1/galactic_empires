@@ -342,13 +342,17 @@ const PIRATE_GROUND_GARRISON: GroundUnitKind[] = [
 ];
 
 export const STELLAR_HAZARD_DAMAGE_PER_SECOND = 10;
-export const ANCIENT_RELIC_ECONOMY_MULTIPLIER = 1.5;
+export const ANCIENT_RELIC_ECONOMY_BONUS = .5;
+export const ANCIENT_RELIC_ECONOMY_MULTIPLIER = 1 + ANCIENT_RELIC_ECONOMY_BONUS;
 export const ANCIENT_RELIC_DAMAGE_MULTIPLIER = 1.25;
 
 export const systemKind = (system: Planet): SystemKind => system.systemKind ?? 'planet';
 export const isColonizableWorld = (system: Planet) => ['planet', 'pirateBase'].includes(systemKind(system));
-export const controlsAncientRelic = (state: GameState, faction: EmpireFaction) =>
-  state.planets.some(system => systemKind(system) === 'ancientTemple' && system.owner === faction);
+export const ancientRelicCount = (state: GameState, faction: EmpireFaction) =>
+  state.planets.filter(system => systemKind(system) === 'ancientTemple' && system.owner === faction).length;
+export const ancientRelicIncomeBonus = (state: GameState, faction: EmpireFaction) =>
+  ancientRelicCount(state, faction) * ANCIENT_RELIC_ECONOMY_BONUS;
+export const controlsAncientRelic = (state: GameState, faction: EmpireFaction) => ancientRelicCount(state, faction) > 0;
 export const visibleOrbitUnits = (system: Planet, viewer: EmpireFaction = 'player') => {
   if (systemKind(system) !== 'nebula' || system.orbitUnits.some(ship => ship.faction === viewer)) return system.orbitUnits;
   return system.orbitUnits.filter(ship => ship.faction === viewer);
@@ -2818,15 +2822,14 @@ export function tick(input: GameState, seconds: number): GameState {
     if (p.owner && isColonizableWorld(p)) {
       const economy = empireEconomy(state, p.owner);
       const aiScale = state.aiFactions?.includes(p.owner) && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) * .62 : .7;
-      const relicScale = controlsAncientRelic(state, p.owner) ? ANCIENT_RELIC_ECONOMY_MULTIPLIER : 1;
-      const incomeScale = aiScale * researchIncomeMultiplier(economy.completedResearch) * relicScale;
+      const incomeScale = researchIncomeMultiplier(economy.completedResearch) + ancientRelicIncomeBonus(state, p.owner);
       if (usesBiomass(state, p.owner)) {
-        economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * researchIncomeMultiplier(economy.completedResearch) * relicScale;
+        economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * incomeScale;
       } else {
         for (const resource of ['metal', 'crystal', 'gold'] as Resource[]) {
           const kind = `${resource}Mine` as BuildingKind;
           const mineCount = p.buildings.filter(b => b.kind === kind).length;
-          economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
+          economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * aiScale * incomeScale;
         }
       }
       tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p, economy.completedResearch), p.owner);

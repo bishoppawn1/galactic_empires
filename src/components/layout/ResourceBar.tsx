@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_DEFAULT_SPEND, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, empireCivilization, researchIncomeMultiplier, type BuildingKind, type GameCommand, type GameState, type Resource } from '../../game';
+import { BROOD_BIOMASS_PER_PLANET, PLAYABLE_FACTION_DEFINITIONS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_DEFAULT_SPEND, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, ancientRelicIncomeBonus, empireCivilization, isColonizableWorld, researchIncomeMultiplier, type BuildingKind, type GameCommand, type GameState, type Resource } from '../../game';
 import type { EmpireView } from '../../app/types';
 
 export function ResourceBar({ state, view, onViewChange, act }: { state: GameState; view: EmpireView; onViewChange: (view: EmpireView) => void; act: (command: GameCommand) => boolean }) {
@@ -7,11 +7,12 @@ export function ResourceBar({ state, view, onViewChange, act }: { state: GameSta
   const [tradeAmount, setTradeAmount] = useState(String(RESOURCE_TRADE_DEFAULT_SPEND));
   const amount = Number(tradeAmount);
   const validAmount = Number.isSafeInteger(amount) && amount >= RESOURCE_TRADE_RATE && amount <= RESOURCE_TRADE_MAX_SPEND;
-  const owned = state.planets.filter(p => p.owner === 'player');
+  const owned = state.planets.filter(p => p.owner === 'player' && isColonizableWorld(p));
   const civilization = empireCivilization(state);
   const profile = PLAYABLE_FACTION_DEFINITIONS[civilization];
-  const rate = (resource: 'metal' | 'crystal' | 'gold', kind: BuildingKind) => owned.reduce((sum, p) => sum + p.buildings.filter(b => b.kind === kind).length * p.resourceYield[resource] * 0.7, 0) * RESOURCE_COLLECTION_MULTIPLIER * researchIncomeMultiplier(state.completedResearch);
-  const biomassRate = owned.length * BROOD_BIOMASS_PER_PLANET * researchIncomeMultiplier(state.completedResearch);
+  const incomeScale = researchIncomeMultiplier(state.completedResearch) + ancientRelicIncomeBonus(state, 'player');
+  const rate = (resource: 'metal' | 'crystal' | 'gold', kind: BuildingKind) => owned.reduce((sum, p) => sum + p.buildings.filter(b => b.kind === kind).length * p.resourceYield[resource] * 0.7, 0) * RESOURCE_COLLECTION_MULTIPLIER * incomeScale;
+  const biomassRate = owned.length * BROOD_BIOMASS_PER_PLANET * incomeScale;
   return <div className={`resource-bar faction-${civilization}`}>
     <div className="brand"><span className="brand-mark">GE</span><span>GALACTIC <b>EMPIRES</b><small>{profile.label}</small></span></div>
     <nav className="empire-tabs" aria-label="Empire views">

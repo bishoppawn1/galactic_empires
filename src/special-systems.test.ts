@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ANCIENT_RELIC_ECONOMY_MULTIPLIER,
+  ANCIENT_RELIC_ECONOMY_BONUS,
+  BROOD_BIOMASS_PER_PLANET,
   GRAVITY_WELL_RADIUS,
   MIN_SYSTEM_CENTER_SEPARATION,
   STELLAR_HAZARD_DAMAGE_PER_SECOND,
   UNITS,
+  ancientRelicCount,
   constructBuilding,
   controlsAncientRelic,
   createCompetitiveState,
@@ -15,6 +17,7 @@ import {
   galaxyCanvasDimensions,
   isColonizableWorld,
   orbitalCombatShots,
+  researchIncomeMultiplier,
   systemKind,
   tick,
   visibleOrbitUnits,
@@ -299,20 +302,33 @@ describe('special-system simulation rules', () => {
     expect(constructBuilding(conquered, base.id, 'groundFactory').ok).toBe(true);
   });
 
-  it('claims a temple from orbit and applies the relic income bonus only to its controller', () => {
+  it('adds each controlled relic income bonus separately after research income', () => {
     const state = quiet(createInitialState(config(142857)));
     const temple = state.planets.find(system => systemKind(system) === 'ancientTemple')!;
     temple.orbitUnits = [makeUnit('relic-guard', 'escortFrigate', 'player')];
     const claimed = tick(state, .1);
     expect(claimed.planets.find(system => system.id === temple.id)!.owner).toBe('player');
     expect(controlsAncientRelic(claimed, 'player')).toBe(true);
+    expect(ancientRelicCount(claimed, 'player')).toBe(1);
 
     const home = claimed.planets.find(system => system.owner === 'player' && isColonizableWorld(system))!;
+    claimed.completedResearch.push('deepCoreExtraction');
     const metalBefore = claimed.resources.metal;
     const withRelic = tick(claimed, 1);
     const baseIncome = home.buildings.filter(building => building.kind === 'metalMine').length
       * home.resourceYield.metal * 4 * .7;
-    expect(withRelic.resources.metal - metalBefore).toBeCloseTo(baseIncome * ANCIENT_RELIC_ECONOMY_MULTIPLIER);
+    const researchScale = researchIncomeMultiplier(claimed.completedResearch);
+    expect(withRelic.resources.metal - metalBefore).toBeCloseTo(baseIncome * (researchScale + ANCIENT_RELIC_ECONOMY_BONUS));
+
+    const stacked = structuredClone(claimed);
+    const secondTemple = stacked.planets.find(system => system.id !== temple.id && system.owner === null)!;
+    secondTemple.systemKind = 'ancientTemple';
+    secondTemple.owner = 'player';
+    secondTemple.orbitUnits = [makeUnit('second-relic-guard', 'escortFrigate', 'player')];
+    expect(ancientRelicCount(stacked, 'player')).toBe(2);
+    const stackedMetalBefore = stacked.resources.metal;
+    const withTwoRelics = tick(stacked, 1);
+    expect(withTwoRelics.resources.metal - stackedMetalBefore).toBeCloseTo(baseIncome * (researchScale + 2 * ANCIENT_RELIC_ECONOMY_BONUS));
 
     const contested = structuredClone(claimed);
     contested.planets.find(system => system.id === temple.id)!.orbitUnits.push(makeUnit('challenger', 'escortFrigate', 'enemy'));
@@ -321,5 +337,22 @@ describe('special-system simulation rules', () => {
     const abandoned = structuredClone(claimed);
     abandoned.planets.find(system => system.id === temple.id)!.orbitUnits = [];
     expect(tick(abandoned, .1).planets.find(system => system.id === temple.id)!.owner).toBeNull();
+  });
+
+  it('applies relic bonuses separately from research to Brood biomass income', () => {
+    const state = quiet(createInitialState({ ...config(142857), playerFaction: 'brood' }));
+    const temple = state.planets.find(system => systemKind(system) === 'ancientTemple')!;
+    temple.owner = 'player';
+    temple.orbitUnits = [makeUnit('brood-relic-guard', 'clawFrigate', 'player')];
+    state.completedResearch.push('deepCoreExtraction');
+    const biomassBefore = state.resources.biomass ?? 0;
+    const ownedWorldCount = state.planets.filter(system => system.owner === 'player' && isColonizableWorld(system)).length;
+
+    const advanced = tick(state, 1);
+
+    expect((advanced.resources.biomass ?? 0) - biomassBefore).toBeCloseTo(
+      ownedWorldCount * BROOD_BIOMASS_PER_PLANET
+        * (researchIncomeMultiplier(state.completedResearch) + ANCIENT_RELIC_ECONOMY_BONUS),
+    );
   });
 });

@@ -384,7 +384,16 @@ describe('special-system simulation rules', () => {
 
     const abandoned = structuredClone(claimed);
     abandoned.planets.find(system => system.id === temple.id)!.orbitUnits = [];
-    expect(tick(abandoned, .1).planets.find(system => system.id === temple.id)!.owner).toBeNull();
+    const retained = tick(abandoned, .1);
+    expect(retained.planets.find(system => system.id === temple.id)!.owner).toBe('player');
+    expect(controlsAncientRelic(retained, 'player')).toBe(true);
+
+    const captured = structuredClone(retained);
+    captured.planets.find(system => system.id === temple.id)!.orbitUnits = [makeUnit('relic-captor', 'escortFrigate', 'enemy')];
+    const taken = tick(captured, .1);
+    expect(taken.planets.find(system => system.id === temple.id)!.owner).toBe('enemy');
+    expect(controlsAncientRelic(taken, 'player')).toBe(false);
+    expect(controlsAncientRelic(taken, 'enemy')).toBe(true);
   });
 
   it('activates only the matching strategic effect for each named relic', () => {

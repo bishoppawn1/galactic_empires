@@ -45,7 +45,7 @@ function Command({ state, planet }: { state: GameState; planet: Planet }) {
       ? { kicker: 'NEBULA', title: 'Blind-space phenomenon', icon: '◌', text: 'There is no planet here and nothing can be built or landed. Long-range scans cannot reveal hostile ships inside; entering the cloud restores close-range contact.' }
       : kind === 'star'
         ? { kicker: 'STELLAR HAZARD', title: 'Unstable stellar furnace', icon: '☀', text: `There is no planet here. Radiation inflicts ${STELLAR_HAZARD_DAMAGE_PER_SECOND} damage per second on every ship in the system until it leaves or is destroyed.` }
-        : { kicker: 'ANCIENT RELIC', title: relic!.effectLabel, icon: '◇', text: `There is no planet here. Hold this system uncontested to awaken ${relic!.name}: ${relic!.description}.` };
+        : { kicker: 'ANCIENT RELIC', title: relic!.effectLabel, icon: '◇', text: `There is no planet here. Capture this system uncontested to awaken ${relic!.name}; control persists until another empire takes it. ${relic!.description}.` };
     return <section className={`special-system-brief ${kind}`}><SectionTitle kicker={data.kicker} title={data.title} /><div className="special-system-icon">{data.icon}</div><p>{data.text}</p>{kind === 'ancientTemple' && <div className={`relic-control ${planet.owner ?? 'neutral'}`}><b>{planet.owner ? `${factionName(planet.owner)} CONTROLS THE RELIC` : 'RELIC UNCONTROLLED'}</b><small>{visibleOrbitUnits(planet).length} visible ship{visibleOrbitUnits(planet).length === 1 ? '' : 's'} in system</small></div>}</section>;
   }
   const pirateBrief = kind === 'pirateBase' ? <section className="special-system-brief pirateBase">

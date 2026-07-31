@@ -2510,6 +2510,7 @@ function tickSpecialSystem(state: GameState, system: Planet, seconds: number) {
   }
   if (systemKind(system) !== 'ancientTemple') return;
   const occupiers = [...new Set(system.orbitUnits.filter(ship => ship.faction !== 'neutral').map(ship => ship.faction as EmpireFaction))];
+  if (!occupiers.length) return;
   const nextOwner = occupiers.length === 1 ? occupiers[0] : null;
   if (nextOwner === system.owner) return;
   const previousOwner = system.owner;

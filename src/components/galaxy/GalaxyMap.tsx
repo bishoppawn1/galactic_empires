@@ -12,6 +12,7 @@ import {
 } from './camera';
 import { CarrierFighterWing } from './CarrierFighterWing';
 import { FleetSelectionHud } from './FleetSelectionHud';
+import { NebulaTileLayer } from './NebulaTileLayer';
 import { ShipCanvasLayer, inspectableShipAtPoint } from './ShipCanvasLayer';
 import { ShipExplosionLayer } from './ShipExplosionLayer';
 import { STRATEGIC_SHIP_MARKER_SCREEN_SIZE, StrategicShipMarker, usesStrategicShipMarkers } from './StrategicShipMarker';
@@ -266,6 +267,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         }
         setDragStart(undefined); setDragEnd(undefined);
       }} onMouseLeave={() => { cameraDragRef.current = undefined; setDragStart(undefined); setDragEnd(undefined); }}>
+        <NebulaTileLayer />
         <svg className="routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {connections.map(({ from, to }) => {
             const active = state.fleets.some(fleet => (fleet.originId === from.id && fleet.destinationId === to.id) || (fleet.originId === to.id && fleet.destinationId === from.id));

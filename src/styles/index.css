@@ -42,8 +42,11 @@ button { color: inherit; }
 .galaxy-scroll { position: absolute; inset: 0; overflow: auto; scrollbar-width: none; }
 .galaxy-scroll::-webkit-scrollbar { display: none; }
 .galaxy-pan-buffer { width: 1px; pointer-events: none; }
-.galaxy-canvas { position: relative; width: 12800px; height: 8800px; overflow: hidden; user-select: none; background-color: #02050a; background-image: linear-gradient(rgba(1,4,9,.42),rgba(1,4,9,.58)),url('../assets/galaxy-nebula.jpg'); background-position: center; background-size: cover; background-repeat: no-repeat; }
+.galaxy-canvas { position: relative; width: 12800px; height: 8800px; overflow: hidden; user-select: none; background: #02050a; }
 .galaxy-canvas::after { display: none; }
+.galaxy-nebula-tiles { position:absolute; inset:0; z-index:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(4,minmax(0,1fr)); overflow:hidden; pointer-events:none; background:#050816; }
+.galaxy-nebula-tiles::after { content:''; position:absolute; inset:0; background:linear-gradient(rgba(1,4,9,.24),rgba(1,4,9,.34)); pointer-events:none; }
+.galaxy-nebula-tile { display:block; width:100%; height:100%; object-fit:fill; }
 .routes { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; overflow: visible; }
 .routes .local-route { stroke: #91a6b575; stroke-width: 1px; stroke-dasharray: 18 14; vector-effect: non-scaling-stroke; }.routes .local-route.active { stroke: #bffef2; stroke-width: 1.5px; filter: drop-shadow(0 0 3px #55d6be); animation: lane-flow 1.4s linear infinite; }
 .nebula-system-backdrop { position:absolute; z-index:0; pointer-events:none; background:url('../assets/nebula-system.jpg') center/contain no-repeat; opacity:.24; mix-blend-mode:screen; filter:saturate(.82) brightness(.72); transform:translate(-50%,-50%) scale(.98) rotate(-2deg); transform-origin:center; -webkit-mask-image:radial-gradient(circle,#000 0 72%,transparent 98%); mask-image:radial-gradient(circle,#000 0 72%,transparent 98%); animation:nebula-orbit-drift 16s ease-in-out infinite alternate; transition:opacity .25s,filter .25s; }

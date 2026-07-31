@@ -600,11 +600,18 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbit-ship.player > img.ship-image')).toHaveLength(2);
   });
 
-  it('renders the galaxy backdrop without repeated nebula elements', () => {
+  it('assembles the galaxy backdrop from sixteen distinct nebula tiles', () => {
     render(<App />);
     const canvas = document.querySelector('.galaxy-canvas') as HTMLElement;
+    const tiles = [...canvas.querySelectorAll<HTMLImageElement>(':scope > .galaxy-nebula-tiles > .galaxy-nebula-tile')];
     expect(canvas.querySelector(':scope > .nebula')).toBeNull();
     expect(canvas).toHaveClass('galaxy-canvas');
+    expect(tiles).toHaveLength(16);
+    expect(new Set(tiles.map(tile => tile.src)).size).toBe(16);
+    expect(tiles[0]).toHaveAttribute('data-nebula-row', '0');
+    expect(tiles[0]).toHaveAttribute('data-nebula-column', '0');
+    expect(tiles[15]).toHaveAttribute('data-nebula-row', '3');
+    expect(tiles[15]).toHaveAttribute('data-nebula-column', '3');
   });
 
   it('extends ship and canvas interpolation across multiplayer guest snapshots', () => {

@@ -46,7 +46,7 @@ import {
 } from './ground/collision';
 import { GROUND_UNIT_MOVEMENT_SPEED_SCALE } from './ground/constants';
 import {
-  groundFormationMemberHealth, groundFormationSize, groundFormationStrength,
+  groundFormationAliveCount, groundFormationMemberHealth, groundFormationSize, groundFormationStrength,
 } from './ground/formations';
 import {
   GROUND_FOREST_DAMAGE_MULTIPLIER, groundForestAtPosition, groundTerrainMovementStep,
@@ -2143,7 +2143,11 @@ function healGroundFormationHull(unit: Unit, healing: number) {
   return { ...unit, memberHp, hp: memberHp.reduce((total, hp) => total + hp, 0) };
 }
 
+const groundCombatantAlive = (unit: Unit) => groundFormationAliveCount(unit) > 0;
+
 function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
+  battle.attackers = battle.attackers.filter(groundCombatantAlive);
+  battle.defenders = battle.defenders.filter(groundCombatantAlive);
   if (resolveGroundBattleIfDecided(state, battle)) return;
   ensureBattlePositions(battle);
   const restoreFactionSystems = (units: Unit[]) => units.map(unit => {
@@ -2187,8 +2191,8 @@ function tickBattle(state: GameState, battle: GroundBattle, seconds: number) {
       : damageUnit(target, hit.damage * terrainMultiplier);
     return { ...damaged, ...(hit.corrosionSeconds ? { corrodedFor: hit.corrosionSeconds } : {}) };
   };
-  battle.attackers = battle.attackers.map(applyHit).filter(unit => unit.hp > 0);
-  battle.defenders = battle.defenders.map(applyHit).filter(unit => unit.hp > 0);
+  battle.attackers = battle.attackers.map(applyHit).filter(groundCombatantAlive);
+  battle.defenders = battle.defenders.map(applyHit).filter(groundCombatantAlive);
   const survivors = new Set([...battle.attackers, ...battle.defenders].map(unit => unit.id));
   const destroyed = combatantsBefore.filter(unit => !survivors.has(unit.id));
   const survivingCombatants = [...battle.attackers, ...battle.defenders];

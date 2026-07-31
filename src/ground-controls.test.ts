@@ -85,6 +85,34 @@ describe('manual ground controls', () => {
     expect(shieldLoss([0, memberMaximum, memberMaximum, memberMaximum])).toBeCloseTo(UNITS.lightTank.weapon.damage * .75);
   });
 
+  it('removes player and enemy squads with no living formation members', () => {
+    const state = createInitialState();
+    const depletedMemberHp = Array.from({ length: groundFormationSize('infantry') }, () => 1e-7);
+    const depletedHp = depletedMemberHp.reduce((total, hp) => total + hp, 0);
+    const depleted = (id: string, faction: 'player' | 'enemy', battleX: number): Unit => ({
+      ...combatUnit(id, 'infantry', faction, battleX),
+      hp: depletedHp,
+      shields: 0,
+      memberHp: depletedMemberHp,
+      weaponCooldown: 999,
+    });
+    state.battles = [{
+      planetId: 'draven',
+      attackers: [
+        combatUnit('living-player', 'infantry', 'player', 10),
+        depleted('depleted-player', 'player', 20),
+      ],
+      defenders: [
+        combatUnit('living-enemy', 'infantry', 'enemy', 90),
+        depleted('depleted-enemy', 'enemy', 80),
+      ],
+    }];
+
+    const advanced = tick(state, .01);
+    expect(advanced.battles[0].attackers.map(unit => unit.id)).toEqual(['living-player']);
+    expect(advanced.battles[0].defenders.map(unit => unit.id)).toEqual(['living-enemy']);
+  });
+
   it('moves ground units at half their defined tactical speed', () => {
     const state = createInitialState();
     state.battles = [{

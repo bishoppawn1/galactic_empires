@@ -1,12 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ANCIENT_RELIC_IDS,
+  ANCIENT_RELICS,
+  ANCIENT_RELIC_DAMAGE_MULTIPLIER,
   ANCIENT_RELIC_ECONOMY_BONUS,
+  ANCIENT_RELIC_PHASE_TRAVEL_MULTIPLIER,
+  ANCIENT_RELIC_PRODUCTION_MULTIPLIER,
+  ANCIENT_RELIC_RECOVERY_MULTIPLIER,
+  ANCIENT_RELIC_RESEARCH_MULTIPLIER,
   BROOD_BIOMASS_PER_PLANET,
   GRAVITY_WELL_RADIUS,
   MIN_SYSTEM_CENTER_SEPARATION,
   STELLAR_HAZARD_DAMAGE_PER_SECOND,
   UNITS,
   ancientRelicCount,
+  ancientRelicDamageMultiplier,
+  ancientRelicDefinition,
+  ancientRelicPhaseTravelMultiplier,
+  ancientRelicProductionMultiplier,
+  ancientRelicRecoveryMultiplier,
   constructBuilding,
   controlsAncientRelic,
   createCompetitiveState,
@@ -16,8 +28,10 @@ import {
   findPlanetPath,
   galaxyCanvasDimensions,
   isColonizableWorld,
+  migrateGameState,
   orbitalCombatShots,
   researchIncomeMultiplier,
+  researchSpeedMultiplier,
   systemKind,
   tick,
   visibleOrbitUnits,
@@ -204,6 +218,39 @@ describe('seeded special-system generation', () => {
       expect(obscured.orbitUnits).toEqual([]);
     });
   });
+
+  it('generates non-duplicated relic identities whose names match their effects', () => {
+    let foundMultipleRelics = false;
+    for (let seed = 1; seed <= 100; seed += 1) {
+      const relics = createInitialState(config(seed)).planets.filter(system => systemKind(system) === 'ancientTemple');
+      foundMultipleRelics ||= relics.length > 1;
+      expect(new Set(relics.map(system => system.ancientRelicId)).size).toBe(relics.length);
+      relics.forEach(system => {
+        const relic = ancientRelicDefinition(system)!;
+        expect(system.name).toBe(relic.name);
+        expect(relic.description.length).toBeGreaterThan(0);
+      });
+    }
+    expect(foundMultipleRelics).toBe(true);
+  });
+
+  it('deterministically assigns matching relic identities and names to legacy saves', () => {
+    const legacy = createInitialState(config(142857));
+    const temple = legacy.planets.find(system => systemKind(system) === 'ancientTemple')!;
+    delete temple.ancientRelicId;
+    temple.name = 'Temple of the First Dawn';
+
+    const firstMigration = migrateGameState(legacy);
+    const secondMigration = migrateGameState(legacy);
+    const migratedTemple = firstMigration.planets.find(system => system.id === temple.id)!;
+
+    expect(migratedTemple.ancientRelicId).toBe('abundanceEngine');
+    expect(migratedTemple.name).toBe(ANCIENT_RELICS.abundanceEngine.name);
+    expect(secondMigration.planets.find(system => system.id === temple.id)).toMatchObject({
+      ancientRelicId: migratedTemple.ancientRelicId,
+      name: migratedTemple.name,
+    });
+  });
 });
 
 describe('special-system simulation rules', () => {
@@ -302,7 +349,7 @@ describe('special-system simulation rules', () => {
     expect(constructBuilding(conquered, base.id, 'groundFactory').ok).toBe(true);
   });
 
-  it('adds each controlled relic income bonus separately after research income', () => {
+  it('applies The Abundance Engine after research income without stacking unrelated relics', () => {
     const state = quiet(createInitialState(config(142857)));
     const temple = state.planets.find(system => systemKind(system) === 'ancientTemple')!;
     temple.orbitUnits = [makeUnit('relic-guard', 'escortFrigate', 'player')];
@@ -323,12 +370,13 @@ describe('special-system simulation rules', () => {
     const stacked = structuredClone(claimed);
     const secondTemple = stacked.planets.find(system => system.id !== temple.id && system.owner === null)!;
     secondTemple.systemKind = 'ancientTemple';
+    secondTemple.ancientRelicId = 'warChoir';
     secondTemple.owner = 'player';
     secondTemple.orbitUnits = [makeUnit('second-relic-guard', 'escortFrigate', 'player')];
     expect(ancientRelicCount(stacked, 'player')).toBe(2);
     const stackedMetalBefore = stacked.resources.metal;
     const withTwoRelics = tick(stacked, 1);
-    expect(withTwoRelics.resources.metal - stackedMetalBefore).toBeCloseTo(baseIncome * (researchScale + 2 * ANCIENT_RELIC_ECONOMY_BONUS));
+    expect(withTwoRelics.resources.metal - stackedMetalBefore).toBeCloseTo(baseIncome * (researchScale + ANCIENT_RELIC_ECONOMY_BONUS));
 
     const contested = structuredClone(claimed);
     contested.planets.find(system => system.id === temple.id)!.orbitUnits.push(makeUnit('challenger', 'escortFrigate', 'enemy'));
@@ -337,6 +385,36 @@ describe('special-system simulation rules', () => {
     const abandoned = structuredClone(claimed);
     abandoned.planets.find(system => system.id === temple.id)!.orbitUnits = [];
     expect(tick(abandoned, .1).planets.find(system => system.id === temple.id)!.owner).toBeNull();
+  });
+
+  it('activates only the matching strategic effect for each named relic', () => {
+    const state = quiet(createInitialState(config(142857)));
+    const temple = state.planets.find(system => systemKind(system) === 'ancientTemple')!;
+    temple.owner = 'player';
+    temple.orbitUnits = [makeUnit('effect-guard', 'escortFrigate', 'player')];
+    const home = state.planets.find(system => system.owner === 'player' && isColonizableWorld(system))!;
+    home.buildings.push({ id: 'relic-research-lab', kind: 'researchLab' });
+
+    const expected = {
+      abundanceEngine: [1, 1, 1, 1, 1],
+      warChoir: [ANCIENT_RELIC_DAMAGE_MULTIPLIER, 1, 1, 1, 1],
+      chronoforge: [1, ANCIENT_RELIC_PRODUCTION_MULTIPLIER, 1, 1, 1],
+      farstepOrrery: [1, 1, ANCIENT_RELIC_PHASE_TRAVEL_MULTIPLIER, 1, 1],
+      renewalWell: [1, 1, 1, ANCIENT_RELIC_RECOVERY_MULTIPLIER, 1],
+      mnemonicArchive: [1, 1, 1, 1, ANCIENT_RELIC_RESEARCH_MULTIPLIER],
+    } as const;
+
+    for (const relicId of ANCIENT_RELIC_IDS) {
+      temple.ancientRelicId = relicId;
+      temple.name = ANCIENT_RELICS[relicId].name;
+      expect([
+        ancientRelicDamageMultiplier(state, 'player'),
+        ancientRelicProductionMultiplier(state, 'player'),
+        ancientRelicPhaseTravelMultiplier(state, 'player'),
+        ancientRelicRecoveryMultiplier(state, 'player'),
+        researchSpeedMultiplier(state),
+      ]).toEqual(expected[relicId]);
+    }
   });
 
   it('applies relic bonuses separately from research to Brood biomass income', () => {

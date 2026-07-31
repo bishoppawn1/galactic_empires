@@ -1,6 +1,6 @@
 import {
   BUILDINGS, BUILDING_KINDS, LANDING_APPROACH_SPEED, PRODUCTION_QUANTITIES, UNITS,
-  ANCIENT_RELIC_DAMAGE_MULTIPLIER, ANCIENT_RELIC_ECONOMY_BONUS, BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isColonizableWorld, isDefenseBuildingKind, isTitanKind, shipArmor, shipWeaponBatteries, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier, systemKind, visibleOrbitUnits,
+  BROOD_BIOMASS_PER_PLANET, STELLAR_HAZARD_DAMAGE_PER_SECOND, ancientRelicDefinition, ancientRelicProductionMultiplier, carrierFighterCount, empireCivilization, factionTitanStatus, formatFactionCost, groundProductionMultiplier, hasUnlimitedBuildingCapacity, isBuildingOperational, isColonizableWorld, isDefenseBuildingKind, isTitanKind, shipArmor, shipWeaponBatteries, spaceProductionMultiplier, spaceTierForUnit, spaceYardCanProduce, spaceYards, spaceYardTier, systemKind, visibleOrbitUnits,
   groundUnitKindsForCivilization, spaceUnitKindsForCivilization,
   type BuildingKind, type GameCommand, type GameState, type Planet, type ProductionQuantity, type QueueItem, type SpaceShipTier, type SpaceUnitKind, type Unit, type UnitKind,
 } from '../../game';
@@ -39,12 +39,13 @@ export function PlanetPanel({ state, planet, tab, setTab, productionFocus, produ
 
 function Command({ state, planet }: { state: GameState; planet: Planet }) {
   const kind = systemKind(planet);
+  const relic = ancientRelicDefinition(planet);
   if (kind !== 'planet' && kind !== 'pirateBase') {
     const data = kind === 'nebula'
       ? { kicker: 'NEBULA', title: 'Blind-space phenomenon', icon: '◌', text: 'There is no planet here and nothing can be built or landed. Long-range scans cannot reveal hostile ships inside; entering the cloud restores close-range contact.' }
       : kind === 'star'
         ? { kicker: 'STELLAR HAZARD', title: 'Unstable stellar furnace', icon: '☀', text: `There is no planet here. Radiation inflicts ${STELLAR_HAZARD_DAMAGE_PER_SECOND} damage per second on every ship in the system until it leaves or is destroyed.` }
-        : { kicker: 'ANCIENT TEMPLE', title: 'Relic control site', icon: '◇', text: `There is no planet here. Hold this system uncontested to claim its relic: +${Math.round(ANCIENT_RELIC_ECONOMY_BONUS * 100)}% base empire income after research bonuses and +${Math.round((ANCIENT_RELIC_DAMAGE_MULTIPLIER - 1) * 100)}% fleet damage while controlled.` };
+        : { kicker: 'ANCIENT RELIC', title: relic!.effectLabel, icon: '◇', text: `There is no planet here. Hold this system uncontested to awaken ${relic!.name}: ${relic!.description}.` };
     return <section className={`special-system-brief ${kind}`}><SectionTitle kicker={data.kicker} title={data.title} /><div className="special-system-icon">{data.icon}</div><p>{data.text}</p>{kind === 'ancientTemple' && <div className={`relic-control ${planet.owner ?? 'neutral'}`}><b>{planet.owner ? `${factionName(planet.owner)} CONTROLS THE RELIC` : 'RELIC UNCONTROLLED'}</b><small>{visibleOrbitUnits(planet).length} visible ship{visibleOrbitUnits(planet).length === 1 ? '' : 's'} in system</small></div>}</section>;
   }
   const pirateBrief = kind === 'pirateBase' ? <section className="special-system-brief pirateBase">
@@ -120,8 +121,9 @@ function Forces({ state, planet, focus, quantity, setQuantity, selectedYardIds, 
   const civilization = empireCivilization(state);
   const groundKinds = groundUnitKindsForCivilization(civilization);
   const spaceKinds = spaceUnitKindsForCivilization(civilization);
-  const groundSpeed = groundProductionMultiplier(planet, state.completedResearch);
-  const spaceSpeed = spaceProductionMultiplier(state.completedResearch);
+  const relicProduction = ancientRelicProductionMultiplier(state, 'player');
+  const groundSpeed = groundProductionMultiplier(planet, state.completedResearch) * relicProduction;
+  const spaceSpeed = spaceProductionMultiplier(state.completedResearch) * relicProduction;
   const groundFactoryCount = planet.buildings.filter(building => building.kind === 'groundFactory' || building.kind === 'advancedGroundFactory').length;
   const yards = spaceYards(planet);
   const selectedYards = yards.filter(yard => selectedYardIds.includes(yard.id));

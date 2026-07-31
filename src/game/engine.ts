@@ -1,5 +1,6 @@
 import {
   DEFAULT_GAME_CONFIG,
+  type AncientRelicId,
   type Building,
   type BuildingKind,
   type DefenseBuildingKind,
@@ -312,11 +313,10 @@ const FRONTIER_PLANET_NAMES = [
   'Cerulea', 'Daedalus', 'Elysion', 'Fortuna', 'Hyperion', 'Ishtar', 'Janus', 'Kestrel',
 ] as const;
 const FRONTIER_PLANET_COLORS = ['#69d5c1', '#f0a36f', '#98b9ff', '#d996ff', '#f2cf70', '#7bd6ef', '#d88198', '#9dd58a'] as const;
-const SPECIAL_SYSTEM_NAMES: Record<Exclude<SystemKind, 'planet'>, string[]> = {
+const SPECIAL_SYSTEM_NAMES: Record<Exclude<SystemKind, 'planet' | 'ancientTemple'>, string[]> = {
   nebula: ['The Blind Veil', 'Morrow Nebula', 'Ghostlight Cloud', 'The Violet Shroud', 'Wraithwake', 'Dusk Expanse'],
   star: ['Helios Pyre', 'The Cinder Star', 'Vulcan Furnace'],
   pirateBase: ['Blackwake', 'Corsair Hold', 'Red Jack', 'Skullhaven', 'Rogue Meridian', 'The Broken Crown'],
-  ancientTemple: ['Temple of the First Dawn', 'The Silent Reliquary', 'Orison Vault', 'The Astral Sepulcher', 'Pilgrim Zero', 'The Last Archive'],
 };
 const SPECIAL_SYSTEM_COLORS: Record<Exclude<SystemKind, 'planet'>, string> = {
   nebula: '#7d6cff', star: '#ff884d', pirateBase: '#d8a24b', ancientTemple: '#79e4ff',
@@ -345,13 +345,68 @@ export const STELLAR_HAZARD_DAMAGE_PER_SECOND = 10;
 export const ANCIENT_RELIC_ECONOMY_BONUS = .5;
 export const ANCIENT_RELIC_ECONOMY_MULTIPLIER = 1 + ANCIENT_RELIC_ECONOMY_BONUS;
 export const ANCIENT_RELIC_DAMAGE_MULTIPLIER = 1.25;
+export const ANCIENT_RELIC_PRODUCTION_MULTIPLIER = 1.25;
+export const ANCIENT_RELIC_PHASE_TRAVEL_MULTIPLIER = .75;
+export const ANCIENT_RELIC_RECOVERY_MULTIPLIER = 1.5;
+export const ANCIENT_RELIC_RESEARCH_MULTIPLIER = 1.5;
+
+export type AncientRelicEffect = 'income' | 'damage' | 'production' | 'phaseTravel' | 'recovery' | 'research';
+export interface AncientRelicDefinition {
+  id: AncientRelicId;
+  name: string;
+  effect: AncientRelicEffect;
+  effectLabel: string;
+  description: string;
+}
+export const ANCIENT_RELICS: Record<AncientRelicId, AncientRelicDefinition> = {
+  abundanceEngine: {
+    id: 'abundanceEngine', name: 'The Abundance Engine', effect: 'income', effectLabel: 'Empire income',
+    description: '+50% base resource income after research bonuses',
+  },
+  warChoir: {
+    id: 'warChoir', name: 'The War Choir', effect: 'damage', effectLabel: 'Fleet firepower',
+    description: '+25% ship and orbital-weapon damage',
+  },
+  chronoforge: {
+    id: 'chronoforge', name: 'The Chronoforge', effect: 'production', effectLabel: 'Military production',
+    description: '+25% ground-unit and ship production speed',
+  },
+  farstepOrrery: {
+    id: 'farstepOrrery', name: 'The Farstep Orrery', effect: 'phaseTravel', effectLabel: 'Phase travel',
+    description: '25% shorter phase-lane travel time',
+  },
+  renewalWell: {
+    id: 'renewalWell', name: 'The Renewal Well', effect: 'recovery', effectLabel: 'Fleet restoration',
+    description: '+50% ship shield and hull recovery',
+  },
+  mnemonicArchive: {
+    id: 'mnemonicArchive', name: 'The Mnemonic Archive', effect: 'research', effectLabel: 'Research network',
+    description: '+50% empire research speed while at least one lab is active',
+  },
+};
+export const ANCIENT_RELIC_IDS = Object.keys(ANCIENT_RELICS) as AncientRelicId[];
 
 export const systemKind = (system: Planet): SystemKind => system.systemKind ?? 'planet';
 export const isColonizableWorld = (system: Planet) => ['planet', 'pirateBase'].includes(systemKind(system));
-export const ancientRelicCount = (state: GameState, faction: EmpireFaction) =>
-  state.planets.filter(system => systemKind(system) === 'ancientTemple' && system.owner === faction).length;
+export const ancientRelicDefinition = (system: Planet) =>
+  systemKind(system) === 'ancientTemple' ? ANCIENT_RELICS[system.ancientRelicId ?? 'abundanceEngine'] : undefined;
+export const controlledAncientRelics = (state: GameState, faction: EmpireFaction) =>
+  state.planets.filter(system => systemKind(system) === 'ancientTemple' && system.owner === faction);
+export const ancientRelicCount = (state: GameState, faction: EmpireFaction) => controlledAncientRelics(state, faction).length;
+export const hasAncientRelicEffect = (state: GameState, faction: EmpireFaction, effect: AncientRelicEffect) =>
+  controlledAncientRelics(state, faction).some(system => ancientRelicDefinition(system)?.effect === effect);
 export const ancientRelicIncomeBonus = (state: GameState, faction: EmpireFaction) =>
-  ancientRelicCount(state, faction) * ANCIENT_RELIC_ECONOMY_BONUS;
+  hasAncientRelicEffect(state, faction, 'income') ? ANCIENT_RELIC_ECONOMY_BONUS : 0;
+export const ancientRelicDamageMultiplier = (state: GameState, faction: EmpireFaction) =>
+  hasAncientRelicEffect(state, faction, 'damage') ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1;
+export const ancientRelicProductionMultiplier = (state: GameState, faction: EmpireFaction) =>
+  hasAncientRelicEffect(state, faction, 'production') ? ANCIENT_RELIC_PRODUCTION_MULTIPLIER : 1;
+export const ancientRelicPhaseTravelMultiplier = (state: GameState, faction: EmpireFaction) =>
+  hasAncientRelicEffect(state, faction, 'phaseTravel') ? ANCIENT_RELIC_PHASE_TRAVEL_MULTIPLIER : 1;
+export const ancientRelicRecoveryMultiplier = (state: GameState, faction: EmpireFaction) =>
+  hasAncientRelicEffect(state, faction, 'recovery') ? ANCIENT_RELIC_RECOVERY_MULTIPLIER : 1;
+export const ancientRelicResearchMultiplier = (state: GameState, faction: EmpireFaction) =>
+  hasAncientRelicEffect(state, faction, 'research') ? ANCIENT_RELIC_RESEARCH_MULTIPLIER : 1;
 export const controlsAncientRelic = (state: GameState, faction: EmpireFaction) => ancientRelicCount(state, faction) > 0;
 export const visibleOrbitUnits = (system: Planet, viewer: EmpireFaction = 'player') => {
   if (systemKind(system) !== 'nebula' || system.orbitUnits.some(ship => ship.faction === viewer)) return system.orbitUnits;
@@ -487,10 +542,18 @@ const randomSystemKind = (random: () => number): Exclude<SystemKind, 'star'> => 
   return 'planet';
 };
 const configureSpecialSystem = (system: Planet, kind: Exclude<SystemKind, 'planet'>, nameIndex: number) => {
-  const names = SPECIAL_SYSTEM_NAMES[kind];
-  const nameCycle = Math.floor(nameIndex / names.length);
+  if (kind === 'ancientTemple' && !ANCIENT_RELIC_IDS[nameIndex]) return false;
   system.systemKind = kind;
-  system.name = `${names[nameIndex % names.length]}${nameCycle ? ` ${nameCycle + 1}` : ''}`;
+  if (kind === 'ancientTemple') {
+    const relicId = ANCIENT_RELIC_IDS[nameIndex]!;
+    system.ancientRelicId = relicId;
+    system.name = ANCIENT_RELICS[relicId].name;
+  } else {
+    const names = SPECIAL_SYSTEM_NAMES[kind];
+    const nameCycle = Math.floor(nameIndex / names.length);
+    system.name = `${names[nameIndex % names.length]}${nameCycle ? ` ${nameCycle + 1}` : ''}`;
+    delete system.ancientRelicId;
+  }
   system.color = SPECIAL_SYSTEM_COLORS[kind];
   system.owner = null;
   system.buildings = [];
@@ -505,6 +568,7 @@ const configureSpecialSystem = (system: Planet, kind: Exclude<SystemKind, 'plane
     system.groundUnits = [];
     system.orbitUnits = [];
   }
+  return true;
 };
 
 const seedNeutralGarrisons = (planets: Planet[]) => {
@@ -595,8 +659,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     const namesUsed: Partial<Record<Exclude<SystemKind, 'planet'>, number>> = {};
     const configure = (system: Planet, kind: Exclude<SystemKind, 'planet'>) => {
       const nameIndex = namesUsed[kind] ?? 0;
-      configureSpecialSystem(system, kind, nameIndex);
-      namesUsed[kind] = nameIndex + 1;
+      if (configureSpecialSystem(system, kind, nameIndex)) namesUsed[kind] = nameIndex + 1;
     };
     const centralStar = candidates.reduce((closest, system) =>
       Math.hypot(system.x - 50, system.y - 50) < Math.hypot(closest.x - 50, closest.y - 50) ? system : closest);
@@ -744,8 +807,19 @@ export function migrateGameState(input: GameState): GameState {
     }
     savedUnit.cargo?.forEach(migrateUnitRoster);
   };
+  let migratedRelicIndex = 0;
   for (const p of state.planets) {
     p.systemKind ??= 'planet';
+    if (p.systemKind === 'ancientTemple') {
+      const savedRelicId = p.ancientRelicId;
+      p.ancientRelicId = savedRelicId && ANCIENT_RELICS[savedRelicId]
+        ? savedRelicId
+        : ANCIENT_RELIC_IDS[migratedRelicIndex % ANCIENT_RELIC_IDS.length];
+      p.name = ANCIENT_RELICS[p.ancientRelicId].name;
+      migratedRelicIndex += 1;
+    } else {
+      delete p.ancientRelicId;
+    }
     p.buildingLimits.experimentalSpaceFactory ??= 1;
     p.buildingLimits.groundDefense = 4;
     p.buildingLimits.antiSpaceDefense = 3;
@@ -864,7 +938,7 @@ export const researchLabCount = (state: GameState, faction: EmpireFaction = 'pla
   total + (planet.owner === faction ? planet.buildings.filter(building => building.kind === 'researchLab').length : 0), 0);
 export const researchSpeedMultiplier = (state: GameState, faction: EmpireFaction = 'player') => {
   const labs = researchLabCount(state, faction);
-  return labs ? 1.5 ** (labs - 1) : 0;
+  return labs ? 1.5 ** (labs - 1) * ancientRelicResearchMultiplier(state, faction) : 0;
 };
 export const phaseTravelMultiplier = (completed: ResearchId[]) => (completed.includes('phaseMastery') ? .75 : 1)
   * (completed.includes('humanPhaseCouriers') ? .9 : 1)
@@ -2333,7 +2407,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
       && orbitDistance(unit.orbitX ?? 0, unit.orbitY ?? 0, ally.orbitX ?? 0, ally.orbitY ?? 0) <= 240);
     const factionScale = (unit.faction !== 'neutral' && state.aiFactions?.includes(unit.faction) ? enemyPower : 1) * (hasSynapse ? 1.25 : 1)
       * (unit.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, unit.faction).completedResearch))
-      * (unit.faction !== 'neutral' && controlsAncientRelic(state, unit.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
+      * (unit.faction === 'neutral' ? 1 : ancientRelicDamageMultiplier(state, unit.faction));
     const effectiveSeconds = seconds * phaseControlRateMultiplier(phaseControlStackCount(p.orbitUnits, unit));
     shipWeaponBatteries(unit.kind as SpaceUnitKind).forEach((_, weaponIndex) => {
       const weaponShots = attackerShots.filter(shot => shot.weaponIndex === weaponIndex);
@@ -2360,7 +2434,7 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   shots.filter(shot => shot.attackerType !== 'ship').forEach(shot => {
     const damage = shot.damage * installationScale * (shot.faction !== 'neutral' && state.aiFactions?.includes(shot.faction) ? enemyPower : 1)
       * (shot.faction === 'neutral' ? 1 : orbitalDamageMultiplier(empireEconomy(state, shot.faction).completedResearch))
-      * (shot.faction !== 'neutral' && controlsAncientRelic(state, shot.faction) ? ANCIENT_RELIC_DAMAGE_MULTIPLIER : 1);
+      * (shot.faction === 'neutral' ? 1 : ancientRelicDamageMultiplier(state, shot.faction));
     const current = shipDamage.get(shot.targetId) ?? { damage: 0, piercingDamage: 0 };
     current.damage += damage;
     shipDamage.set(shot.targetId, current);
@@ -2440,7 +2514,7 @@ function tickSpecialSystem(state: GameState, system: Planet, seconds: number) {
   if (nextOwner === system.owner) return;
   const previousOwner = system.owner;
   system.owner = nextOwner;
-  if (nextOwner === 'player') addMessage(state, `RELIC AWAKENED — ${system.name} grants +50% income and +25% fleet damage.`);
+  if (nextOwner === 'player') addMessage(state, `RELIC AWAKENED — ${system.name}: ${ancientRelicDefinition(system)!.description}.`);
   else if (previousOwner === 'player') addMessage(state, `RELIC LOST — control of ${system.name} has been broken.`);
 }
 
@@ -2812,7 +2886,8 @@ export function tick(input: GameState, seconds: number): GameState {
   const state = migrateGameState(input); state.elapsed += seconds;
   state.fleets = state.fleets.map(fleet => {
     const completed = empireEconomy(state, fleet.faction).completedResearch;
-    return { ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(completed), hullRecoveryMultiplier(completed)), seconds) };
+    const relicRecovery = ancientRelicRecoveryMultiplier(state, fleet.faction);
+    return { ...fleet, unit: recoverCarrierFighters(recoverSpaceUnit(fleet.unit, false, seconds, empireCivilization(state, fleet.faction), shieldRecoveryMultiplier(completed) * relicRecovery, hullRecoveryMultiplier(completed) * relicRecovery), seconds) };
   });
   state.fleets.forEach(fleet => syncDepartingFleetPosition(state, fleet));
   for (const p of state.planets) {
@@ -2823,6 +2898,7 @@ export function tick(input: GameState, seconds: number): GameState {
       const economy = empireEconomy(state, p.owner);
       const aiScale = state.aiFactions?.includes(p.owner) && state.mode !== 'competitive' ? enemyDifficultyMultiplier(state.config.difficulty) * .62 : .7;
       const incomeScale = researchIncomeMultiplier(economy.completedResearch) + ancientRelicIncomeBonus(state, p.owner);
+      const relicProduction = ancientRelicProductionMultiplier(state, p.owner);
       if (usesBiomass(state, p.owner)) {
         economy.resources.biomass = (economy.resources.biomass ?? 0) + seconds * BROOD_BIOMASS_PER_PLANET * incomeScale;
       } else {
@@ -2832,13 +2908,14 @@ export function tick(input: GameState, seconds: number): GameState {
           economy.resources[resource] += seconds * mineCount * p.resourceYield[resource] * RESOURCE_COLLECTION_MULTIPLIER * aiScale * incomeScale;
         }
       }
-      tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p, economy.completedResearch), p.owner);
-      spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, spaceProductionMultiplier(economy.completedResearch), p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
+      tickQueue(state, p, p.groundQueue, seconds, groundProductionMultiplier(p, economy.completedResearch) * relicProduction, p.owner);
+      spaceYards(p).forEach((yard, index) => tickQueue(state, p, yard.spaceQueue!, seconds, spaceProductionMultiplier(economy.completedResearch) * relicProduction, p.owner!, p.owner === 'player' ? `Space Yard ${index + 1}` : undefined));
     }
     tickOrbitMovement(p, seconds);
     p.orbitUnits = p.orbitUnits.map(u => {
       const completed = u.faction === 'neutral' ? [] : empireEconomy(state, u.faction).completedResearch;
-      return recoverCarrierFighters(recoverSpaceUnit(u, isColonizableWorld(p) && p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), shieldRecoveryMultiplier(completed), hullRecoveryMultiplier(completed)), seconds);
+      const relicRecovery = u.faction === 'neutral' ? 1 : ancientRelicRecoveryMultiplier(state, u.faction);
+      return recoverCarrierFighters(recoverSpaceUnit(u, isColonizableWorld(p) && p.owner === u.faction, seconds, u.faction === 'neutral' ? 'human' : empireCivilization(state, u.faction), shieldRecoveryMultiplier(completed) * relicRecovery, hullRecoveryMultiplier(completed) * relicRecovery), seconds);
     });
     p.buildings = p.buildings.map(building => recoverOrbitalDefense(building, seconds));
     const stagedFleetIds = stageDepartingFleetsForCombat(state, p);
@@ -2935,6 +3012,7 @@ export function tick(input: GameState, seconds: number): GameState {
           fleet.phase = 'tunnel';
           fleet.progress = 0;
           fleet.travelTime = phaseTravelTime(origin, waypoint) * phaseTravelMultiplier(empireEconomy(state, fleet.faction).completedResearch)
+            * ancientRelicPhaseTravelMultiplier(state, fleet.faction)
             / shipMovementSpeedMultiplier(fleet.unit.kind);
         } else if (fleet.route?.length) {
           const nextId = fleet.route.shift()!;

@@ -273,7 +273,7 @@ describe('Galactic Empires interface', () => {
     expect(within(legend).getByText('RIVAL A')).toBeInTheDocument();
   });
 
-  it('counts neutral worlds, nebulas, uncaptured pirate bases, and stars separately', () => {
+  it('counts neutral worlds, nebulas, uncaptured pirate bases, stars, and relic planets separately', () => {
     const state = createInitialState({ mapSize: 'huge', difficulty: 'commander', mapSeed: 142857 });
     const capturedPirateBase = state.planets.find(planet => planet.systemKind === 'pirateBase')!;
     capturedPirateBase.owner = 'enemy';
@@ -287,6 +287,7 @@ describe('Galactic Empires interface', () => {
     expect(countFor('NEBULAS')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'nebula').length));
     expect(countFor('PIRATE BASES')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'pirateBase' && planet.owner === null).length));
     expect(countFor('STARS')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'star').length));
+    expect(countFor('RELIC PLANETS')).toHaveTextContent(String(state.planets.filter(planet => planet.systemKind === 'ancientTemple').length));
     expect(countFor('RIVAL A')).toHaveTextContent(String(state.planets.filter(planet => ['planet', 'pirateBase'].includes(planet.systemKind ?? 'planet') && planet.owner === 'enemy').length));
   });
 

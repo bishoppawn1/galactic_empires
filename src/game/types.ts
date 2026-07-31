@@ -7,6 +7,7 @@ export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
 export type SystemKind = 'planet' | 'nebula' | 'star' | 'pirateBase' | 'ancientTemple';
+export type AncientRelicId = 'abundanceEngine' | 'warChoir' | 'chronoforge' | 'farstepOrrery' | 'renewalWell' | 'mnemonicArchive';
 export const PRODUCTION_QUANTITIES = [1, 5, 25] as const;
 export type ProductionQuantity = typeof PRODUCTION_QUANTITIES[number];
 
@@ -117,6 +118,7 @@ export interface Planet {
   id: string;
   name: string;
   systemKind?: SystemKind;
+  ancientRelicId?: AncientRelicId;
   x: number;
   y: number;
   color: string;

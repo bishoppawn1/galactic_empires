@@ -4,7 +4,7 @@ import App from './App';
 import { CampaignSetup } from './components/campaign/CampaignSetup';
 import { MultiplayerLobby } from './components/campaign/MultiplayerLobby';
 import { groundBattleFitZoom } from './components/battle/GroundBattleView';
-import { GALAXY_BOTTOM_PAN_BUFFER, GalaxyMap, wholeMapZoom } from './components/galaxy/GalaxyMap';
+import { GALAXY_BOTTOM_PAN_BUFFER, GalaxyMap, phaseGateVisibilityScale, wholeMapZoom } from './components/galaxy/GalaxyMap';
 import { DEFAULT_GALAXY_CAMERA, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint } from './components/galaxy/camera';
 import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
@@ -629,6 +629,13 @@ describe('Galactic Empires interface', () => {
   it('calculates whole-map zoom from both viewport dimensions', () => {
     expect(wholeMapZoom(640, 600)).toBe(.05);
     expect(wholeMapZoom(1_000, 440)).toBe(.05);
+  });
+
+  it('keeps phase gates prominent as the galaxy zooms out', () => {
+    expect(phaseGateVisibilityScale(1)).toBe(1);
+    expect(phaseGateVisibilityScale(.5)).toBe(1.3);
+    expect(phaseGateVisibilityScale(.1)).toBe(6.5);
+    expect(phaseGateVisibilityScale(.02)).toBe(12);
   });
 
   it('renders the Galactic setting on a physically wider canvas', () => {

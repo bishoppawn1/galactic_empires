@@ -32,6 +32,8 @@ const PLANET_HIT_SIZE = 190;
 const MIN_MAP_ZOOM = .02;
 export const GALAXY_BOTTOM_PAN_BUFFER = 280;
 
+export const phaseGateVisibilityScale = (zoom: number) => Math.min(12, Math.max(1, .65 / Math.max(MIN_MAP_ZOOM, zoom)));
+
 const statusPercent = (value: number, maximum: number) => maximum > 0
   ? Math.min(100, Math.max(0, value / maximum * 100))
   : 0;
@@ -358,7 +360,15 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           if (from.id !== selectedOrigin.id && to.id !== selectedOrigin.id) return [];
           const destination = from.id === selectedOrigin.id ? to : from;
           const position = gatePosition(selectedOrigin, destination);
-          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{ left: position.x, top: position.y }} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(destination.id); }}><span className="camera-billboard">⇢</span><small className="camera-billboard">RIGHT-CLICK · {destination.name}</small></button>;
+          return <button key={`${from.id}-${to.id}`} className="phase-gate" style={{
+            left: position.x,
+            top: position.y,
+            '--phase-gate-scale': phaseGateVisibilityScale(zoom),
+          } as React.CSSProperties} aria-label={`Cross phase lane from ${selectedOrigin.name} to ${destination.name}`} onClick={event => { event.stopPropagation(); onSelect(destination.id); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); onOrderToPlanet(destination.id); }}>
+            <span className="phase-gate-beacon" aria-hidden="true"><i /></span>
+            <span className="phase-gate-copy camera-billboard"><strong>JUMP GATE</strong><small>{destination.name}</small></span>
+            <span className="phase-gate-order camera-billboard">RMB</span>
+          </button>;
         })}
         {state.planets.map(p => {
           const battle = state.battles.some(b => b.planetId === p.id);

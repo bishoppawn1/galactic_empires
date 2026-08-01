@@ -6,6 +6,8 @@ Galactic Empires is a real-time browser strategy game about expanding from one h
 
 The strategic canvas uses one coherent 6032-by-4144 high-detail nebula master divided into sixteen seamless WebP tiles in a 4-by-4 grid. This avoids stretching one low-resolution image across the map while retaining visible gas and star structure in every corner.
 
+Outbound phase gates use a bright, opaque beacon treatment and grow as the strategic map zooms out, preserving a prominent minimum on-screen marker against detailed nebula artwork.
+
 ## Core loop
 
 1. A new campaign opens on a setup screen. The player chooses the Human Coalition, Brood, Aegis Directorate, or Iron Covenant; a Compact (7 systems), Standard (11 systems), Expansive (15 systems), Colossal (21 systems), Massive (31 systems), or Galactic (45 systems) galaxy; and Cadet, Commander, or Admiral enemy difficulty. Every new campaign receives a serialized random map seed, which deterministically randomizes system coordinates, special locations, and starting worlds for solo and multiplayer simulation. Difficulty changes AI construction cadence, attack frequency, combat strength, and escort size. The campaign can instead launch as a two-to-four-empire competitive match from a lobby with a six-character code.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   beginResearch, civilizationUnitKind, constructBuilding, createCompetitiveState, createInitialState, dispatchSpaceUnit, dispatchSpaceUnits, dispatchTransport, dockSpaceUnit, dockSpaceUnits, maneuverSpaceUnit, maneuverSpaceUnits,
-  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, groundDeploymentForPlanet, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
+  applyGameCommand, defenseDurabilityMultiplier, factionTitanStatus, findPlanetPath, galaxyCanvasDimensions, groundDeploymentForPlanet, groundProductionMultiplier, headingForVector, hullRecoveryMultiplier, isBuildingOperational, isGameCommand, migrateGameState, orbitalDamageMultiplier, phaseControlStackCount, phaseTravelMultiplier, queueUnit, recoverGroundUnits, recoverOrbitalDefense, recoverSpaceUnit, researchIncomeMultiplier, researchLabCount, researchProductionMultiplier, researchSpeedMultiplier, setOrbitFocusTarget, shieldRecoveryMultiplier, shortestHeadingDelta, spaceProductionMultiplier, spaceYards, swapPlayerPerspective, tick, upgradeTitan, viewStateForFaction,
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
@@ -1967,6 +1967,32 @@ describe('transport and colonization', () => {
     const arrived = advanceFleetToArrival(underway, transport.id);
     expect(arrived.fleets.some(fleet => fleet.unit.id === transport.id)).toBe(false);
     expect(arrived.planets.find(p => p.id === 'vesta')!.orbitUnits.some(unit => unit.id === transport.id)).toBe(true);
+  });
+
+  it('enters an intermediate system from the lane it just traveled', () => {
+    const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const order = dispatchSpaceUnit(state, 'terra', transport.id, 'vesta'); expectOk(order);
+    const firstFleet = order.state.fleets.find(fleet => fleet.unit.id === transport.id)!;
+    const previousSystem = order.state.planets.find(planet => planet.id === firstFleet.originId)!;
+    const intermediateSystem = order.state.planets.find(planet => planet.id === firstFleet.destinationId)!;
+    let crossing = order.state;
+    for (let phase = 0; phase < 16; phase += 1) {
+      const fleet = crossing.fleets.find(candidate => candidate.unit.id === transport.id)!;
+      if (fleet.originId === intermediateSystem.id) break;
+      crossing = tick(crossing, Math.max(.000001, fleet.travelTime - fleet.progress + 1e-9));
+    }
+
+    const entered = crossing.fleets.find(fleet => fleet.unit.id === transport.id)!;
+    const dimensions = galaxyCanvasDimensions(state.config.mapSize);
+    const incomingDx = dimensions.width * (previousSystem.x - intermediateSystem.x) / 100;
+    const incomingDy = dimensions.height * (previousSystem.y - intermediateSystem.y) / 100;
+    const incomingDistance = Math.hypot(incomingDx, incomingDy);
+    const positionAlongIncomingLane = entered.unit.orbitX! * incomingDx / incomingDistance
+      + entered.unit.orbitY! * incomingDy / incomingDistance;
+
+    expect(entered).toMatchObject({ originId: intermediateSystem.id, phase: 'exiting' });
+    expect(positionAlongIncomingLane).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
   });
 
   it('maneuvers and docks ships gradually within a gravity well', () => {

@@ -1275,6 +1275,8 @@ function beginSystemExit(fleet: Fleet, origin: Planet, destination: Planet, depa
   fleet.phase = 'exiting';
   fleet.departureX = departureX;
   fleet.departureY = departureY;
+  fleet.unit.orbitX = departureX;
+  fleet.unit.orbitY = departureY;
   fleet.progress = 0;
   fleet.travelTime = Math.max(.1, Math.hypot(border.x - departureX, border.y - departureY) / SYSTEM_EXIT_SPEED);
   fleet.unit.heading ??= 0;

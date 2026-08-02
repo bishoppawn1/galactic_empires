@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_UPGRADES, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_UPGRADES, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -319,10 +319,12 @@ describe('economy and construction', () => {
   it('raises only orbital defenses to ten per planet', () => {
     let state = createInitialState();
     state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
+    state.completedResearch.push('starbaseEngineering');
     const limits: Record<DefenseBuildingKind, number> = {
       groundDefense: 4,
       antiSpaceDefense: 3,
       spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP,
+      starbase: 1,
     };
 
     for (const [kind, limit] of Object.entries(limits) as Array<[DefenseBuildingKind, number]>) {
@@ -344,6 +346,7 @@ describe('economy and construction', () => {
       planet.buildingLimits.groundDefense = 10;
       planet.buildingLimits.antiSpaceDefense = 10;
       planet.buildingLimits.spaceDefense = 3;
+      delete (planet.buildingLimits as Partial<typeof planet.buildingLimits>).starbase;
       planet.buildingLimits.researchLab = 2;
     });
 
@@ -353,6 +356,7 @@ describe('economy and construction', () => {
         groundDefense: 4,
         antiSpaceDefense: 3,
         spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP,
+        starbase: 1,
         researchLab: 1,
       });
     });
@@ -392,10 +396,44 @@ describe('economy and construction', () => {
     expect(completed.planets[0].buildings.filter(building => kinds.includes(building.kind as typeof kinds[number])).every(isBuildingOperational)).toBe(true);
   });
 
+  it('unlocks one expensive multi-weapon Starbase per planet as a late-game defense', () => {
+    let state = createInitialState();
+    state.resources = { metal: 100_000, crystal: 100_000, gold: 100_000 };
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    expect(BUILDINGS.starbase.cost.metal).toBeGreaterThan(BUILDINGS.experimentalSpaceFactory.cost.metal);
+    expect(constructBuilding(state, 'terra', 'starbase')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Starbase Engineering'),
+    });
+
+    state.completedResearch.push('starbaseEngineering');
+    const started = constructBuilding(state, 'terra', 'starbase'); expectOk(started); state = started.state;
+    const underConstruction = state.planets[0].buildings.find(building => building.kind === 'starbase')!;
+    expect(underConstruction).toMatchObject({
+      hp: STARBASE_STATS.hp,
+      maxHp: STARBASE_STATS.hp,
+      shields: STARBASE_STATS.shields,
+      maxShields: STARBASE_STATS.shields,
+      constructionRemaining: BUILDINGS.starbase.time,
+    });
+    expect(constructBuilding(state, 'terra', 'starbase')).toMatchObject({ ok: false, error: expect.stringContaining('limit') });
+
+    const completed = tick(state, BUILDINGS.starbase.time!);
+    const home = completed.planets[0];
+    const starbase = home.buildings.find(building => building.kind === 'starbase')!;
+    expect(isBuildingOperational(starbase)).toBe(true);
+    home.orbitUnits = [{ ...makeUnit('starbase-target', 'dreadnought', 'enemy'), orbitX: 0, orbitY: 0 }];
+    const shots = orbitalCombatShots(home).filter(shot => shot.attackerId === starbase.id);
+    expect(shots).toHaveLength(STARBASE_WEAPON_BATTERIES.reduce((total, weapon) => total + weapon.mounts, 0));
+    expect(new Set(shots.map(shot => shot.weaponEffect))).toEqual(new Set(['pulse', 'railgun', 'siege']));
+    expect(new Set(shots.map(shot => shot.weaponLabel))).toEqual(new Set(STARBASE_WEAPON_BATTERIES.map(weapon => weapon.label)));
+  });
+
   it('enforces a ten-second rebuild lock for every destroyed defense type', () => {
     const state = createInitialState(); state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
-    const kinds: DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
+    const kinds: DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense', 'starbase'];
+    state.completedResearch.push('starbaseEngineering');
     state.planets[0].defenseRebuildCooldowns = Object.fromEntries(kinds.map(kind => [kind, DEFENSE_REBUILD_COOLDOWN_SECONDS]));
 
     kinds.forEach(kind => {
@@ -930,11 +968,11 @@ describe('production and research', () => {
   });
 
   it('defines four distinct expanded research lattices with exclusive technologies', () => {
-    expect(Object.keys(RESEARCH)).toHaveLength(42);
+    expect(Object.keys(RESEARCH)).toHaveLength(43);
     for (const tree of Object.values(FACTION_RESEARCH_TREES)) {
-      expect(tree.nodes).toHaveLength(24);
+      expect(tree.nodes).toHaveLength(25);
       expect(tree.nodes.filter(node => !tree.requires[node.id])).toHaveLength(1);
-      expect(tree.nodes.filter(node => tree.requires[node.id])).toHaveLength(23);
+      expect(tree.nodes.filter(node => tree.requires[node.id])).toHaveLength(24);
     }
     expect(new Set(Object.values(FACTION_RESEARCH_TREES).map(tree => tree.branches.length)).size).toBeGreaterThan(1);
     expect(new Set(Object.values(FACTION_RESEARCH_TREES).map(tree =>
@@ -950,7 +988,11 @@ describe('production and research', () => {
     expect(researchRequirementForCivilization('heavyArmor', 'brood')).toBe('broodSynapticDominion');
     expect(researchRequirementForCivilization('titanEngineering', 'brood')).toBe('broodApexInstinct');
     expect(researchRequirementForCivilization('titanEngineering', 'covenant')).toBe('covenantSelfRepairMatrices');
+    (['human', 'brood', 'aegis', 'covenant'] as PlayableFaction[]).forEach(civilization => {
+      expect(researchRequirementForCivilization('starbaseEngineering', civilization)).toBe('titanEngineering');
+    });
     expect(RESEARCH_UNLOCKS.titanEngineering).toContain('Titan Dreadnought');
+    expect(RESEARCH_UNLOCKS.starbaseEngineering).toContain('Starbase');
     expect(RESEARCH_UNLOCKS.humanStandardization).toContain('+10% unit production speed');
   });
 

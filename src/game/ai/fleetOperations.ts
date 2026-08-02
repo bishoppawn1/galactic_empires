@@ -1,4 +1,4 @@
-import { UNITS, isBuildingOperational, shipArmor, shipWeaponBatteries } from '../definitions';
+import { UNITS, isBuildingOperational, isOrbitalDefenseBuilding, shipArmor, shipWeaponBatteries } from '../definitions';
 import { findPlanetPath } from '../navigation';
 import type { EnemyDifficulty, GameState, Planet, SpaceUnitKind, Unit } from '../types';
 
@@ -45,7 +45,8 @@ export function enemyHasOrbitalSuperiority(state: GameState, target: Planet, inc
     : 0;
   const hostileShips = target.orbitUnits.filter(ship => ship.faction !== 'enemy').length;
   const hostileOrbitalDefenses = target.owner && target.owner !== 'enemy'
-    ? target.buildings.filter(building => ['antiSpaceDefense', 'spaceDefense'].includes(building.kind) && isBuildingOperational(building)).length
+    ? target.buildings.filter(isBuildingOperational).reduce((total, building) => total
+      + (building.kind === 'starbase' ? 6 : building.kind === 'antiSpaceDefense' || building.kind === 'spaceDefense' ? 1 : 0), 0)
     : 0;
   const resistance = hostileShips + hostileOrbitalDefenses;
   return enemyWarships + inboundWarships >= Math.max(2, resistance * 2 + 2);
@@ -88,7 +89,7 @@ export function planEnemyFleetOperations(state: GameState): AiFleetOperation[] {
       if (!path) return [];
       const priority = reinforce ? 0
         : invasionTargets.has(target.id) ? 1
-          : hasHostileShips(target) || target.buildings.some(building => building.kind === 'spaceDefense' && isBuildingOperational(building)) ? 2 : 3;
+          : hasHostileShips(target) || target.buildings.some(building => isOrbitalDefenseBuilding(building) && isBuildingOperational(building)) ? 2 : 3;
       return [{ target, priority, distance: routeDistance(state, path), kind: reinforce ? 'reinforce' as const : 'strike' as const }];
     }).sort((a, b) => a.priority - b.priority || a.distance - b.distance || a.target.id.localeCompare(b.target.id));
     const destination = targets[0];

@@ -10,7 +10,7 @@ import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
 import { GROUND_UNIT_DISPLAY_SCALES, GroundUnitImage } from './components/shared/GroundUnitImage';
 import { shipDisplaySize, shipImageSource, ShipImage } from './components/shared/ShipImage';
-import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, TIER_TWO_COPY_BY_TIER_ONE, UNITS, type GameState, type Unit, type UnitKind } from './game';
+import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, STARBASE_STATS, TIER_TWO_COPY_BY_TIER_ONE, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
   id, kind, faction, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp, shields: UNITS[kind].shields, maxShields: UNITS[kind].shields,
@@ -525,7 +525,7 @@ describe('Galactic Empires interface', () => {
     expect(screen.getByText('First Resonance')).toBeInTheDocument();
     expect(screen.getByText('Sanctuary Field')).toBeInTheDocument();
     expect(screen.queryByText('Interstellar Standardization')).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(24);
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(25);
     expect(document.querySelectorAll('.tech-tier')).toHaveLength(6);
   });
 
@@ -1073,9 +1073,9 @@ describe('Galactic Empires interface', () => {
 
     expect(screen.getByRole('main', { name: 'Research tech tree' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Human Coalition technology lattice' })).toBeInTheDocument();
-    expect(document.querySelectorAll('.tech-node')).toHaveLength(24);
+    expect(document.querySelectorAll('.tech-node')).toHaveLength(25);
     expect(document.querySelectorAll('.tech-tier')).toHaveLength(5);
-    expect(document.querySelectorAll('.research-connections path')).toHaveLength(23);
+    expect(document.querySelectorAll('.research-connections path')).toHaveLength(24);
     expect(document.querySelector('[data-tech-id="humanStandardization"]')).toHaveAttribute('data-requires', 'rapidFabrication');
     expect(document.querySelector('[data-tech-id="heavyArmor"]')).toHaveAttribute('data-requires', 'humanJointOperations');
     expect(document.querySelector('[data-tech-id="carrierOperations"]')).toHaveAttribute('data-requires', 'fleetLogistics');
@@ -1083,6 +1083,7 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelector('[data-tech-id="deepCoreExtraction"]')).toHaveAttribute('data-requires', 'humanColonialCharters');
     expect(document.querySelector('[data-tech-id="weaponsCalibration"]')).toHaveAttribute('data-requires', 'humanTargetingGrid');
     expect(document.querySelector('[data-tech-id="titanEngineering"]')).toHaveAttribute('data-requires', 'capitalShips');
+    expect(document.querySelector('[data-tech-id="starbaseEngineering"]')).toHaveAttribute('data-requires', 'titanEngineering');
     expect(document.querySelector('[data-tech-id="industrialIteration"]')).toHaveAttribute('data-requires', 'humanStandardization');
     expect(document.querySelector('[data-tech-id="resourceSynthesis"]')).toHaveAttribute('data-requires', 'deepCoreExtraction');
     expect(document.querySelector('[data-tech-id="combatSimulation"]')).toHaveAttribute('data-requires', 'weaponsCalibration');
@@ -1154,10 +1155,12 @@ describe('Galactic Empires interface', () => {
   it('renders orbital defenses as installations in space', () => {
     const state = createInitialState(); const cygnus = state.planets.find(p => p.id === 'cygnus')!;
     cygnus.buildings.push({ id: 'test-defense', kind: 'spaceDefense', hp: ORBITAL_DEFENSE_STATS.hp, maxHp: ORBITAL_DEFENSE_STATS.hp, shields: ORBITAL_DEFENSE_STATS.shields, maxShields: ORBITAL_DEFENSE_STATS.shields });
+    cygnus.buildings.push({ id: 'test-starbase', kind: 'starbase', hp: STARBASE_STATS.hp, maxHp: STARBASE_STATS.hp, shields: STARBASE_STATS.shields, maxShields: STARBASE_STATS.shields });
     cygnus.orbitUnits.push(makeUnit('defense-scout', 'escortFrigate', 'player'));
     saveState(state);
     render(<App />);
     expect(screen.getByRole('button', { name: 'Target enemy Orbital Defense Platform 1 at Cygnus Reach' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Target enemy Starbase at Cygnus Reach' })).toHaveClass('starbase');
   });
 
   it('shows orbital weapons fire and lets the player target an enemy platform', () => {

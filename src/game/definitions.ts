@@ -33,6 +33,7 @@ export const BUILDINGS: Record<BuildingKind, Definition> = {
   groundDefense: { label: 'Ground Defenses', description: 'Deploys a stationary long-range turret during every invasion.', cost: pool(100, 45, 25), time: 8 },
   antiSpaceDefense: { label: 'Anti-Space Battery', description: 'Damages hostile ships in orbit.', cost: pool(130, 75, 55), time: 10 },
   spaceDefense: { label: 'Orbital Defenses', description: 'Protects the planet’s orbital space.', cost: pool(180, 100, 75), time: 12 },
+  starbase: { label: 'Starbase', description: 'An ultimate orbital fortress with layered shields and twelve heavy weapon mounts. Limited to one per planet.', cost: pool(2400, 1900, 1500), time: 180, requires: 'starbaseEngineering' },
   researchLab: { label: 'Research Lab', description: 'One per planet; labs across additional colonies compound research speed by 1.5×.', cost: pool(190, 160, 130) },
 };
 
@@ -161,6 +162,7 @@ export const RESEARCH: Record<ResearchId, Definition> = {
   capitalShips: { label: 'Capital Ship Doctrine', description: 'Unlock capital warships and their fleet-command systems.', cost: pool(520, 420, 320), time: 90, requires: 'orbitalEngineering' },
   weaponsCalibration: { label: 'Weapons Calibration', description: 'Increase damage from all ships and orbital installations by 15 percent.', cost: pool(650, 520, 400), time: 105, requires: 'capitalShips' },
   titanEngineering: { label: 'Titan Engineering', description: 'Unlock each civilization’s colossal apex warship.', cost: pool(850, 700, 540), time: 125, requires: 'capitalShips' },
+  starbaseEngineering: { label: 'Starbase Engineering', description: 'Unify titan-scale reactors, fortress shields, and heavy orbital batteries into an ultimate defensive station.', cost: pool(1400, 1200, 1000), time: 180, requires: 'titanEngineering' },
   combatSimulation: { label: 'Combat Simulation', description: 'Repeatably improve ship and orbital weapon damage by another three percent.', cost: pool(760, 640, 500), time: 135, requires: 'weaponsCalibration' },
   humanStandardization: { label: 'Interstellar Standardization', description: 'Common components let Coalition factories exchange work and finish every unit ten percent faster.', cost: pool(300, 235, 165), time: 58 },
   humanColonialCharters: { label: 'Colonial Charters', description: 'Autonomous colonial administrations increase resource output across the Coalition by ten percent.', cost: pool(360, 285, 210), time: 66 },
@@ -218,6 +220,7 @@ export const RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   weaponsCalibration: ['+15% ship and orbital weapon damage'],
   combatSimulation: ['Repeatable · +3% ship and orbital damage per level'],
   titanEngineering: ['Titan Dreadnought'],
+  starbaseEngineering: ['Starbase'],
   humanStandardization: ['+10% unit production speed'],
   humanColonialCharters: ['+10% resource output'],
   humanJointOperations: ['+8% ship and orbital damage'],
@@ -279,7 +282,7 @@ const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Partial<Record<ResearchId
     groundWarfare: 'Combined Arms Doctrine', planetaryFortifications: 'Fortress Worlds', heavyArmor: 'Siege Corps',
     fleetLogistics: 'Expeditionary Logistics', phaseMastery: 'Navigator Mastery', carrierOperations: 'Marine Carrier Groups',
     orbitalEngineering: 'Naval Architecture', shieldHarmonics: 'Harmonic Shielding', capitalShips: 'Capital Ship Doctrine',
-    weaponsCalibration: 'Fire-Control Networks', titanEngineering: 'Titan Command',
+    weaponsCalibration: 'Fire-Control Networks', titanEngineering: 'Titan Command', starbaseEngineering: 'Citadel Starbase Doctrine',
     quantumExtraction: 'Quantum Extraction', deepCoreExtraction: 'Deep-Core Exploitation', resourceSynthesis: 'Colonial Optimization',
     combatSimulation: 'Fleet War Games',
   },
@@ -288,7 +291,7 @@ const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Partial<Record<ResearchId
     groundWarfare: 'Synaptic Warfare', planetaryFortifications: 'Carapace Worlds', heavyArmor: 'Apex Morphology',
     fleetLogistics: 'Spore Migration', phaseMastery: 'Void Instinct', carrierOperations: 'Brood Nurseries',
     orbitalEngineering: 'Biofleet Evolution', shieldHarmonics: 'Regenerative Membranes', capitalShips: 'Leviathan Genesis',
-    weaponsCalibration: 'Predatory Synapses', titanEngineering: 'World Eater Genesis',
+    weaponsCalibration: 'Predatory Synapses', titanEngineering: 'World Eater Genesis', starbaseEngineering: 'World-Hive Genesis',
     quantumExtraction: 'Biomass Assimilation', deepCoreExtraction: 'Planetary Digestion', resourceSynthesis: 'Biomass Recursion',
     combatSimulation: 'Predatory Adaptation',
   },
@@ -297,7 +300,7 @@ const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Partial<Record<ResearchId
     groundWarfare: 'Guardian Doctrine', planetaryFortifications: 'Bastion Worlds', heavyArmor: 'Fortress Chassis',
     fleetLogistics: 'Citadel Logistics', phaseMastery: 'Farcast Navigation', carrierOperations: 'Citadel Operations',
     orbitalEngineering: 'Ward Architecture', shieldHarmonics: 'Resonant Shields', capitalShips: 'Sovereign Doctrine',
-    weaponsCalibration: 'Lattice Targeting', titanEngineering: 'Sovereign Ascension',
+    weaponsCalibration: 'Lattice Targeting', titanEngineering: 'Sovereign Ascension', starbaseEngineering: 'Bastion Ascension',
     quantumExtraction: 'Luminous Extraction', deepCoreExtraction: 'Stellar Refinement', resourceSynthesis: 'Harmonic Abundance',
     combatSimulation: 'Eternal Vigil',
   },
@@ -306,7 +309,7 @@ const FACTION_RESEARCH_LABELS: Record<PlayableFaction, Partial<Record<ResearchId
     groundWarfare: 'Cohort Battle Logic', planetaryFortifications: 'Iron Worlds', heavyArmor: 'Juggernaut Patterns',
     fleetLogistics: 'Machine Logistics', phaseMastery: 'Phase Calculation', carrierOperations: 'Fabricator Operations',
     orbitalEngineering: 'Foundry Hulls', shieldHarmonics: 'Redundant Plating', capitalShips: 'Ironclad Doctrine',
-    weaponsCalibration: 'Dismantler Calibration', titanEngineering: 'Dreadforge Protocol',
+    weaponsCalibration: 'Dismantler Calibration', titanEngineering: 'Dreadforge Protocol', starbaseEngineering: 'Grand Fortress Protocol',
     quantumExtraction: 'Matter Reclamation', deepCoreExtraction: 'Core Strip-Mining', resourceSynthesis: 'Closed-Loop Reclamation',
     combatSimulation: 'Combat Logic Refinement',
   },
@@ -363,7 +366,7 @@ const HUMAN_RESEARCH_TREE: FactionResearchTree = {
     researchNode('orbitalEngineering', 'navy', 1, 1580), researchNode('shieldHarmonics', 'navy', 2, 1480),
     researchNode('capitalShips', 'navy', 2, 1730), researchNode('humanTargetingGrid', 'navy', 3, 1480),
     researchNode('weaponsCalibration', 'navy', 4, 1480), researchNode('titanEngineering', 'navy', 3, 1730),
-    researchNode('combatSimulation', 'navy', 5, 1480),
+    researchNode('starbaseEngineering', 'navy', 4, 1730), researchNode('combatSimulation', 'navy', 5, 1480),
   ],
   requires: {
     rapidFabrication: 'advancedIndustry', humanStandardization: 'rapidFabrication', industrialIteration: 'humanStandardization',
@@ -372,12 +375,13 @@ const HUMAN_RESEARCH_TREE: FactionResearchTree = {
     humanFieldEngineering: 'groundWarfare', planetaryFortifications: 'humanFieldEngineering',
     fleetLogistics: 'advancedIndustry', humanPhaseCouriers: 'fleetLogistics', phaseMastery: 'humanPhaseCouriers', carrierOperations: 'fleetLogistics',
     orbitalEngineering: 'advancedIndustry', shieldHarmonics: 'orbitalEngineering', capitalShips: 'orbitalEngineering',
-    humanTargetingGrid: 'capitalShips', weaponsCalibration: 'humanTargetingGrid', titanEngineering: 'capitalShips', combatSimulation: 'weaponsCalibration',
+    humanTargetingGrid: 'capitalShips', weaponsCalibration: 'humanTargetingGrid', titanEngineering: 'capitalShips',
+    starbaseEngineering: 'titanEngineering', combatSimulation: 'weaponsCalibration',
   },
 };
 
 const BROOD_RESEARCH_TREE: FactionResearchTree = {
-  width: 2100,
+  width: 2450,
   height: 2170,
   rootLabel: 'PRIME GENETIC MEMORY',
   branches: [
@@ -399,7 +403,7 @@ const BROOD_RESEARCH_TREE: FactionResearchTree = {
     researchNode('orbitalEngineering', 'void', 2, 1690), researchNode('shieldHarmonics', 'void', 3, 1690),
     researchNode('capitalShips', 'void', 3, 1930), researchNode('weaponsCalibration', 'void', 4, 1690),
     researchNode('broodApexInstinct', 'void', 4, 1930), researchNode('combatSimulation', 'void', 5, 1690),
-    researchNode('titanEngineering', 'void', 5, 1930),
+    researchNode('titanEngineering', 'void', 5, 1930), researchNode('starbaseEngineering', 'void', 6, 1930),
   ],
   requires: {
     quantumExtraction: 'broodHypermetabolism', deepCoreExtraction: 'quantumExtraction', resourceSynthesis: 'deepCoreExtraction',
@@ -409,7 +413,7 @@ const BROOD_RESEARCH_TREE: FactionResearchTree = {
     fleetLogistics: 'advancedIndustry', broodVoidSenses: 'fleetLogistics', phaseMastery: 'broodVoidSenses',
     carrierOperations: 'fleetLogistics', orbitalEngineering: 'advancedIndustry', shieldHarmonics: 'orbitalEngineering',
     capitalShips: 'orbitalEngineering', weaponsCalibration: 'broodSynapticDominion', broodApexInstinct: 'capitalShips',
-    combatSimulation: 'weaponsCalibration', titanEngineering: 'broodApexInstinct',
+    combatSimulation: 'weaponsCalibration', titanEngineering: 'broodApexInstinct', starbaseEngineering: 'titanEngineering',
   },
 };
 
@@ -436,7 +440,7 @@ const AEGIS_RESEARCH_TREE: FactionResearchTree = {
     researchNode('phaseMastery', 'farcast', 4, 1120), researchNode('carrierOperations', 'farcast', 3, 1360),
     researchNode('capitalShips', 'sovereign', 2, 1530), researchNode('aegisLanceResonance', 'sovereign', 3, 1470),
     researchNode('weaponsCalibration', 'sovereign', 4, 1470), researchNode('titanEngineering', 'sovereign', 3, 1710),
-    researchNode('combatSimulation', 'sovereign', 5, 1470),
+    researchNode('starbaseEngineering', 'sovereign', 4, 1710), researchNode('combatSimulation', 'sovereign', 5, 1470),
     researchNode('quantumExtraction', 'abundance', 2, 1910), researchNode('deepCoreExtraction', 'abundance', 3, 1910),
     researchNode('resourceSynthesis', 'abundance', 4, 1910),
   ],
@@ -447,13 +451,13 @@ const AEGIS_RESEARCH_TREE: FactionResearchTree = {
     rapidFabrication: 'advancedIndustry', aegisPatientAssembly: 'rapidFabrication', industrialIteration: 'aegisPatientAssembly',
     fleetLogistics: 'orbitalEngineering', aegisFarcastBeacons: 'fleetLogistics', phaseMastery: 'aegisFarcastBeacons',
     carrierOperations: 'fleetLogistics', capitalShips: 'orbitalEngineering', aegisLanceResonance: 'capitalShips',
-    weaponsCalibration: 'aegisLanceResonance', titanEngineering: 'capitalShips', combatSimulation: 'weaponsCalibration',
+    weaponsCalibration: 'aegisLanceResonance', titanEngineering: 'capitalShips', starbaseEngineering: 'titanEngineering', combatSimulation: 'weaponsCalibration',
     quantumExtraction: 'advancedIndustry', deepCoreExtraction: 'quantumExtraction', resourceSynthesis: 'deepCoreExtraction',
   },
 };
 
 const COVENANT_RESEARCH_TREE: FactionResearchTree = {
-  width: 2100,
+  width: 2450,
   height: 2170,
   rootLabel: 'PRIME FOUNDRY DIRECTIVE',
   branches: [
@@ -467,6 +471,7 @@ const COVENANT_RESEARCH_TREE: FactionResearchTree = {
     researchNode('industrialIteration', 'foundry', 4, 70),
     researchNode('orbitalEngineering', 'foundry', 2, 310), researchNode('capitalShips', 'foundry', 3, 310),
     researchNode('covenantSelfRepairMatrices', 'foundry', 4, 310), researchNode('titanEngineering', 'foundry', 5, 310),
+    researchNode('starbaseEngineering', 'foundry', 6, 310),
     researchNode('groundWarfare', 'logic', 1, 720), researchNode('heavyArmor', 'logic', 2, 650),
     researchNode('covenantRedundantCores', 'logic', 3, 650), researchNode('planetaryFortifications', 'logic', 4, 650),
     researchNode('fleetLogistics', 'logic', 2, 890), researchNode('covenantPhaseCalculation', 'logic', 3, 890),
@@ -480,7 +485,7 @@ const COVENANT_RESEARCH_TREE: FactionResearchTree = {
     advancedIndustry: 'covenantMachineAwakening', rapidFabrication: 'advancedIndustry',
     covenantOverclockedForges: 'rapidFabrication', industrialIteration: 'covenantOverclockedForges',
     orbitalEngineering: 'advancedIndustry', capitalShips: 'orbitalEngineering',
-    covenantSelfRepairMatrices: 'capitalShips', titanEngineering: 'covenantSelfRepairMatrices',
+    covenantSelfRepairMatrices: 'capitalShips', titanEngineering: 'covenantSelfRepairMatrices', starbaseEngineering: 'titanEngineering',
     groundWarfare: 'covenantMachineAwakening', heavyArmor: 'groundWarfare', covenantRedundantCores: 'heavyArmor',
     planetaryFortifications: 'covenantRedundantCores', fleetLogistics: 'groundWarfare',
     covenantPhaseCalculation: 'fleetLogistics', phaseMastery: 'covenantPhaseCalculation', carrierOperations: 'fleetLogistics',
@@ -516,16 +521,23 @@ export const researchUnlocksForCivilization = (id: ResearchId, civilization: Pla
 
 export const ORBITAL_DEFENSE_STATS = { hp: 420, shields: 220, damage: 32 } as const;
 export const ANTI_SPACE_BATTERY_STATS = { hp: 300, shields: 120, damage: 12 } as const;
+export const STARBASE_STATS = { hp: 3200, shields: 2400 } as const;
 export const DEFENSE_REBUILD_COOLDOWN_SECONDS = 10;
 export const ORBITAL_DEFENSE_BUILDING_CAP = 10;
 export const ADVANCED_GROUND_FACTORY_CAPACITY = 2.5;
-export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense'];
+export const DEFENSE_BUILDING_KINDS: readonly DefenseBuildingKind[] = ['groundDefense', 'antiSpaceDefense', 'spaceDefense', 'starbase'];
 export const isDefenseBuildingKind = (kind: BuildingKind): kind is DefenseBuildingKind => DEFENSE_BUILDING_KINDS.includes(kind as DefenseBuildingKind);
+export const isOrbitalDefenseBuilding = (building: Building) => building.kind === 'spaceDefense' || building.kind === 'starbase';
 export const isBuildingOperational = (building: Building) => (building.constructionRemaining ?? 0) <= 0;
 // Covers the full gravity well from a platform on the opposite side of orbit,
 // preventing long-range ships from kiting a fixed installation at the edge.
 export const ORBITAL_DEFENSE_RANGE = 1065;
 export const ANTI_SPACE_BATTERY_RANGE = 300;
+export const STARBASE_WEAPON_BATTERIES: readonly ShipWeaponBattery[] = [
+  { label: 'Citadel Pulse Array', damage: 14, cooldown: .8, mounts: 6, effect: 'pulse', range: ORBITAL_DEFENSE_RANGE },
+  { label: 'Heavy Railgun Battery', damage: 24, cooldown: 1.8, mounts: 4, effect: 'railgun', range: ORBITAL_DEFENSE_RANGE },
+  { label: 'Siege Lance', damage: 48, cooldown: 3.5, mounts: 2, effect: 'siege', range: ORBITAL_DEFENSE_RANGE },
+];
 export const ORBITAL_DEFENSE_RADIUS = 285;
 export const orbitalDefenseOffset = (index: number, count: number) => {
   const angle = -Math.PI / 4 + index * (Math.PI * 2 / Math.max(2, count));

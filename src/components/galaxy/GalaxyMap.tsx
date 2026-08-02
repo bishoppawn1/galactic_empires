@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, fleetPhaseControlStackCount, galaxyCanvasDimensions, isBuildingOperational, isColonizableWorld, localPlanetConnections, orbitalCombatShots, ownerLabel, phaseControlStackCount, phaseGateBlocked, shipArmor, shipWeaponBatteries, spaceYards, spaceYardTier,
+  AEGIS_SHIELD_PROJECTION_RANGE, BUILDINGS, COVENANT_ASSEMBLY_REPAIR_RANGE, COVENANT_FOUNDRY_REPAIR_RANGE, GRAVITY_WELL_RADIUS, UNITS, carrierFighterCount, fleetPhaseControlStackCount, galaxyCanvasDimensions, isBuildingOperational, isColonizableWorld, isOrbitalDefenseBuilding, localPlanetConnections, orbitalCombatShots, ownerLabel, phaseControlStackCount, phaseGateBlocked, shipArmor, shipWeaponBatteries, spaceYards, spaceYardTier,
   systemKind, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, visibleOrbitUnits, type GalaxyCanvasDimensions, type GameState, type Planet, type SpaceUnitKind, type TitanUpgradeId, type Unit,
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
@@ -287,7 +287,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
         <svg className="orbital-fire" viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} preserveAspectRatio="none" aria-hidden="true">
           {effectPlanets.flatMap(p => {
             if (systemKind(p) === 'nebula' && !p.orbitUnits.some(ship => ship.faction === 'player')) return [];
-            const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
+            const defenses = p.buildings.filter(building => isOrbitalDefenseBuilding(building) && isBuildingOperational(building));
             const shipIndexes = new Map(p.orbitUnits.map((ship, index) => [ship.id, index]));
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
             const allCombatShots = orbitalCombatShots(p);
@@ -398,17 +398,20 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           });
         })}
         {state.planets.flatMap(p => {
-          const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
+          const defenses = p.buildings.filter(building => isOrbitalDefenseBuilding(building) && isBuildingOperational(building));
           return defenses.map((defense, index) => {
             const position = defenseMapPosition(p, index, defenses.length, dimensions);
             const targetable = !!p.owner && p.owner !== 'player' && p.orbitUnits.some(ship => ship.faction === 'player');
             const focused = p.orbitFocusTargetId === defense.id;
-            const content = <><span className="camera-billboard">⌾</span><i /><div className="defense-health camera-billboard"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small className="camera-billboard">{focused ? 'TARGET LOCK' : `DEF ${index + 1}`}</small></>;
-            const className = `orbital-defense ${p.owner ?? 'neutral'} ${targetable ? 'targetable' : ''} ${focused ? 'focused' : ''}`;
+            const starbase = defense.kind === 'starbase';
+            const label = starbase ? 'STARBASE' : `DEF ${index + 1}`;
+            const fullLabel = starbase ? 'Starbase' : `Orbital Defense Platform ${index + 1}`;
+            const content = <><span className="camera-billboard">{starbase ? '✦' : '⌾'}</span><i /><div className="defense-health camera-billboard"><b style={{ width: `${Math.max(0, defense.hp! / defense.maxHp! * 100)}%` }} /><em style={{ width: `${Math.max(0, defense.shields! / defense.maxShields! * 100)}%` }} /></div><small className="camera-billboard">{focused ? 'TARGET LOCK' : label}</small></>;
+            const className = `orbital-defense ${defense.kind} ${p.owner ?? 'neutral'} ${targetable ? 'targetable' : ''} ${focused ? 'focused' : ''}`;
             const style = { left: position.x, top: position.y };
             return targetable
-              ? <button key={defense.id} aria-label={`Target enemy Orbital Defense Platform ${index + 1} at ${p.name}`} aria-pressed={focused} className={className} style={style} onClick={event => { event.stopPropagation(); onTargetDefense(p.id, defense.id); }}>{content}</button>
-              : <div key={defense.id} role="img" aria-label={`Orbital Defense Platform ${index + 1} at ${p.name}`} className={className} style={style}>{content}</div>;
+              ? <button key={defense.id} aria-label={`Target enemy ${fullLabel} at ${p.name}`} aria-pressed={focused} className={className} style={style} onClick={event => { event.stopPropagation(); onTargetDefense(p.id, defense.id); }}>{content}</button>
+              : <div key={defense.id} role="img" aria-label={`${fullLabel} at ${p.name}`} className={className} style={style}>{content}</div>;
           });
         })}
         {state.planets.flatMap(p => visibleOrbitUnits(p).flatMap((ship, index) => {

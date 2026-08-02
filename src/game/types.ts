@@ -26,8 +26,9 @@ export type BuildingKind =
   | 'groundDefense'
   | 'antiSpaceDefense'
   | 'spaceDefense'
+  | 'starbase'
   | 'researchLab';
-export type DefenseBuildingKind = 'groundDefense' | 'antiSpaceDefense' | 'spaceDefense';
+export type DefenseBuildingKind = 'groundDefense' | 'antiSpaceDefense' | 'spaceDefense' | 'starbase';
 
 export type GroundUnitKind =
   | 'infantry' | 'antiVehicle' | 'recon' | 'lightTank' | 'artillery' | 'flakRover' | 'dragonflyScout' | 'falconGunship' | 'shockTrooper' | 'railgunTank' | 'plasmaTank' | 'siegeWalker' | 'defenseTurret'
@@ -172,7 +173,7 @@ export type ResearchId =
   | 'advancedIndustry' | 'rapidFabrication'
   | 'groundWarfare' | 'planetaryFortifications' | 'heavyArmor'
   | 'fleetLogistics' | 'phaseMastery' | 'carrierOperations'
-  | 'orbitalEngineering' | 'shieldHarmonics' | 'capitalShips' | 'weaponsCalibration' | 'titanEngineering'
+  | 'orbitalEngineering' | 'shieldHarmonics' | 'capitalShips' | 'weaponsCalibration' | 'titanEngineering' | 'starbaseEngineering'
   | 'quantumExtraction' | 'deepCoreExtraction'
   | 'industrialIteration' | 'resourceSynthesis' | 'combatSimulation'
   | 'humanStandardization' | 'humanColonialCharters' | 'humanJointOperations'

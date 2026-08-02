@@ -58,8 +58,8 @@ import {
 import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND,
-  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
-  blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
+  blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isOrbitalDefenseBuilding, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   canGroundUnitAttackTarget, groundUnitVisionRange, isFlyingGroundUnit, isInfantryGroundUnit,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
@@ -261,8 +261,8 @@ function ensureOrbitPositions(planet: Planet) {
 }
 
 function ensureOrbitalDefenseHealth(building: Building) {
-  if (building.kind !== 'spaceDefense' && building.kind !== 'antiSpaceDefense') return;
-  const stats = building.kind === 'spaceDefense' ? ORBITAL_DEFENSE_STATS : ANTI_SPACE_BATTERY_STATS;
+  if (!isOrbitalDefenseBuilding(building) && building.kind !== 'antiSpaceDefense') return;
+  const stats = building.kind === 'starbase' ? STARBASE_STATS : building.kind === 'spaceDefense' ? ORBITAL_DEFENSE_STATS : ANTI_SPACE_BATTERY_STATS;
   building.maxHp ??= stats.hp;
   building.hp ??= building.maxHp;
   building.maxShields ??= stats.shields;
@@ -298,7 +298,7 @@ const limits = (mineMax: ResourcePool, industryMax = 3): Record<BuildingKind, nu
   metalMine: mineMax.metal, crystalMine: mineMax.crystal, goldMine: mineMax.gold,
   groundFactory: industryMax, advancedGroundFactory: Math.max(1, industryMax - 1),
   spaceFactory: industryMax, advancedSpaceFactory: Math.max(1, industryMax - 1), experimentalSpaceFactory: 1,
-  groundDefense: 4, antiSpaceDefense: 3, spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP, researchLab: 1,
+  groundDefense: 4, antiSpaceDefense: 3, spaceDefense: ORBITAL_DEFENSE_BUILDING_CAP, starbase: 1, researchLab: 1,
 });
 
 const planet = (id: string, name: string, x: number, y: number, color: string, owner: Faction, resourceYield: ResourcePool, mineMax: ResourcePool, industryMax = 3): Planet => ({
@@ -824,6 +824,7 @@ export function migrateGameState(input: GameState): GameState {
     p.buildingLimits.groundDefense = 4;
     p.buildingLimits.antiSpaceDefense = 3;
     p.buildingLimits.spaceDefense = ORBITAL_DEFENSE_BUILDING_CAP;
+    p.buildingLimits.starbase = 1;
     p.buildingLimits.researchLab = 1;
     p.buildings = Array.isArray(p.buildings) ? p.buildings : [];
     p.defenseRebuildCooldowns ??= {};
@@ -865,8 +866,8 @@ export function migrateGameState(input: GameState): GameState {
       p.spaceQueue = [];
     }
     p.buildings.forEach(ensureOrbitalDefenseHealth);
-    if (p.orbitFocusTargetId && !p.buildings.some(building => building.id === p.orbitFocusTargetId && building.kind === 'spaceDefense')) delete p.orbitFocusTargetId;
-    if (p.enemyOrbitFocusTargetId && !p.buildings.some(building => building.id === p.enemyOrbitFocusTargetId && building.kind === 'spaceDefense')) delete p.enemyOrbitFocusTargetId;
+    if (p.orbitFocusTargetId && !p.buildings.some(building => building.id === p.orbitFocusTargetId && isOrbitalDefenseBuilding(building))) delete p.orbitFocusTargetId;
+    if (p.enemyOrbitFocusTargetId && !p.buildings.some(building => building.id === p.enemyOrbitFocusTargetId && isOrbitalDefenseBuilding(building))) delete p.enemyOrbitFocusTargetId;
     for (const ship of p.orbitUnits) {
       delete ship.phaseArrival;
       if (ship.pendingLanding || ship.pendingEmbark) { ship.orbitTargetX ??= 0; ship.orbitTargetY ??= 0; }
@@ -1479,11 +1480,12 @@ export function setBattleFocus(input: GameState, planetId: string, targetId?: st
 
 export function setOrbitFocusTarget(input: GameState, planetId: string, targetId?: string): GameState {
   const state = clone(input); const p = getPlanet(state, planetId);
-  const target = p?.buildings.find(building => building.id === targetId && building.kind === 'spaceDefense');
+  const target = p?.buildings.find(building => building.id === targetId && isOrbitalDefenseBuilding(building));
   const hasAttackers = p?.orbitUnits.some(unit => unit.faction === 'player');
   if (p && target && p.owner && p.owner !== 'player' && hasAttackers) {
     p.orbitFocusTargetId = p.orbitFocusTargetId === targetId ? undefined : targetId;
-    addMessage(state, `${p.orbitFocusTargetId ? 'Priority target locked' : 'Priority target released'}: orbital defense at ${p.name}.`);
+    const targetLabel = target.kind === 'starbase' ? 'Starbase' : 'orbital defense';
+    addMessage(state, `${p.orbitFocusTargetId ? 'Priority target locked' : 'Priority target released'}: ${targetLabel} at ${p.name}.`);
   }
   return state;
 }
@@ -1598,7 +1600,7 @@ function applyCarrierFighterAttrition(ship: Unit, seconds: number) {
 
 export function recoverOrbitalDefense(input: Building, seconds: number): Building {
   const building = { ...input };
-  if (building.kind !== 'spaceDefense') return building;
+  if (!isOrbitalDefenseBuilding(building)) return building;
   ensureOrbitalDefenseHealth(building);
   if (building.hp! <= 0) return building;
   building.hp = Math.min(building.maxHp!, building.hp! + seconds * ORBITAL_DEFENSE_HULL_REGEN);
@@ -2265,7 +2267,7 @@ export const phaseGateBlocked = (_state: GameState, fleet: Fleet) =>
 
 export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const shots: OrbitalCombatShot[] = [];
-  const defenses = p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building));
+  const defenses = p.buildings.filter(building => isOrbitalDefenseBuilding(building) && isBuildingOperational(building));
   const batteries = p.buildings.filter(building => building.kind === 'antiSpaceDefense' && isBuildingOperational(building));
   const combatants = p.orbitUnits;
   const factions = new Set(combatants.map(unit => unit.faction));
@@ -2365,12 +2367,22 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
   const hostileShips = p.orbitUnits.filter(unit => unit.faction !== 'neutral' && unit.faction !== p.owner);
   defenses.forEach((defense, index) => {
     const from = orbitalDefenseOffset(index, defenses.length);
-    const inRange = (target: Unit) => {
-      const to = shipPosition(target);
-      return orbitDistance(from.x, from.y, to.x, to.y) <= ORBITAL_DEFENSE_RANGE;
-    };
-    const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
-    if (target) shots.push({ attackerId: defense.id, attackerType: 'defense', targetId: target.id, targetType: 'ship', faction: p.owner!, damage: ORBITAL_DEFENSE_STATS.damage, weaponEffect: 'pulse' });
+    const weapons = defense.kind === 'starbase' ? STARBASE_WEAPON_BATTERIES : [{ label: 'Orbital Pulse Cannon', damage: ORBITAL_DEFENSE_STATS.damage, cooldown: 1, mounts: 1, effect: 'pulse' as const, range: ORBITAL_DEFENSE_RANGE }];
+    weapons.forEach((weapon, weaponIndex) => {
+      const inRange = (target: Unit) => {
+        const to = shipPosition(target);
+        return orbitDistance(from.x, from.y, to.x, to.y) <= weapon.range;
+      };
+      const target = hostileShips.find(unit => (unit.pendingLanding || unit.pendingEmbark) && inRange(unit)) ?? hostileShips.find(inRange);
+      if (!target) return;
+      for (let mountIndex = 0; mountIndex < weapon.mounts; mountIndex += 1) {
+        shots.push({
+          attackerId: defense.id, attackerType: 'defense', targetId: target.id, targetType: 'ship', faction: p.owner!,
+          damage: weapon.damage, weaponEffect: weapon.effect, weaponIndex, weaponLabel: weapon.label,
+          mountIndex, mountCount: weapon.mounts, weaponRange: weapon.range,
+        });
+      }
+    });
   });
   batteries.forEach(battery => {
     const inRange = (target: Unit) => {
@@ -2384,7 +2396,7 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
 }
 
 function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
-  const defenses = p.buildings.filter(b => b.kind === 'spaceDefense' && isBuildingOperational(b));
+  const defenses = p.buildings.filter(b => isOrbitalDefenseBuilding(b) && isBuildingOperational(b));
   defenses.forEach(ensureOrbitalDefenseHealth);
   const shots = orbitalCombatShots(p);
   if (!shots.length) {
@@ -2481,16 +2493,19 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
   const defenseProtection = p.owner ? 1 / defenseDurabilityMultiplier(empireEconomy(state, p.owner).completedResearch) : 1;
   p.buildings = p.buildings.map(building => defenseDamage.has(building.id) ? damageBuilding(building, defenseDamage.get(building.id)! * defenseProtection) : building);
 
-  const destroyedDefenses = p.buildings.filter(building => (building.kind === 'spaceDefense' || building.kind === 'antiSpaceDefense') && building.hp! <= 0);
+  const destroyedDefenses = p.buildings.filter(building => (isOrbitalDefenseBuilding(building) || building.kind === 'antiSpaceDefense') && building.hp! <= 0);
   if (destroyedDefenses.length) {
     const destroyedIds = new Set(destroyedDefenses.map(building => building.id));
     const orbitalDefenseCount = destroyedDefenses.filter(building => building.kind === 'spaceDefense').length;
+    const starbaseCount = destroyedDefenses.filter(building => building.kind === 'starbase').length;
     const batteryCount = destroyedDefenses.filter(building => building.kind === 'antiSpaceDefense').length;
     if (orbitalDefenseCount) startDefenseRebuildCooldown(p, 'spaceDefense');
+    if (starbaseCount) startDefenseRebuildCooldown(p, 'starbase');
     if (batteryCount) startDefenseRebuildCooldown(p, 'antiSpaceDefense');
     p.buildings = p.buildings.filter(building => !destroyedIds.has(building.id));
     if (p.orbitFocusTargetId && destroyedIds.has(p.orbitFocusTargetId)) delete p.orbitFocusTargetId;
     if (orbitalDefenseCount) addMessage(state, `${orbitalDefenseCount} orbital defense platform${orbitalDefenseCount === 1 ? '' : 's'} destroyed at ${p.name}.`);
+    if (starbaseCount) addMessage(state, `${starbaseCount === 1 ? 'Starbase' : `${starbaseCount} starbases`} destroyed at ${p.name}.`);
     if (batteryCount) addMessage(state, `${batteryCount} anti-space batter${batteryCount === 1 ? 'y' : 'ies'} destroyed at ${p.name}.`);
   }
   p.orbitUnits = p.orbitUnits.filter(unit => unit.hp > 0);
@@ -2588,7 +2603,7 @@ function directAiOrbitalShips(state: GameState, p: Planet) {
       || typeof ship.orbitTargetX === 'number' || typeof ship.orbitTargetY === 'number') continue;
     const hostileShips = p.orbitUnits.filter(target => target.faction !== 'neutral' && target.faction !== ship.faction);
     const hostileInstallations = p.owner && p.owner !== ship.faction
-      ? p.buildings.filter(building => building.kind === 'spaceDefense' && isBuildingOperational(building)).map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length))
+      ? p.buildings.filter(building => isOrbitalDefenseBuilding(building) && isBuildingOperational(building)).map((building, index, defenses) => orbitalDefenseOffset(index, defenses.length))
       : [];
     const targets = [
       ...hostileShips.map(target => ({ x: target.orbitX ?? 0, y: target.orbitY ?? 0 })),
@@ -2781,6 +2796,7 @@ function runEnemyStrategicAction(state: GameState) {
       ['metalMine', 2], ['crystalMine', 2], ['goldMine', 2], ['groundFactory', 2], ['spaceFactory', 2],
       ['groundDefense', 1], ['spaceDefense', 1], ['antiSpaceDefense', 1], ['researchLab', 1],
       ['advancedGroundFactory', 1], ['advancedSpaceFactory', 1], ['experimentalSpaceFactory', 1],
+      ['starbase', 1],
       ['metalMine', p.buildingLimits.metalMine], ['crystalMine', p.buildingLimits.crystalMine], ['goldMine', p.buildingLimits.goldMine],
     ];
     priorities.some(([kind, target]) => enemyBuild(state, p, kind, target));

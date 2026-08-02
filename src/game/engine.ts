@@ -59,7 +59,7 @@ import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND,
   RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TITAN_UPGRADE_IDS, UNITS, pool,
-  blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isOrbitalDefenseBuilding, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
+  blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, groundUnitKindsForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isOrbitalDefenseBuilding, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   canGroundUnitAttackTarget, groundUnitVisionRange, isFlyingGroundUnit, isInfantryGroundUnit,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
@@ -2837,15 +2837,14 @@ function runEnemyStrategicAction(state: GameState) {
     priorities.some(([kind, target]) => enemyBuild(state, p, kind, target));
 
     if (p.groundUnits.length + p.groundQueue.length < forceTarget && p.groundQueue.length < 2) {
-      const localGroundKinds = new Set([...p.groundUnits.map(unit => unit.kind), ...p.groundQueue.map(item => item.kind)]);
-      const missingSpecialists = (['flakRover', 'dragonflyScout', 'falconGunship'] as GroundUnitKind[])
-        .map(groundKind)
-        .filter(kind => !localGroundKinds.has(kind));
-      const advancedKind: GroundUnitKind = state.enemyCompletedResearch.includes('heavyArmor')
-        ? groundKind(state.nextId % 3 === 0 ? 'railgunTank' : state.nextId % 2 ? 'plasmaTank' : 'siegeWalker')
-        : groundKind('shockTrooper');
-      const basicKind: GroundUnitKind = groundKind(state.nextId % 3 === 0 ? 'artillery' : state.nextId % 2 ? 'lightTank' : 'infantry');
-      [...missingSpecialists, advancedKind, basicKind].some(kind => enemyQueueUnit(state, p, kind));
+      const hasAdvancedFactory = p.buildings.some(building => building.kind === 'advancedGroundFactory');
+      const candidates = groundUnitKindsForCivilization(civilization).filter(kind => {
+        const definition = UNITS[kind];
+        return enemyHasResearch(state, definition.requires) && (!definition.advancedFactory || hasAdvancedFactory);
+      });
+      const start = candidates.length ? state.nextId % candidates.length : 0;
+      const randomizedOrder = [...candidates.slice(start), ...candidates.slice(0, start)];
+      randomizedOrder.some(kind => enemyQueueUnit(state, p, kind));
     }
 
     const transportTarget = (state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3)

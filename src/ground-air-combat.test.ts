@@ -119,28 +119,27 @@ describe('ground anti-air roles', () => {
     expect(aircraftDamage).toBeCloseTo(vehicleDamage * 1.5);
   });
 
-  it('makes every AI civilization establish flak, scout-air, and gunship roles', () => {
+  it('gives every available unit in an AI civilization roster the same production selection', () => {
     (Object.keys(FLAK_BY_FACTION) as PlayableFaction[]).forEach(civilization => {
-      let state = createInitialState({ mapSize: 'small', difficulty: 'commander', enemyFaction: civilization });
-      const home = state.planets.find(planet => planet.owner === 'enemy')!;
-      home.buildings.push({ id: 'advanced-ground', kind: 'advancedGroundFactory' });
-      state.enemyCompletedResearch.push('advancedIndustry', 'groundWarfare');
-      state.enemyResources = { metal: 10000, crystal: 10000, gold: 10000, biomass: 10000 };
-      state.enemyActionClock = 0;
-      state.enemyAttackClock = 9999;
-      const expected = [
-        civilizationUnitKind(civilization, 'flakRover'),
-        civilizationUnitKind(civilization, 'dragonflyScout'),
-        civilizationUnitKind(civilization, 'falconGunship'),
-      ];
-
-      for (const kind of expected) {
-        state = tick(state, 0);
-        expect(home.id).toBe(state.planets.find(planet => planet.owner === 'enemy')!.id);
-        expect(state.planets.find(planet => planet.id === home.id)!.groundQueue[0].kind).toBe(kind);
-        state.planets.find(planet => planet.id === home.id)!.groundQueue[0].remaining = 0;
+      const roster = groundUnitKindsForCivilization(civilization);
+      const selected = roster.map((_, index) => {
+        const state = createInitialState({ mapSize: 'small', difficulty: 'commander', enemyFaction: civilization });
+        const home = state.planets.find(planet => planet.owner === 'enemy')!;
+        home.buildings.push({ id: 'advanced-ground', kind: 'advancedGroundFactory' });
+        state.enemyCompletedResearch.push('advancedIndustry', 'groundWarfare', 'heavyArmor');
+        state.enemyResources = { metal: 10000, crystal: 10000, gold: 10000, biomass: 10000 };
         state.enemyActionClock = 0;
-      }
+        state.enemyAttackClock = 9999;
+        state.nextId = 1000 + index;
+
+        const advanced = tick(state, 0);
+        return advanced.planets.find(planet => planet.id === home.id)!.groundQueue[0].kind;
+      });
+
+      expect(new Set(selected)).toEqual(new Set(roster));
+      expect(selected).toContain(civilizationUnitKind(civilization, 'flakRover'));
+      expect(selected).toContain(civilizationUnitKind(civilization, 'dragonflyScout'));
+      expect(selected).toContain(civilizationUnitKind(civilization, 'falconGunship'));
     });
   });
 });

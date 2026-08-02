@@ -146,7 +146,7 @@ Three end-branch capstones can be researched without a level limit. Industrial I
 - Ground and space production queues.
 - Visible, selectable and groupable orbital Space Yards with independent production queues, plus quantity-based Ground Factory production speed.
 - Automatic round-robin hull distribution across compatible Space Yards, with grouped multi-build as an explicit override.
-- Enlarged orbital projectile envelopes, brighter screen-stable outlines, and destruction bursts for every visible ship keep lethal space-combat exchanges readable at tactical and strategic zoom.
+- Orbital projectile envelopes retain their compact tactical size but never shrink below a five-screen-pixel envelope at strategic zoom. Their bright cores remain partially visible throughout each flight, large-fleet rendering budgets select currently firing salvos before sampling them, and destruction bursts for every visible ship keep lethal space-combat exchanges readable at every zoom level.
 - Non-instant gravity-well maneuvering with ships capped at a 90-degree-per-second turn rate and retaining 35 percent forward momentum while turning, shortest-path multi-lane travel, automatic Transport embarkation, unloading, colonization, and hostile invasion.
 - Expanded 780-pixel gravity wells, 86-pixel planets, separated ship formations, and empty-space deselection outside the active well.
 - Four-times-larger galaxy canvas with long thin lanes, hidden scrollbars, continuous WASD camera panning, buttons-only 2%–150% map zoom, a viewport-aware Show Whole Map control, and an orbitable 3D perspective camera.

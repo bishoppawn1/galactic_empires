@@ -5,7 +5,7 @@ import {
 } from '../../game';
 import { factionName, fleetPhaseLabel, planetDisplayColor } from '../shared/presentation';
 import { ShipImage, shipDisplaySize } from '../shared/ShipImage';
-import { ORBITAL_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
+import { ORBITAL_PROJECTILE_MIN_SCREEN_SIZE, ORBITAL_PROJECTILE_SIZE, WeaponFire } from '../shared/WeaponFire';
 import {
   DEFAULT_GALAXY_CAMERA, cameraDepth, clampCameraPitch, galaxyCameraBounds, projectGalaxyPoint, unprojectGalaxyPoint,
   type GalaxyCamera,
@@ -292,9 +292,15 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
             const shipsById = new Map(p.orbitUnits.map(ship => [ship.id, ship]));
             const allCombatShots = orbitalCombatShots(p);
             const visualCombatShots = allCombatShots.filter(shot => shot.attackerType !== 'ship' || (shot.mountIndex ?? 0) === 0);
+            const firingVisualCombatShots = visualCombatShots.filter(shot => {
+              const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
+              if (!firingShip || shot.weaponIndex === undefined) return true;
+              const flash = firingShip.weaponFlashes?.[shot.weaponIndex] ?? (shot.weaponIndex === 0 ? firingShip.weaponFlash : undefined);
+              return typeof flash !== 'number' || flash > 0;
+            });
             const combatShots = largeFleetRendering
-              ? evenlySampleVisuals(visualCombatShots, MAX_LARGE_FLEET_VISUAL_SHOTS)
-              : visualCombatShots;
+              ? evenlySampleVisuals(firingVisualCombatShots, MAX_LARGE_FLEET_VISUAL_SHOTS)
+              : firingVisualCombatShots;
             function mapPosition(id: string, type: 'ship' | 'defense' | 'battery' | 'fighter'): { x: number; y: number } | undefined {
               if (type === 'battery') return { x: dimensions.width * p.x / 100, y: dimensions.height * p.y / 100 };
               if (type === 'defense') {
@@ -313,12 +319,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
               const phase = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * .071 + state.elapsed * 1.65;
               return { x: center.x + Math.cos(phase) * 24, y: center.y + Math.sin(phase) * 24 };
             }
-            const firingShots = combatShots.filter(shot => {
-              const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
-              if (!firingShip || shot.weaponIndex === undefined) return true;
-              const flash = firingShip.weaponFlashes?.[shot.weaponIndex] ?? (shot.weaponIndex === 0 ? firingShip.weaponFlash : undefined);
-              return typeof flash !== 'number' || flash > 0;
-            });
+            const firingShots = combatShots;
             const carrierShotTotals = new Map<string, number>();
             firingShots.forEach(shot => {
               const firingShip = shot.attackerType === 'ship' ? shipsById.get(shot.attackerId) : undefined;
@@ -351,7 +352,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
                 if (!source || !target) return [];
                 const weaponProjectiles = shot.mountCount ?? 1;
                 const projectiles = largeFleetRendering ? Math.min(weaponProjectiles, MAX_LARGE_FLEET_PROJECTILES_PER_SALVO) : weaponProjectiles;
-                return <WeaponFire key={`${shot.attackerId}-w${shot.weaponIndex ?? 'installation'}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={ORBITAL_PROJECTILE_SIZE} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
+                return <WeaponFire key={`${shot.attackerId}-w${shot.weaponIndex ?? 'installation'}-fires-${shot.targetId}`} id={`${shot.attackerId}-${index}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} effect={shot.weaponEffect} projectiles={projectiles} faction={shot.faction} size={ORBITAL_PROJECTILE_SIZE} screenScale={zoom} minimumScreenSize={ORBITAL_PROJECTILE_MIN_SCREEN_SIZE} className={`${shot.attackerType === 'ship' ? 'ship-fire' : 'installation-fire'} ${shot.attackerType === 'battery' ? 'battery-fire' : ''}`} />;
               }),
             ];
           })}

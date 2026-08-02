@@ -38,8 +38,9 @@ const flightDurations: Record<WeaponEffect, number> = {
 // source art enough room to render cleanly.
 export const GROUND_PROJECTILE_SIZE = .18;
 export const ORBITAL_PROJECTILE_SIZE = 10;
+export const ORBITAL_PROJECTILE_MIN_SCREEN_SIZE = 5;
 
-export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, className = '' }: {
+export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, size, screenScale = 1, minimumScreenSize = 0, className = '' }: {
   id: string;
   x1: number;
   y1: number;
@@ -49,6 +50,8 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   projectiles: number;
   faction: UnitFaction;
   size: number;
+  screenScale?: number;
+  minimumScreenSize?: number;
   className?: string;
 }) {
   const dx = x2 - x1, dy = y2 - y1;
@@ -59,13 +62,16 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
   const count = Math.max(1, projectiles);
   // The source art has generous transparent padding so it needs a larger SVG
   // envelope than its apparent bolt size to stay readable on the tactical maps.
-  const imageWidth = beam ? distance : Math.min(distance, size * 3.2);
-  const imageHeight = size * 3;
+  const minimumWorldSize = minimumScreenSize / Math.max(.02, screenScale);
+  const imageWidth = beam ? distance : Math.min(distance, Math.max(size * 3.2, minimumWorldSize * 1.15));
+  const imageHeight = Math.max(size * 3, minimumWorldSize);
+  const coreRadius = Math.max(.08, size * .2, minimumWorldSize * .3);
   const travel = Math.max(0, distance - imageWidth);
   const duration = flightDurations[effect];
+  const projectileOpacityValues = minimumScreenSize > 0 ? '.18;1;1;.18' : '0;1;1;0';
   const offsets = Array.from({ length: count }, (_, index) => (index - (count - 1) / 2) * size * .22);
 
-  return <g className={`weapon-fire weapon-${effect} ${faction} ${className}`} data-weapon-effect={effect} data-projectiles={projectiles} data-projectile-size={size}>
+  return <g className={`weapon-fire weapon-${effect} ${faction} ${className}`} data-weapon-effect={effect} data-projectiles={projectiles} data-projectile-size={size} data-minimum-screen-size={minimumScreenSize}>
     <title>{effect} weapon fire</title>
     <g transform={`translate(${x1} ${y1}) rotate(${angle})`}>
       {beam && <line className="weapon-beam-core" x1="0" y1="0" x2={distance} y2="0">
@@ -75,11 +81,11 @@ export function WeaponFire({ id, x1, y1, x2, y2, effect, projectiles, faction, s
         <image className="weapon-projectile" href={weaponImages[effect]} x="0" y={-imageHeight / 2 + offset} width={imageWidth} height={imageHeight} preserveAspectRatio="none">
           {beam
             ? <animate attributeName="opacity" values=".35;1;.55" dur={`${duration}s`} begin={`${index * .035}s`} repeatCount="indefinite" />
-            : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
+            : <><animate attributeName="x" from="0" to={travel} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /><animate attributeName="opacity" values={projectileOpacityValues} keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" /></>}
         </image>
-        {!beam && <circle className="weapon-projectile-core" cx={imageWidth / 2} cy={offset} r={Math.max(.08, size * .2)} vectorEffect="non-scaling-stroke">
+        {!beam && <circle className="weapon-projectile-core" cx={imageWidth / 2} cy={offset} r={coreRadius} vectorEffect="non-scaling-stroke">
           <animate attributeName="cx" from={imageWidth / 2} to={travel + imageWidth / 2} dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" values={projectileOpacityValues} keyTimes="0;.08;.84;1" dur={`${duration}s`} begin={`${index * .045}s`} repeatCount="indefinite" />
         </circle>}
       </g>)}
     </g>

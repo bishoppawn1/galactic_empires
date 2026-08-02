@@ -10,6 +10,7 @@ import { fleetMapPosition } from './components/galaxy/geometry';
 import { SHIP_EXPLOSION_DURATION_MS } from './components/galaxy/ShipExplosionLayer';
 import { GROUND_UNIT_DISPLAY_SCALES, GroundUnitImage } from './components/shared/GroundUnitImage';
 import { shipDisplaySize, shipImageSource, ShipImage } from './components/shared/ShipImage';
+import { ORBITAL_PROJECTILE_MIN_SCREEN_SIZE } from './components/shared/WeaponFire';
 import { BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, createInitialState, findPlanetPath, galaxyCanvasDimensions, groundTerrainForPlanet, LANDING_APPROACH_SPEED, ORBITAL_DEFENSE_STATS, STARBASE_STATS, TIER_TWO_COPY_BY_TIER_ONE, UNITS, type GameState, type Unit, type UnitKind } from './game';
 
 const makeUnit = (id: string, kind: UnitKind, faction: 'player' | 'enemy'): Unit => ({
@@ -1221,6 +1222,21 @@ describe('Galactic Empires interface', () => {
     expect(projectile.querySelector('animate[attributeName="x"]')).toHaveAttribute('repeatCount', 'indefinite');
   });
 
+  it('keeps compact orbital projectiles above a readable screen-space floor when zoomed out', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = [
+      { ...makeUnit('strategic-projectile', 'missileFrigate', 'player'), orbitX: 0, orbitY: 0 },
+      { ...makeUnit('strategic-projectile-target', 'escortFrigate', 'enemy'), orbitX: 350, orbitY: 0 },
+    ];
+    render(<GalaxyMap state={state} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} zoom={.1} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />);
+
+    const fire = document.querySelector('.orbital-fire .weapon-fire.weapon-missile')!;
+    expect(fire).toHaveAttribute('data-minimum-screen-size', String(ORBITAL_PROJECTILE_MIN_SCREEN_SIZE));
+    expect(fire.querySelector('.weapon-projectile')).toHaveAttribute('height', '50');
+    expect(fire.querySelector('.weapon-projectile-core')).toHaveAttribute('r', '15');
+    expect(fire.querySelector('.weapon-projectile animate[attributeName="opacity"]')).toHaveAttribute('values', '.18;1;1;.18');
+  });
+
   it('renders every projectile in a ship weapon profile', () => {
     const state = createInitialState(); const terra = state.planets[0];
     terra.orbitUnits = [
@@ -1488,6 +1504,23 @@ describe('Galactic Empires interface', () => {
     expect(document.querySelectorAll('.orbit-ship.player')).toHaveLength(60);
     expect(document.querySelector('.ship-canvas-layer')).toHaveAttribute('data-ship-count', '60');
     expect(terra.orbitUnits).toHaveLength(120);
+  });
+
+  it('budgets currently firing large-fleet salvos before sampling inactive weapons', () => {
+    const state = createInitialState(); const terra = state.planets[0];
+    terra.orbitUnits = Array.from({ length: 120 }, (_, index) => ({
+      ...makeUnit(`active-budget-salvo-${index}`, 'escortFrigate', index % 2 ? 'enemy' : 'player'),
+      orbitX: 100 + index % 12 * 3,
+      orbitY: 100 + Math.floor(index / 12) * 3,
+      weaponFlash: index === 119 ? .5 : 0,
+      weaponFlashes: [index === 119 ? .5 : 0],
+    }));
+    saveState(state);
+    render(<App />);
+
+    expect(screen.getByRole('main', { name: 'Galaxy map' })).toHaveAttribute('data-large-fleet-rendering', 'true');
+    expect(document.querySelectorAll('.orbital-fire .weapon-fire')).toHaveLength(1);
+    expect(document.querySelectorAll('.orbital-fire .weapon-projectile')).toHaveLength(2);
   });
 
 

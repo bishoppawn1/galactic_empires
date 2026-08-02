@@ -17,6 +17,7 @@ import phaseLockCruiser from '../../assets/ships/phase-lock-cruiser.png';
 import aegisBastionLander from '../../assets/aegis/ships/bastion-lander.png';
 import aegisBastionLanderCruiser from '../../assets/aegis/ships/bastion-lander-cruiser.png';
 import aegisCitadelCarrier from '../../assets/aegis/ships/citadel-carrier.png';
+import aegisJudicatorBattleship from '../../assets/aegis/ships/judicator-battleship.png';
 import aegisLanceFrigate from '../../assets/aegis/ships/lance-frigate.png';
 import aegisLanceCruiser from '../../assets/aegis/ships/lance-cruiser.png';
 import aegisSentinelFrigate from '../../assets/aegis/ships/sentinel-flak-frigate.png';
@@ -107,6 +108,7 @@ const SHIP_IMAGES: Record<SpaceUnitKind, string> = {
   aegisAnchorCruiser: aegisResonanceAnchorCruiser,
   aegisWardCruiser,
   aegisCitadelCarrier,
+  aegisJudicatorBattleship,
   aegisSovereignDreadnought,
   covenantAssemblyArk,
   covenantSalvageFrigate,
@@ -175,6 +177,7 @@ export const SHIP_DISPLAY_SIZES: Record<SpaceUnitKind, number> = {
   aegisAnchorCruiser: 126,
   aegisWardCruiser: 104,
   aegisCitadelCarrier: 128,
+  aegisJudicatorBattleship: 138,
   aegisSovereignDreadnought: 148,
   covenantAssemblyArk: 78,
   covenantSalvageFrigate: 84,

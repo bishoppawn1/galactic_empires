@@ -522,12 +522,13 @@ describe('Galactic Empires interface', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'forces' }));
 
-    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Bastion Lander Cruiser', 'Shield Monitor Cruiser', 'Lance Cruiser', 'Sentinel Flak Cruiser', 'Citadel Mega-Carrier', 'Sovereign Titan']) {
+    for (const label of ['Warden Cohort', 'Bastion Tank', 'Rampart Artillery', 'Paladin Guard', 'Fortress Walker', 'Bastion Lander', 'Shield Monitor', 'Lance Frigate', 'Sentinel Flak Frigate', 'Bastion Lander Cruiser', 'Shield Monitor Cruiser', 'Lance Cruiser', 'Sentinel Flak Cruiser', 'Citadel Mega-Carrier', 'Judicator Battleship', 'Sovereign Titan']) {
       expect(screen.getByText(label, { selector: '.unit-button b' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Ward Cruiser', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(screen.queryByText('Infantry', { selector: '.unit-button b' })).not.toBeInTheDocument();
     expect(document.querySelectorAll('.unit-button .ground-unit-image')).toHaveLength(8);
+    expect(document.querySelectorAll('.unit-button .ship-image')).toHaveLength(14);
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Empire views' })).getByRole('button', { name: 'research' }));
     expect(screen.getByText('Sovereign Titan')).toBeInTheDocument();

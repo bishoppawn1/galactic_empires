@@ -113,6 +113,8 @@ describe('unit weapon definitions', () => {
     for (const roster of [COALITION_SPACE_KINDS, BROOD_SPACE_KINDS, AEGIS_SPACE_KINDS, COVENANT_SPACE_KINDS]) {
       expect(roster.filter(kind => TITAN_KINDS.has(kind))).toHaveLength(1);
       expect(roster.filter(kind => TITAN_KINDS.has(kind)).every(kind => UNITS[kind].spaceTier === 3)).toBe(true);
+      expect(roster.filter(kind => UNITS[kind].spaceTier === 3)).toHaveLength(3);
+      expect(roster.filter(kind => UNITS[kind].spaceTier === 3 && UNITS[kind].requires === 'capitalShips')).toHaveLength(1);
       const tierTwoShips = roster.filter(kind => UNITS[kind].spaceTier === 2);
       expect(tierTwoShips).toHaveLength(5);
       expect(tierTwoShips.every(kind => UNITS[kind].label.includes('Cruiser'))).toBe(true);
@@ -588,12 +590,26 @@ describe('starter faction foundations', () => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
     state.resources = { metal: 10_000, crystal: 10_000, gold: 10_000 };
     expect(AEGIS_GROUND_KINDS).toHaveLength(8);
-    expect(AEGIS_SPACE_KINDS).toHaveLength(13);
+    expect(AEGIS_SPACE_KINDS).toHaveLength(14);
     expect(UNITS.aegisWarden.shields).toBeGreaterThan(UNITS.infantry.shields);
     expect(UNITS.aegisShieldMonitor.shields).toBeGreaterThan(UNITS.escortFrigate.shields);
+    expect(UNITS.aegisJudicatorBattleship).toMatchObject({ spaceTier: 3, requires: 'capitalShips', ability: { kind: 'wardInterception' } });
     expect(queueUnit(state, 'terra', 'infantry').ok).toBe(false);
     const queued = queueUnit(state, 'terra', 'aegisWarden'); expectOk(queued);
     expect(tick(queued.state, UNITS.aegisWarden.time!).planets[0].groundUnits.some(unit => unit.kind === 'aegisWarden')).toBe(true);
+    state.completedResearch.push('capitalShips');
+    state.planets[0].buildings.push({ id: 'judicator-yard', kind: 'experimentalSpaceFactory', spaceQueue: [] });
+    const judicator = queueUnit(state, 'terra', 'aegisJudicatorBattleship', ['judicator-yard']); expectOk(judicator);
+    expect(spaceYards(judicator.state.planets[0]).flatMap(yard => yard.spaceQueue ?? []).map(item => item.kind)).toContain('aegisJudicatorBattleship');
+  });
+
+  it('maps legacy Aegis battlecruisers to the repeatable Judicator instead of the unique Titan', () => {
+    expect(civilizationUnitKind('aegis', 'battlecruiser')).toBe('aegisJudicatorBattleship');
+    const legacy = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' });
+    legacy.planets[0].orbitUnits = [makeUnit('legacy-capital', 'battlecruiser', 'player')];
+    const migratedKind = migrateGameState(legacy).planets[0].orbitUnits[0].kind;
+    expect(migratedKind).toBe('aegisJudicatorBattleship');
+    expect([...TITAN_KINDS]).not.toContain(migratedKind);
   });
 
   it('gives every Aegis unit a tactical ability while Tier 2 counterparts preserve their Tier 1 role', () => {
@@ -682,7 +698,7 @@ describe('starter faction foundations', () => {
     const planet = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis' }).planets[0];
     const lance = { ...makeUnit('lance', 'aegisLanceFrigate', 'player'), orbitX: 0, orbitY: 0 };
     const target = { ...makeUnit('target', 'transport', 'enemy'), orbitX: 400, orbitY: 0 };
-    const ward = { ...makeUnit('ward', 'aegisWardCruiser', 'enemy'), orbitX: 420, orbitY: 0 };
+    const ward = { ...makeUnit('ward', 'aegisJudicatorBattleship', 'enemy'), orbitX: 420, orbitY: 0 };
     planet.orbitUnits = [lance, target, ward];
     const lanceShot = orbitalCombatShots(planet).find(shot => shot.attackerId === lance.id)!;
     expect(lanceShot.targetId).toBe(ward.id);

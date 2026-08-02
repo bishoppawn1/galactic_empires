@@ -113,6 +113,7 @@ const SHIP_SECONDARY_WEAPONS: Partial<Record<SpaceUnitKind, WeaponDefinition[]>>
   worldEater: [{ label: 'Bioplasma Nodule', damage: 1.25, cooldown: .5, projectiles: 6, effect: 'plasma', range: 300 }],
   aegisWardCruiser: [{ label: 'Guardian Laser', damage: .55, cooldown: .45, projectiles: 2, effect: 'laser', range: 220 }],
   aegisCitadelCarrier: [{ label: 'Guardian Laser', damage: .55, cooldown: .4, projectiles: 6, effect: 'laser', range: 250 }],
+  aegisJudicatorBattleship: [{ label: 'Guardian Laser', damage: .55, cooldown: .45, projectiles: 6, effect: 'laser', range: 280 }],
   aegisSovereignDreadnought: [{ label: 'Ward Plasma Turret', damage: 1.3, cooldown: .5, projectiles: 8, effect: 'plasma', range: 320 }],
   covenantFoundryCruiser: [{ label: 'Point-Defense Laser', damage: .4, cooldown: .45, projectiles: 2, effect: 'laser', range: 210 }],
   covenantFabricatorCarrier: [{ label: 'Chain Cannon', damage: .65, cooldown: .5, projectiles: 4, effect: 'kinetic', range: 230 }],
@@ -253,7 +254,7 @@ const BROOD_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
 const AEGIS_RESEARCH_UNLOCKS: Partial<Record<ResearchId, string[]>> = {
   advancedIndustry: ['Advanced Ground Factory', 'Advanced Space Yard'], groundWarfare: ['Paladin Guard'],
   fleetLogistics: ['Citadel Mega-Carrier doctrine'], orbitalEngineering: ['Ward Cruiser'], quantumExtraction: ['+25% resource output'],
-  heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Sovereign command systems'], titanEngineering: ['Sovereign Titan'],
+  heavyArmor: ['Fortress Walker'], carrierOperations: ['Citadel Mega-Carrier'], capitalShips: ['Experimental Space Yard', 'Judicator Battleship', 'Sovereign command systems'], titanEngineering: ['Sovereign Titan'],
   industrialIteration: ['Repeatable · +5% sentinel production per level'], resourceSynthesis: ['Repeatable · +5% resource output per level'], combatSimulation: ['Repeatable · +3% fleet damage per level'],
   aegisResonanceCore: ['Harmonic technology lattice'],
   aegisPatientAssembly: ['+10% sentinel production speed'],
@@ -738,7 +739,7 @@ const AEGIS_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {
   shockTrooper: 'aegisPaladinGuard', railgunTank: 'aegisFortressWalker', plasmaTank: 'aegisFortressWalker', siegeWalker: 'aegisFortressWalker',
   transport: 'aegisBastionLander', escortFrigate: 'aegisShieldMonitor', missileFrigate: 'aegisLanceFrigate', reconCutter: 'aegisFarcastScout', phaseSuppressionFrigate: 'aegisResonanceAnchor', phaseLockCruiser: 'aegisAnchorCruiser', lightCruiser: 'aegisWardCruiser', destroyer: 'aegisWardCruiser',
   advancedTransport: 'aegisBastionLanderII', advancedEscortFrigate: 'aegisShieldMonitorII', advancedMissileFrigate: 'aegisLanceCruiser', advancedFlakFrigate: 'aegisSentinelCruiser',
-  flakFrigate: 'aegisSentinelFrigate', assaultCarrier: 'aegisCitadelCarrier', battlecruiser: 'aegisSovereignDreadnought', dreadnought: 'aegisSovereignDreadnought',
+  flakFrigate: 'aegisSentinelFrigate', assaultCarrier: 'aegisCitadelCarrier', battlecruiser: 'aegisJudicatorBattleship', dreadnought: 'aegisSovereignDreadnought',
 };
 const AEGIS_UNIT_KINDS = new Set<UnitKind>([...AEGIS_GROUND_KINDS, ...AEGIS_SPACE_KINDS]);
 const COVENANT_EQUIVALENTS: Partial<Record<UnitKind, UnitKind>> = {

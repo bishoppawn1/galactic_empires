@@ -45,7 +45,7 @@ export type SpaceUnitKind =
   | 'hiveCruiser' | 'voidStalker' | 'broodCarrier' | 'leviathan' | 'worldEater'
   | 'aegisBastionLander' | 'aegisShieldMonitor' | 'aegisLanceFrigate' | 'aegisSentinelFrigate' | 'aegisFarcastScout' | 'aegisResonanceAnchor'
   | 'aegisBastionLanderII' | 'aegisShieldMonitorII' | 'aegisLanceCruiser' | 'aegisSentinelCruiser' | 'aegisAnchorCruiser'
-  | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisSovereignDreadnought'
+  | 'aegisWardCruiser' | 'aegisCitadelCarrier' | 'aegisJudicatorBattleship' | 'aegisSovereignDreadnought'
   | 'covenantAssemblyArk' | 'covenantSalvageFrigate' | 'covenantChainFrigate' | 'covenantInterdictor' | 'covenantSurveyorSkiff' | 'covenantLockstepFrigate'
   | 'covenantAssemblyArkII' | 'covenantSalvageCruiser' | 'covenantChainCruiser' | 'covenantInterdictorCruiser' | 'covenantLockstepCruiser'
   | 'covenantFoundryCruiser' | 'covenantFabricatorCarrier' | 'covenantIronclad' | 'covenantDreadforge';

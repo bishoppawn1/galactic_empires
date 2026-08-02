@@ -1,4 +1,4 @@
-import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, MapSize, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, TitanUpgradeId, Unit, UnitDefinition, UnitKind, WeaponDefinition } from './types';
+import type { Building, BuildingKind, DefenseBuildingKind, Definition, GroundUnitKind, MapSize, PlayableFaction, ResearchId, ResourcePool, ShipWeaponBattery, SpaceShipTier, SpaceUnitKind, SpaceYardKind, TitanKind, TitanUpgradeId, Unit, UnitDefinition, UnitKind, WeaponDefinition } from './types';
 import { AEGIS_GROUND_KINDS, AEGIS_SPACE_KINDS, AEGIS_UNITS } from './units/aegis';
 import { COVENANT_GROUND_KINDS, COVENANT_SPACE_KINDS, COVENANT_UNITS } from './units/covenant';
 
@@ -66,7 +66,7 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   defenseTurret: { label: 'Defense Turret', description: 'Fortified emplacement with a dual repeater cannon.', cost: pool(), factory: 'ground', hp: 320, shields: 70, range: 32, moveSpeed: 0, weapon: { label: 'Dual Repeater Cannon', damage: 4, cooldown: 1, projectiles: 2, effect: 'kinetic' } },
   assaultCarrier: { label: 'Atlas Mega Carrier', description: 'Tier 3 fleet carrier transporting eight squads and launching replaceable strike fighters.', cost: pool(600, 440, 280), time: 92, factory: 'space', spaceTier: 3, hp: 1050, shields: 540, range: 340, moveSpeed: 0, weapon: { label: 'Falcon Strike Fighter', damage: 1.5, cooldown: .92, projectiles: 8, effect: 'drone' }, requires: 'carrierOperations', capacity: 8, fighterWing: { label: 'Falcon Fighters', capacity: 8, rebuildTime: 18, attritionTime: 15 } },
   battlecruiser: { label: 'Battlecruiser', description: 'Tier 3 capital hull armed with two heavy rail batteries.', cost: pool(520, 360, 240), time: 78, factory: 'space', spaceTier: 3, hp: 980, shields: 520, range: 400, moveSpeed: 0, weapon: { label: 'Capital Railgun', damage: 8, cooldown: 1, projectiles: 2, effect: 'railgun' }, requires: 'capitalShips' },
-  dreadnought: { label: 'Titan Dreadnought', description: 'The Coalition’s unique Tier 3 Titan, firing three colossal siege beams.', cost: pool(900, 680, 460), time: 120, factory: 'space', spaceTier: 3, hp: 1900, shields: 1050, range: 460, moveSpeed: 0, weapon: { label: 'Siege Beam', damage: 10, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering' },
+  dreadnought: { label: 'Titan Dreadnought', description: 'The Coalition’s unique Tier 3 Titan, a monumental command ship firing three colossal siege beams.', cost: pool(1800, 1400, 950), time: 180, factory: 'space', spaceTier: 3, hp: 3200, shields: 1900, range: 480, moveSpeed: 0, weapon: { label: 'Siege Beam', damage: 17, cooldown: 1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering' },
   broodling: { label: 'Broodling Pack', description: 'A cheap, fast clutch that becomes deadlier when several packs attack together.', cost: pool(20, 5, 2), time: 7, factory: 'ground', hp: 68, shields: 0, range: 7, moveSpeed: 11, weapon: { label: 'Rending Claws', damage: 1, cooldown: .55, projectiles: 2, effect: 'kinetic' }, ability: { kind: 'swarmInstinct', label: 'Swarm Instinct', description: '+20% damage for each nearby Broodling Pack, up to +60%.' } },
   acidSpitter: { label: 'Acid Spitter', description: 'A fragile hunter whose bile strips protection from priority targets.', cost: pool(39, 12, 5), time: 12, factory: 'ground', hp: 82, shields: 0, range: 21, moveSpeed: 6, weapon: { label: 'Caustic Glob', damage: 8, cooldown: 1.8, projectiles: 1, effect: 'plasma' }, ability: { kind: 'corrosiveBile', label: 'Corrosive Bile', description: 'Hits corrode targets for 5 seconds, increasing all damage they take by 35%.' } },
   skitterer: { label: 'Skitterer', description: 'A darting surface reconnaissance organism that is difficult to pin down.', cost: pool(45, 14, 5), time: 13, factory: 'ground', hp: 100, shields: 0, range: 10, moveSpeed: 14, groundTargeting: 'surface', weapon: { label: 'Spine Volley', damage: .8, cooldown: .35, projectiles: 3, effect: 'kinetic' }, ability: { kind: 'evasiveChitin', label: 'Evasive Chitin', description: 'Reduces incoming damage by 30%.' } },
@@ -95,7 +95,7 @@ export const UNITS: Record<UnitKind, UnitDefinition> = {
   voidStalker: { label: 'Void Stalker Cruiser', description: 'A Tier 2 phase-shifting ambush organism that turns aside incoming fire.', cost: pool(310, 198, 112), time: 50, factory: 'space', spaceTier: 2, hp: 650, shields: 280, range: 380, moveSpeed: 0, weapon: { label: 'Phase Spine', damage: 4.3, cooldown: .9, projectiles: 3, effect: 'kinetic' }, requires: 'orbitalEngineering', ability: { kind: 'phaseCarapace', label: 'Phase Carapace', description: 'Reduces incoming damage by 35%.' } },
   broodCarrier: { label: 'Brood Mega-Carrier', description: 'A Tier 3 mobile hive that regrows attack spawn and splits them across hostile ships.', cost: pool(590, 410, 250), time: 88, factory: 'space', spaceTier: 3, hp: 1180, shields: 300, range: 330, moveSpeed: 0, weapon: { label: 'Ripper Spawn', damage: 1.4, cooldown: .7, projectiles: 10, effect: 'drone' }, requires: 'carrierOperations', capacity: 12, fighterWing: { label: 'Ripper Spawn', capacity: 10, rebuildTime: 12, attritionTime: 10 }, ability: { kind: 'spawnCloud', label: 'Spawn Cloud', description: 'Every fighter attack also pressures a second nearby hostile ship for 50% damage.' } },
   leviathan: { label: 'Leviathan', description: 'A Tier 3 capital predator that consumes matter to mend its wounded body.', cost: pool(500, 330, 210), time: 72, factory: 'space', spaceTier: 3, hp: 1150, shields: 360, range: 390, moveSpeed: 0, weapon: { label: 'Nova Gland', damage: 9.5, cooldown: 1.1, projectiles: 2, effect: 'plasma' }, requires: 'capitalShips', ability: { kind: 'devour', label: 'Devour', description: 'Restores hull equal to 20% of the damage it deals.' } },
-  worldEater: { label: 'World Eater', description: 'The Brood’s unique Tier 3 Titan, able to crack orbital fortresses in a few feeding passes.', cost: pool(860, 630, 410), time: 112, factory: 'space', spaceTier: 3, hp: 2200, shields: 650, range: 480, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 12, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
+  worldEater: { label: 'World Eater', description: 'The Brood’s unique Tier 3 Titan, an apex organism able to crack orbital fortresses in a few feeding passes.', cost: pool(1750, 1300, 850), time: 175, factory: 'space', spaceTier: 3, hp: 3800, shields: 1100, range: 500, moveSpeed: 0, weapon: { label: 'Devouring Beam', damage: 20, cooldown: 1.1, projectiles: 3, effect: 'siege' }, requires: 'titanEngineering', ability: { kind: 'planetCracker', label: 'Planet Cracker', description: 'Deals double damage to orbital defense platforms.' } },
   ...AEGIS_UNITS,
   ...COVENANT_UNITS,
 };
@@ -105,19 +105,19 @@ const SHIP_SECONDARY_WEAPONS: Partial<Record<SpaceUnitKind, WeaponDefinition[]>>
   destroyer: [{ label: 'Pulse Turret', damage: .8, cooldown: .6, projectiles: 2, effect: 'pulse', range: 240 }],
   assaultCarrier: [{ label: 'Point-Defense Laser', damage: .4, cooldown: .45, projectiles: 4, effect: 'laser', range: 220 }],
   battlecruiser: [{ label: 'Pulse Turret', damage: .9, cooldown: .6, projectiles: 4, effect: 'pulse', range: 260 }],
-  dreadnought: [{ label: 'Point-Defense Laser', damage: .7, cooldown: .45, projectiles: 6, effect: 'laser', range: 280 }],
+  dreadnought: [{ label: 'Point-Defense Laser', damage: 1.1, cooldown: .45, projectiles: 6, effect: 'laser', range: 300 }],
   hiveCruiser: [{ label: 'Needle Cluster', damage: .5, cooldown: .5, projectiles: 2, effect: 'kinetic', range: 200 }],
   voidStalker: [{ label: 'Acid Cusp', damage: .8, cooldown: .55, projectiles: 2, effect: 'plasma', range: 230 }],
   broodCarrier: [{ label: 'Defensive Spore Cyst', damage: .35, cooldown: .4, projectiles: 4, effect: 'drone', range: 220 }],
   leviathan: [{ label: 'Ripper Talon', damage: .9, cooldown: .45, projectiles: 4, effect: 'kinetic', range: 250 }],
-  worldEater: [{ label: 'Bioplasma Nodule', damage: .8, cooldown: .5, projectiles: 6, effect: 'plasma', range: 280 }],
+  worldEater: [{ label: 'Bioplasma Nodule', damage: 1.25, cooldown: .5, projectiles: 6, effect: 'plasma', range: 300 }],
   aegisWardCruiser: [{ label: 'Guardian Laser', damage: .55, cooldown: .45, projectiles: 2, effect: 'laser', range: 220 }],
   aegisCitadelCarrier: [{ label: 'Guardian Laser', damage: .55, cooldown: .4, projectiles: 6, effect: 'laser', range: 250 }],
-  aegisSovereignDreadnought: [{ label: 'Ward Plasma Turret', damage: .8, cooldown: .5, projectiles: 8, effect: 'plasma', range: 300 }],
+  aegisSovereignDreadnought: [{ label: 'Ward Plasma Turret', damage: 1.3, cooldown: .5, projectiles: 8, effect: 'plasma', range: 320 }],
   covenantFoundryCruiser: [{ label: 'Point-Defense Laser', damage: .4, cooldown: .45, projectiles: 2, effect: 'laser', range: 210 }],
   covenantFabricatorCarrier: [{ label: 'Chain Cannon', damage: .65, cooldown: .5, projectiles: 4, effect: 'kinetic', range: 230 }],
   covenantIronclad: [{ label: 'Defense Cannon', damage: .8, cooldown: .55, projectiles: 6, effect: 'kinetic', range: 270 }],
-  covenantDreadforge: [{ label: 'Defense Cannon', damage: 1, cooldown: .55, projectiles: 8, effect: 'kinetic', range: 300 }],
+  covenantDreadforge: [{ label: 'Defense Cannon', damage: 1.55, cooldown: .55, projectiles: 8, effect: 'kinetic', range: 320 }],
 };
 
 const SHIP_WEAPON_BATTERY_CACHE = new Map<SpaceUnitKind, readonly ShipWeaponBattery[]>();
@@ -624,16 +624,65 @@ export const blocksPhaseGate = (kind: UnitKind) => isPhaseControlShipKind(kind) 
 export const shipMovementSpeedMultiplier = (kind: UnitKind) => UNITS[kind].orbitSpeedMultiplier ?? 1;
 export const phaseControlRateMultiplier = (stacks: number) => PHASE_CONTROL_RATE_MULTIPLIER ** Math.max(0, Math.floor(stacks));
 export const TITAN_KINDS: ReadonlySet<SpaceUnitKind> = new Set(['dreadnought', 'worldEater', 'aegisSovereignDreadnought', 'covenantDreadforge']);
-export const TITAN_UPGRADES: Record<TitanUpgradeId, { label: string; description: string; cost: ResourcePool }> = {
-  siegeCore: { label: 'Siege Core', description: '+35% battery damage per level', cost: pool(360, 280, 180) },
-  shieldMatrix: { label: 'Shield Matrix', description: '+40% maximum shields per level', cost: pool(300, 340, 200) },
-  farcastArray: { label: 'Farcast Array', description: '+10% battery range per level', cost: pool(260, 300, 240) },
+export const TITAN_UPGRADE_IDS: readonly TitanUpgradeId[] = ['siegeCore', 'shieldMatrix', 'farcastArray'];
+export interface TitanSpecializationDefinition {
+  label: string;
+  description: string;
+  cost: ResourcePool;
+  damageMultiplier?: number;
+  rangeMultiplier?: number;
+  hullMultiplier?: number;
+  shieldMultiplier?: number;
+  hullRecoveryPerSecond?: number;
+  shieldRecoveryPerSecond?: number;
+  devourFraction?: number;
+  defenseDamageMultiplier?: number;
+  splashDamageMultiplier?: number;
+  splashRadius?: number;
+  phaseControl?: boolean;
+}
+export const TITAN_SPECIALIZATIONS: Record<TitanKind, Record<TitanUpgradeId, TitanSpecializationDefinition>> = {
+  dreadnought: {
+    siegeCore: { label: 'Triune Arsenal', description: 'All siege and point-defense batteries deal 28% more damage.', cost: pool(800, 620, 420), damageMultiplier: 1.28 },
+    shieldMatrix: { label: 'Command Citadel', description: 'Adds 30% hull, 45% shields, and rapid shield regeneration.', cost: pool(720, 780, 520), hullMultiplier: 1.3, shieldMultiplier: 1.45, shieldRecoveryPerSecond: 8 },
+    farcastArray: { label: 'Longwatch Nexus', description: 'Extends every battery’s range by 35%.', cost: pool(650, 700, 580), rangeMultiplier: 1.35 },
+  },
+  worldEater: {
+    siegeCore: { label: 'Ravenous Maw', description: 'Deals 15% more damage and devours 25% of damage dealt as hull.', cost: pool(760, 560, 360), damageMultiplier: 1.15, devourFraction: .25 },
+    shieldMatrix: { label: 'Apex Carapace', description: 'Adds 50% hull and regenerates 10 hull per second anywhere.', cost: pool(680, 620, 400), hullMultiplier: 1.5, hullRecoveryPerSecond: 10 },
+    farcastArray: { label: 'Void Tendrils', description: 'Adds 25% range and slows hostile ships caught inside it.', cost: pool(620, 650, 460), rangeMultiplier: 1.25, phaseControl: true },
+  },
+  aegisSovereignDreadnought: {
+    siegeCore: { label: 'Judgment Chorus', description: 'Adds 10% damage and doubles Sovereign Barrage splash damage.', cost: pool(1050, 900, 700), damageMultiplier: 1.1, splashDamageMultiplier: .7 },
+    shieldMatrix: { label: 'Sanctuary Crown', description: 'Adds 70% shields and regenerates 15 extra shields per second.', cost: pool(900, 1100, 760), shieldMultiplier: 1.7, shieldRecoveryPerSecond: 15 },
+    farcastArray: { label: 'Resonant Overwatch', description: 'Adds 30% range and expands Sovereign Barrage’s blast radius.', cost: pool(850, 920, 800), rangeMultiplier: 1.3, splashRadius: 240 },
+  },
+  covenantDreadforge: {
+    siegeCore: { label: 'Perfect Dismantling', description: 'Adds 10% damage and raises platform damage to 3.5×.', cost: pool(980, 780, 620), damageMultiplier: 1.1, defenseDamageMultiplier: 3.5 },
+    shieldMatrix: { label: 'Redundant Foundry', description: 'Adds 50% hull and repairs 12 hull per second anywhere.', cost: pool(900, 760, 580), hullMultiplier: 1.5, hullRecoveryPerSecond: 12 },
+    farcastArray: { label: 'Lockstep Nexus', description: 'Adds 25% range and slows hostile ships caught inside it.', cost: pool(820, 840, 700), rangeMultiplier: 1.25, phaseControl: true },
+  },
 };
-export const isTitanKind = (kind: UnitKind): kind is SpaceUnitKind => TITAN_KINDS.has(kind as SpaceUnitKind);
-export const titanUpgradeLevel = (unit: Unit, upgradeId: TitanUpgradeId) =>
-  unit.titanUpgrades?.filter(installed => installed === upgradeId).length ?? 0;
-export const titanWeaponDamageMultiplier = (unit: Unit) => 1 + titanUpgradeLevel(unit, 'siegeCore') * .35;
-export const titanWeaponRangeMultiplier = (unit: Unit) => 1 + titanUpgradeLevel(unit, 'farcastArray') * .1;
+export const isTitanKind = (kind: UnitKind): kind is TitanKind => TITAN_KINDS.has(kind as SpaceUnitKind);
+export const titanUpgradeDefinition = (kind: UnitKind, upgradeId: TitanUpgradeId) =>
+  isTitanKind(kind) ? TITAN_SPECIALIZATIONS[kind][upgradeId] : undefined;
+export const titanUpgradeLevel = (unit: Unit, upgradeId: TitanUpgradeId) => unit.titanUpgrades?.includes(upgradeId) ? 1 : 0;
+export const installedTitanUpgradeId = (unit: Unit) => unit.titanUpgrades?.find(id => TITAN_UPGRADE_IDS.includes(id));
+export const installedTitanUpgrade = (unit: Unit) => {
+  const id = installedTitanUpgradeId(unit);
+  return id ? titanUpgradeDefinition(unit.kind, id) : undefined;
+};
+export const titanWeaponDamageMultiplier = (unit: Unit) => installedTitanUpgrade(unit)?.damageMultiplier ?? 1;
+export const titanWeaponRangeMultiplier = (unit: Unit) => installedTitanUpgrade(unit)?.rangeMultiplier ?? 1;
+export const titanMaximumHull = (unit: Unit) => Math.round(UNITS[unit.kind].hp * (installedTitanUpgrade(unit)?.hullMultiplier ?? 1));
+export const titanMaximumShields = (unit: Unit) => Math.round(UNITS[unit.kind].shields * (installedTitanUpgrade(unit)?.shieldMultiplier ?? 1));
+export const titanHullRecoveryPerSecond = (unit: Unit) => installedTitanUpgrade(unit)?.hullRecoveryPerSecond ?? 0;
+export const titanShieldRecoveryPerSecond = (unit: Unit) => installedTitanUpgrade(unit)?.shieldRecoveryPerSecond ?? 0;
+export const titanDevourFraction = (unit: Unit) => installedTitanUpgrade(unit)?.devourFraction ?? 0;
+export const titanDefenseDamageMultiplier = (unit: Unit) => installedTitanUpgrade(unit)?.defenseDamageMultiplier ?? 2;
+export const titanSplashDamageMultiplier = (unit: Unit) => installedTitanUpgrade(unit)?.splashDamageMultiplier ?? .35;
+export const titanSplashRadius = (unit: Unit) => installedTitanUpgrade(unit)?.splashRadius ?? 140;
+export const titanProvidesPhaseControl = (unit: Unit) => installedTitanUpgrade(unit)?.phaseControl ?? false;
 export const unitMaximumWeaponRange = (unit: Unit) => Math.max(...shipWeaponBatteries(unit.kind as SpaceUnitKind).map(weapon => weapon.range))
   * titanWeaponRangeMultiplier(unit);
 export const TIER_TWO_COPY_BY_TIER_ONE: Readonly<Partial<Record<SpaceUnitKind, SpaceUnitKind>>> = {

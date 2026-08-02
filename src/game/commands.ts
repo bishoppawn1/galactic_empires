@@ -15,7 +15,7 @@ import {
   upgradeTitan,
   type GameResult,
 } from './engine';
-import { BUILDINGS, RESEARCH, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, TITAN_UPGRADES, UNITS } from './definitions';
+import { BUILDINGS, RESEARCH, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, STANDARD_RESOURCES, TITAN_UPGRADE_IDS, UNITS } from './definitions';
 import { PRODUCTION_QUANTITIES, type BuildingKind, type GameState, type ProductionQuantity, type ResearchId, type Resource, type TitanUpgradeId, type UnitKind } from './types';
 
 export type GameCommand =
@@ -62,7 +62,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case 'battleFocus':
     case 'orbitFocus': return isString(value.planetId) && isOptionalString(value.targetId);
     case 'upgradeTitan': return isString(value.planetId) && isString(value.unitId)
-      && isString(value.upgradeId) && value.upgradeId in TITAN_UPGRADES;
+      && isString(value.upgradeId) && TITAN_UPGRADE_IDS.includes(value.upgradeId as TitanUpgradeId);
     default: return false;
   }
 }

@@ -6,6 +6,7 @@ export type MapSize = 'small' | 'medium' | 'large' | 'huge' | 'massive' | 'galac
 export type EnemyDifficulty = 'cadet' | 'commander' | 'admiral';
 export type PlayableFaction = 'human' | 'brood' | 'aegis' | 'covenant';
 export type TitanUpgradeId = 'siegeCore' | 'shieldMatrix' | 'farcastArray';
+export type TitanKind = 'dreadnought' | 'worldEater' | 'aegisSovereignDreadnought' | 'covenantDreadforge';
 export type SystemKind = 'planet' | 'nebula' | 'star' | 'pirateBase' | 'ancientTemple';
 export type AncientRelicId = 'abundanceEngine' | 'warChoir' | 'chronoforge' | 'farstepOrrery' | 'renewalWell' | 'mnemonicArchive';
 export const PRODUCTION_QUANTITIES = [1, 5, 25] as const;

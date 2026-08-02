@@ -942,11 +942,11 @@ describe('Galactic Empires interface', () => {
   });
 
   it.each([
-    { civilization: 'human' as const, kind: 'dreadnought' as const, label: 'Titan Dreadnought' },
-    { civilization: 'brood' as const, kind: 'worldEater' as const, label: 'World Eater' },
-    { civilization: 'aegis' as const, kind: 'aegisSovereignDreadnought' as const, label: 'Sovereign Titan' },
-    { civilization: 'covenant' as const, kind: 'covenantDreadforge' as const, label: 'Dreadforge Titan' },
-  ])('shows and operates the upgrade menu for the $label', ({ civilization, kind, label }) => {
+    { civilization: 'human' as const, kind: 'dreadnought' as const, label: 'Titan Dreadnought', offense: 'Triune Arsenal', defense: 'Command Citadel', utility: 'Longwatch Nexus' },
+    { civilization: 'brood' as const, kind: 'worldEater' as const, label: 'World Eater', offense: 'Ravenous Maw', defense: 'Apex Carapace', utility: 'Void Tendrils' },
+    { civilization: 'aegis' as const, kind: 'aegisSovereignDreadnought' as const, label: 'Sovereign Titan', offense: 'Judgment Chorus', defense: 'Sanctuary Crown', utility: 'Resonant Overwatch' },
+    { civilization: 'covenant' as const, kind: 'covenantDreadforge' as const, label: 'Dreadforge Titan', offense: 'Perfect Dismantling', defense: 'Redundant Foundry', utility: 'Lockstep Nexus' },
+  ])('shows and operates the specialization menu for the $label', ({ civilization, kind, label, offense, defense, utility }) => {
     const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: civilization });
     state.resources = { metal: 5000, crystal: 5000, gold: 5000, ...(civilization === 'brood' ? { biomass: 5000 } : {}) };
     const home = state.planets.find(planet => planet.owner === 'player')!;
@@ -956,20 +956,17 @@ describe('Galactic Empires interface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: `${label} orbiting ${home.name}` }));
 
-    expect(screen.getByText('TITAN UPGRADES')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Purchase Siege Core level 1/ })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Purchase Shield Matrix level 1/ })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Purchase Farcast Array level 1/ })).toBeEnabled();
+    expect(screen.getByText('CHOOSE TITAN SPECIALIZATION')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: new RegExp(`Install ${offense}`) })).toBeEnabled();
+    expect(screen.getByRole('button', { name: new RegExp(`Install ${defense}`) })).toBeEnabled();
+    expect(screen.getByRole('button', { name: new RegExp(`Install ${utility}`) })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core level 1/ }));
-    expect(screen.getByRole('button', { name: /Purchase Siege Core level 2/ })).toBeEnabled();
-    expect(screen.getByText(/battery damage per level · LEVEL 1/)).toBeInTheDocument();
-    expect(screen.getByText(`Siege Core level 1 installed aboard ${label}.`)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /Purchase Siege Core level 2/ }));
-    expect(screen.getByRole('button', { name: /Purchase Siege Core level 3/ })).toBeEnabled();
-    expect(screen.getByText(/battery damage per level · LEVEL 2/)).toBeInTheDocument();
-    expect(screen.getByText(`Siege Core level 2 installed aboard ${label}.`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Install ${offense}`) }));
+    expect(screen.getByText('TITAN SPECIALIZATION · COMMITTED')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `${offense} installed` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `${defense} locked by installed specialization` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `${utility} locked by installed specialization` })).toBeDisabled();
+    expect(screen.getByText(`${offense} specialization installed aboard ${label}.`)).toBeInTheDocument();
   });
 
   it('shows a prominent capacity badge on transports and marks a full hold', () => {

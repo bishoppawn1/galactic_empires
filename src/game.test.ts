@@ -5,7 +5,7 @@ import {
   localPlanetConnections, orbitalCombatShots,
   biomassCost, recoverableBiomass,
   AEGIS_GROUND_KINDS, AEGIS_GROUND_SHIELD_REGEN, AEGIS_SHIELD_REGEN_BONUS, AEGIS_SPACE_KINDS,
-  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_UPGRADES, UNITS, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
+  ANTI_SPACE_BATTERY_STATS, BROOD_BIOMASS_PER_PLANET, BROOD_GROUND_KINDS, BROOD_SPACE_KINDS, BROOD_STARTING_BIOMASS, BUILDINGS, COALITION_GROUND_KINDS, COALITION_SPACE_KINDS, COVENANT_SPACE_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FACTION_RESEARCH_TREES, GALAXY_CANVAS_HEIGHT, GALAXY_CANVAS_WIDTH, GRAVITY_WELL_RADIUS, LANDING_APPROACH_SPEED, MAX_COMMAND_UNIT_IDS, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, ORBIT_MANEUVER_SPEED, PHASE_CONTROL_SHIP_KINDS, PHASE_GATE_CHARGE_SECONDS, RECON_SHIP_KINDS, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RADIUS, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, REPEATABLE_RESEARCH, RESEARCH, RESEARCH_UNLOCKS, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TIER_TWO_COPY_BY_TIER_ONE, TITAN_KINDS, TITAN_SPECIALIZATIONS, UNITS, installedTitanUpgradeId, isRepeatableResearch, phaseControlRateMultiplier, researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel, researchRequirementForCivilization, researchTime, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitMaximumWeaponRange, type DefenseBuildingKind, type GroundUnitKind, type PlayableFaction, type Unit, type UnitKind,
 } from './game';
 
 function expectOk<T extends { ok: boolean }>(result: T): asserts result is T & { ok: true } {
@@ -1105,35 +1105,68 @@ describe('production and research', () => {
       .filter(item => item.kind === 'battlecruiser')).toHaveLength(2);
   });
 
-  it('purchases unlimited Titan upgrade levels and applies them additively to every weapon battery', () => {
+  it('commits a Titan to one specialization instead of stacking generic upgrade levels', () => {
     const state = createInitialState();
     state.resources = { metal: 5000, crystal: 5000, gold: 5000 };
     const titan = { ...makeUnit('refit-titan', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 };
     state.planets[0].orbitUnits = [titan];
 
     const siege = upgradeTitan(state, 'terra', titan.id, 'siegeCore'); expectOk(siege);
-    expect(siege.state.resources).toEqual({ metal: 4640, crystal: 4720, gold: 4820 });
-    expect(titanWeaponDamageMultiplier(siege.state.planets[0].orbitUnits[0])).toBe(1.35);
-    const secondSiege = upgradeTitan(siege.state, 'terra', titan.id, 'siegeCore'); expectOk(secondSiege);
-    expect(titanUpgradeLevel(secondSiege.state.planets[0].orbitUnits[0], 'siegeCore')).toBe(2);
-    expect(titanWeaponDamageMultiplier(secondSiege.state.planets[0].orbitUnits[0])).toBe(1.7);
+    expect(siege.state.resources).toEqual({ metal: 4200, crystal: 4380, gold: 4580 });
+    expect(installedTitanUpgradeId(siege.state.planets[0].orbitUnits[0])).toBe('siegeCore');
+    expect(titanUpgradeLevel(siege.state.planets[0].orbitUnits[0], 'siegeCore')).toBe(1);
+    expect(titanWeaponDamageMultiplier(siege.state.planets[0].orbitUnits[0])).toBe(1.28);
+    expect(upgradeTitan(siege.state, 'terra', titan.id, 'siegeCore')).toMatchObject({ ok: false, error: expect.stringContaining('already committed') });
+    expect(upgradeTitan(siege.state, 'terra', titan.id, 'shieldMatrix')).toMatchObject({ ok: false, error: expect.stringContaining('already committed') });
 
-    const shield = upgradeTitan(secondSiege.state, 'terra', titan.id, 'shieldMatrix'); expectOk(shield);
-    expect(shield.state.planets[0].orbitUnits[0].maxShields).toBe(Math.round(UNITS.dreadnought.shields * 1.4));
-    const secondShield = upgradeTitan(shield.state, 'terra', titan.id, 'shieldMatrix'); expectOk(secondShield);
-    expect(secondShield.state.planets[0].orbitUnits[0].maxShields).toBe(Math.round(UNITS.dreadnought.shields * 1.8));
-    const farcast = upgradeTitan(secondShield.state, 'terra', titan.id, 'farcastArray'); expectOk(farcast);
-    const secondFarcast = upgradeTitan(farcast.state, 'terra', titan.id, 'farcastArray'); expectOk(secondFarcast);
-    const upgradedTitan = secondFarcast.state.planets[0].orbitUnits[0];
-    expect(titanWeaponRangeMultiplier(upgradedTitan)).toBe(1.2);
-    expect(unitMaximumWeaponRange(upgradedTitan)).toBeCloseTo(UNITS.dreadnought.range * 1.2);
+    const farcastState = createInitialState();
+    farcastState.resources = { metal: 5000, crystal: 5000, gold: 5000 };
+    const farcastTitan = { ...makeUnit('farcast-titan', 'dreadnought', 'player'), orbitX: 0, orbitY: 0 };
+    farcastState.planets[0].orbitUnits = [farcastTitan];
+    const farcast = upgradeTitan(farcastState, 'terra', farcastTitan.id, 'farcastArray'); expectOk(farcast);
+    const upgradedTitan = farcast.state.planets[0].orbitUnits[0];
+    expect(titanWeaponRangeMultiplier(upgradedTitan)).toBe(1.35);
+    expect(unitMaximumWeaponRange(upgradedTitan)).toBeCloseTo(UNITS.dreadnought.range * 1.35);
 
-    const target = { ...makeUnit('farcast-target', 'battlecruiser', 'enemy'), orbitX: 540, orbitY: 0 };
-    secondFarcast.state.planets[0].orbitUnits.push(target);
-    const shots = orbitalCombatShots(secondFarcast.state.planets[0]).filter(shot => shot.attackerId === titan.id);
+    const target = { ...makeUnit('farcast-target', 'battlecruiser', 'enemy'), orbitX: 620, orbitY: 0 };
+    farcast.state.planets[0].orbitUnits.push(target);
+    const shots = orbitalCombatShots(farcast.state.planets[0]).filter(shot => shot.attackerId === farcastTitan.id);
     expect(shots.length).toBeGreaterThan(0);
-    expect(shots.every(shot => shot.damageMultiplier === 1.7)).toBe(true);
-    expect(shots.every(shot => shot.weaponRange === UNITS.dreadnought.range * 1.2)).toBe(true);
+    expect(shots.every(shot => shot.damageMultiplier === 1)).toBe(true);
+    expect(shots.some(shot => shot.weaponRange === UNITS.dreadnought.range * 1.35)).toBe(true);
+  });
+
+  it('makes every faction Titan a substantially more expensive and powerful apex ship', () => {
+    expect(UNITS.dreadnought).toMatchObject({ cost: { metal: 1800, crystal: 1400, gold: 950 }, hp: 3200, shields: 1900, weapon: { damage: 17 } });
+    expect(UNITS.worldEater).toMatchObject({ cost: { metal: 1750, crystal: 1300, gold: 850 }, hp: 3800, shields: 1100, weapon: { damage: 20 } });
+    expect(UNITS.aegisSovereignDreadnought).toMatchObject({ cost: { metal: 2500, crystal: 2000, gold: 1450 }, hp: 4200, shields: 3600, weapon: { damage: 24 } });
+    expect(UNITS.covenantDreadforge).toMatchObject({ cost: { metal: 2400, crystal: 1800, gold: 1250 }, hp: 4800, shields: 900, weapon: { damage: 29 } });
+  });
+
+  it('applies faction-specific Titan specialization mechanics', () => {
+    const broodCarapace = { ...makeUnit('brood-carapace', 'worldEater', 'player'), titanUpgrades: ['shieldMatrix' as const] };
+    broodCarapace.maxHp = Math.round(UNITS.worldEater.hp * 1.5);
+    broodCarapace.hp = 1000;
+    expect(recoverSpaceUnit(broodCarapace, false, 2, 'brood').hp).toBe(1020);
+
+    const tendrils = { ...makeUnit('void-tendrils', 'worldEater', 'player'), titanUpgrades: ['farcastArray' as const], orbitX: 0, orbitY: 0 };
+    const target = { ...makeUnit('suppressed-target', 'battlecruiser', 'enemy'), orbitX: 600, orbitY: 0 };
+    expect(phaseControlStackCount([tendrils, target], target)).toBe(1);
+
+    const aegis = { ...makeUnit('judgment-titan', 'aegisSovereignDreadnought', 'player'), titanUpgrades: ['siegeCore' as const], orbitX: 0, orbitY: 0 };
+    const primary = { ...makeUnit('primary-target', 'battlecruiser', 'enemy'), orbitX: 200, orbitY: 0 };
+    const splash = { ...makeUnit('splash-target', 'battlecruiser', 'enemy'), orbitX: 240, orbitY: 0 };
+    const planet = createInitialState().planets[0];
+    planet.orbitUnits = [aegis, primary, splash];
+    const splashShot = orbitalCombatShots(planet).find(shot => shot.attackerId === aegis.id && shot.targetId === splash.id);
+    expect(splashShot?.damageMultiplier).toBeCloseTo(.77);
+
+    const covenant = { ...makeUnit('dismantling-titan', 'covenantDreadforge', 'player'), titanUpgrades: ['siegeCore' as const], orbitX: 0, orbitY: 0 };
+    planet.owner = 'enemy';
+    planet.orbitUnits = [covenant];
+    planet.buildings.push({ id: 'specialization-defense', kind: 'spaceDefense' });
+    const dismantlingShot = orbitalCombatShots(planet).find(shot => shot.attackerId === covenant.id && shot.targetType === 'defense');
+    expect(dismantlingShot?.damageMultiplier).toBeCloseTo(3.85);
   });
 
   it('validates Titan upgrade commands, charges Brood biomass, and preserves upgrades across perspectives', () => {
@@ -1144,13 +1177,31 @@ describe('production and research', () => {
     brood.resources.biomass = 1000;
     brood.planets[0].orbitUnits = [{ ...makeUnit('brood-refit', 'worldEater', 'player'), titanUpgrades: [] }];
     const upgraded = upgradeTitan(brood, 'terra', 'brood-refit', 'siegeCore'); expectOk(upgraded);
-    expect(upgraded.state.resources.biomass).toBe(1000 - biomassCost(TITAN_UPGRADES.siegeCore.cost));
+    expect(upgraded.state.resources.biomass).toBe(1000 - biomassCost(TITAN_SPECIALIZATIONS.worldEater.siegeCore.cost));
 
     const competitive = createCompetitiveState();
-    competitive.planets[0].orbitUnits = [{ ...makeUnit('multiplayer-titan', 'dreadnought', 'player'), titanUpgrades: ['siegeCore', 'siegeCore'] }];
+    competitive.planets[0].orbitUnits = [{ ...makeUnit('multiplayer-titan', 'dreadnought', 'player'), titanUpgrades: ['siegeCore'] }];
     const rivalView = swapPlayerPerspective(competitive);
-    expect(rivalView.planets[0].orbitUnits[0]).toMatchObject({ faction: 'enemy', titanUpgrades: ['siegeCore', 'siegeCore'] });
+    expect(rivalView.planets[0].orbitUnits[0]).toMatchObject({ faction: 'enemy', titanUpgrades: ['siegeCore'] });
     expect(swapPlayerPerspective(rivalView)).toEqual(competitive);
+  });
+
+  it('migrates legacy stacked Titan upgrades into one doctrine while preserving damage ratios', () => {
+    const state = createInitialState();
+    state.planets[0].orbitUnits = [{
+      ...makeUnit('legacy-titan', 'dreadnought', 'player'),
+      hp: 950,
+      maxHp: 1900,
+      shields: 945,
+      maxShields: 1890,
+      titanUpgrades: ['shieldMatrix', 'shieldMatrix', 'siegeCore'],
+    }];
+    const migrated = migrateGameState(state).planets[0].orbitUnits[0];
+    expect(migrated.titanUpgrades).toEqual(['shieldMatrix']);
+    expect(migrated.maxHp).toBe(Math.round(UNITS.dreadnought.hp * 1.3));
+    expect(migrated.hp).toBe(migrated.maxHp / 2);
+    expect(migrated.maxShields).toBe(Math.round(UNITS.dreadnought.shields * 1.45));
+    expect(migrated.shields).toBe(migrated.maxShields / 2);
   });
 
   it('lets an Atlas Mega Carrier embark eight squads', () => {

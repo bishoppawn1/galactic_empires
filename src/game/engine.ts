@@ -58,13 +58,16 @@ import {
 import {
   ADVANCED_GROUND_FACTORY_CAPACITY, ANTI_FIGHTER_DAMAGE_MULTIPLIER, ANTI_SPACE_BATTERY_RANGE, ANTI_SPACE_BATTERY_STATS, BUILDINGS, BUILDING_KINDS, DEFENSE_REBUILD_COOLDOWN_SECONDS, FIGHTER_HIT_POINTS, GRAVITY_WELL_RADIUS, GROUND_KINDS, LANDING_APPROACH_SPEED, MAX_SHIP_ORBIT_RADIUS, MIN_SHIP_ORBIT_SEPARATION, MIN_SYSTEM_CENTER_SEPARATION,
   ORBITAL_BOMBARDMENT_DAMAGE_PER_SHIP, ORBITAL_DEFENSE_BUILDING_CAP, ORBITAL_DEFENSE_HULL_REGEN, ORBITAL_DEFENSE_RANGE, ORBITAL_DEFENSE_SHIELD_REGEN, ORBITAL_DEFENSE_STATS, ORBIT_MANEUVER_SPEED, PHASE_GATE_CHARGE_SECONDS, RESEARCH, SHIP_TURN_COAST_SPEED_MULTIPLIER, SHIP_TURN_RATE_DEGREES_PER_SECOND,
-  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TITAN_UPGRADES, UNITS, pool,
+  RESEARCH_UNLOCKS, RESOURCE_COLLECTION_MULTIPLIER, RESOURCE_TRADE_MAX_SPEND, RESOURCE_TRADE_RATE, SPACE_COMBAT_DAMAGE_MULTIPLIER, SPACE_KINDS, STARBASE_STATS, STARBASE_WEAPON_BATTERIES, SYSTEM_EXIT_SPEED, TITAN_UPGRADE_IDS, UNITS, pool,
   blocksPhaseGate, civilizationUnitKind, galaxyCanvasDimensions, groundDefenseKindForCivilization, hasUnlimitedBuildingCapacity, isBuildingOperational, isDefenseBuildingKind, isFlakFrigateKind, isOrbitalDefenseBuilding, isPhaseControlShipKind, isRepeatableResearch, isTitanKind, orbitalDefenseOffset,
   canGroundUnitAttackTarget, groundUnitVisionRange, isFlyingGroundUnit, isInfantryGroundUnit,
   phaseControlRateMultiplier,
   requiredSpaceYardKind, SPACE_YARD_TIER,
   researchAvailableToCivilization, researchCost, researchDefinitionForCivilization, researchLevel,
-  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries, titanUpgradeLevel, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitAvailableToCivilization,
+  researchRequirementForCivilization, researchTime, researchTreeForCivilization, shipArmor, shipMovementSpeedMultiplier, shipWeaponBatteries,
+  installedTitanUpgrade, titanDefenseDamageMultiplier, titanDevourFraction, titanHullRecoveryPerSecond,
+  titanMaximumHull, titanMaximumShields, titanProvidesPhaseControl, titanShieldRecoveryPerSecond, titanSplashDamageMultiplier,
+  titanSplashRadius, titanUpgradeDefinition, titanWeaponDamageMultiplier, titanWeaponRangeMultiplier, unitAvailableToCivilization, unitMaximumWeaponRange,
 } from './definitions';
 
 export * from './types';
@@ -783,14 +786,29 @@ export function migrateGameState(input: GameState): GameState {
     }
     if (isTitanKind(savedUnit.kind)) {
       const installed: unknown[] = Array.isArray(savedUnit.titanUpgrades) ? savedUnit.titanUpgrades : [];
-      savedUnit.titanUpgrades = installed.filter((id): id is TitanUpgradeId => typeof id === 'string' && id in TITAN_UPGRADES);
-      const shieldMatrixLevel = titanUpgradeLevel(savedUnit, 'shieldMatrix');
-      if (shieldMatrixLevel) {
-        const upgradedMaximum = Math.round(UNITS[savedUnit.kind].shields * (1 + shieldMatrixLevel * .4));
-        if (savedUnit.maxShields < upgradedMaximum) {
-          savedUnit.shields = Math.min(upgradedMaximum, savedUnit.shields + upgradedMaximum - savedUnit.maxShields);
-          savedUnit.maxShields = upgradedMaximum;
-        }
+      const specialization = installed.find((id): id is TitanUpgradeId => typeof id === 'string' && TITAN_UPGRADE_IDS.includes(id as TitanUpgradeId));
+      const legacyMaximums: Record<typeof savedUnit.kind, { hull: number; shields: number }> = {
+        dreadnought: { hull: 1900, shields: 1050 },
+        worldEater: { hull: 2200, shields: 650 },
+        aegisSovereignDreadnought: { hull: 2600, shields: 2100 },
+        covenantDreadforge: { hull: 2900, shields: 320 },
+      };
+      const legacy = legacyMaximums[savedUnit.kind];
+      const legacyShieldLevels = installed.filter(id => id === 'shieldMatrix').length;
+      const legacyUpgradedShields = Math.round(legacy.shields * (1 + legacyShieldLevels * .4));
+      const needsBaselineMigration = savedUnit.maxHp === legacy.hull
+        || savedUnit.maxShields === legacy.shields
+        || (legacyShieldLevels > 0 && savedUnit.maxShields === legacyUpgradedShields);
+      savedUnit.titanUpgrades = specialization ? [specialization] : [];
+      if (needsBaselineMigration) {
+        const oldMaximumHull = Math.max(1, savedUnit.maxHp);
+        const oldMaximumShields = Math.max(1, savedUnit.maxShields);
+        const hullRatio = Math.max(0, Math.min(1, savedUnit.hp / oldMaximumHull));
+        const shieldRatio = Math.max(0, Math.min(1, savedUnit.shields / oldMaximumShields));
+        savedUnit.maxHp = titanMaximumHull(savedUnit);
+        savedUnit.maxShields = titanMaximumShields(savedUnit);
+        savedUnit.hp = savedUnit.maxHp * hullRatio;
+        savedUnit.shields = savedUnit.maxShields * shieldRatio;
       }
     } else {
       delete savedUnit.titanUpgrades;
@@ -1246,18 +1264,21 @@ export function upgradeTitan(input: GameState, planetId: string, unitId: string,
   const titan = p?.orbitUnits.find(ship => ship.id === unitId && ship.faction === 'player' && isTitanKind(ship.kind))
     ?? state.fleets.find(fleet => fleet.originId === planetId && fleet.unit.id === unitId && fleet.faction === 'player' && isTitanKind(fleet.unit.kind))?.unit;
   if (!titan) return fail(input, 'That Titan is not available for an upgrade.');
-  if (!(upgradeId in TITAN_UPGRADES)) return fail(input, 'Unknown Titan upgrade.');
-  const upgrade = TITAN_UPGRADES[upgradeId];
+  if (!TITAN_UPGRADE_IDS.includes(upgradeId)) return fail(input, 'Unknown Titan specialization.');
+  const upgrade = titanUpgradeDefinition(titan.kind, upgradeId);
+  if (!upgrade) return fail(input, 'That specialization is not available to this Titan.');
+  const installed = installedTitanUpgrade(titan);
+  if (installed) return fail(input, `${UNITS[titan.kind].label} is already committed to ${installed.label}.`);
   if (!canPlayerAfford(state, upgrade.cost)) return fail(input, insufficientPlayerResources(state));
   spendPlayerResources(state, upgrade.cost);
-  const nextLevel = titanUpgradeLevel(titan, upgradeId) + 1;
-  titan.titanUpgrades = [...(titan.titanUpgrades ?? []), upgradeId];
-  if (upgradeId === 'shieldMatrix') {
-    const oldMaximum = titan.maxShields;
-    titan.maxShields = Math.round(UNITS[titan.kind].shields * (1 + nextLevel * .4));
-    titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximum);
-  }
-  addMessage(state, `${upgrade.label} level ${nextLevel} installed aboard ${UNITS[titan.kind].label}.`);
+  const oldMaximumHull = titan.maxHp;
+  const oldMaximumShields = titan.maxShields;
+  titan.titanUpgrades = [upgradeId];
+  titan.maxHp = titanMaximumHull(titan);
+  titan.maxShields = titanMaximumShields(titan);
+  titan.hp = Math.min(titan.maxHp, titan.hp + titan.maxHp - oldMaximumHull);
+  titan.shields = Math.min(titan.maxShields, titan.shields + titan.maxShields - oldMaximumShields);
+  addMessage(state, `${upgrade.label} specialization installed aboard ${UNITS[titan.kind].label}.`);
   return pass(state);
 }
 
@@ -1564,9 +1585,10 @@ export const COVENANT_ASSEMBLY_REPAIR_RANGE = 220;
 export const COVENANT_FOUNDRY_REPAIR_RANGE = 280;
 
 export function recoverSpaceUnit(u: Unit, friendlyOrbit: boolean, seconds: number, civilization: PlayableFaction = 'human', recoveryMultiplier = 1, hullMultiplier = 1): Unit {
-  const shieldRecovery = (5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0)) * recoveryMultiplier;
+  const shieldRecovery = ((5 + (civilization === 'aegis' ? AEGIS_SHIELD_REGEN_BONUS : 0)) * recoveryMultiplier) + titanShieldRecoveryPerSecond(u);
   const livingHold = UNITS[u.kind].ability?.kind === 'livingHold';
-  const hullRecovery = (livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0) * hullMultiplier;
+  const hullRecovery = (livingHold ? 4 : civilization === 'covenant' ? (friendlyOrbit ? 4 : 2) : friendlyOrbit ? 2 : 0) * hullMultiplier
+    + titanHullRecoveryPerSecond(u);
   return { ...u, shields: Math.min(u.maxShields, u.shields + seconds * shieldRecovery), hp: Math.min(u.maxHp, u.hp + seconds * hullRecovery) };
 }
 
@@ -2231,10 +2253,10 @@ export function phaseControlStackCount(combatants: Unit[], target: Unit) {
   return combatants.filter(source => source.id !== target.id
     && source.hp > 0
     && source.faction !== target.faction
-    && isPhaseControlShipKind(source.kind)
+    && (isPhaseControlShipKind(source.kind) || titanProvidesPhaseControl(source))
     && Number.isFinite(source.orbitX)
     && Number.isFinite(source.orbitY)
-    && orbitDistance(source.orbitX!, source.orbitY!, target.orbitX!, target.orbitY!) <= UNITS[source.kind].range).length;
+    && orbitDistance(source.orbitX!, source.orbitY!, target.orbitX!, target.orbitY!) <= unitMaximumWeaponRange(source)).length;
 }
 
 function hasTierTwoPhaseLock(combatants: Unit[], target: Unit) {
@@ -2354,11 +2376,11 @@ export function orbitalCombatShots(p: Planet): OrbitalCombatShot[] {
         }
         if (ability === 'sovereignBarrage' && weaponIndex === 0) {
           hostileShips.filter(target => target.id !== shipTarget.id && target.faction === shipTarget.faction && shipInRange(target)
-            && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, targetPosition.x, targetPosition.y) <= 140)
-            .forEach(target => emit(target.id, 'ship', .35));
+            && orbitDistance(target.orbitX ?? 0, target.orbitY ?? 0, targetPosition.x, targetPosition.y) <= titanSplashRadius(attacker))
+            .forEach(target => emit(target.id, 'ship', titanSplashDamageMultiplier(attacker)));
         }
       } else if (defenseTarget) {
-        emit(defenseTarget.id, 'defense', weaponIndex === 0 && (ability === 'planetCracker' || ability === 'dismantlerBeam') ? 2 : 1);
+        emit(defenseTarget.id, 'defense', weaponIndex === 0 && (ability === 'planetCracker' || ability === 'dismantlerBeam') ? titanDefenseDamageMultiplier(attacker) : 1);
       }
     });
   }
@@ -2445,7 +2467,8 @@ function tickOrbitCombat(state: GameState, p: Planet, seconds: number) {
         } else {
           fighterDamage.set(shot.targetId, (fighterDamage.get(shot.targetId) ?? 0) + damage);
         }
-        if (UNITS[unit.kind].ability?.kind === 'devour') devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * .2);
+        const devourFraction = UNITS[unit.kind].ability?.kind === 'devour' ? .2 : titanDevourFraction(unit);
+        if (devourFraction) devourHealing.set(unit.id, (devourHealing.get(unit.id) ?? 0) + damage * devourFraction);
       });
     });
   });

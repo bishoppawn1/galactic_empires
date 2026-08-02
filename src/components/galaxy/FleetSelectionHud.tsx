@@ -1,6 +1,6 @@
 import {
-  TITAN_UPGRADES, UNITS, biomassCost, canAfford, carrierFighterCount, empireCivilization,
-  formatFactionCost, isTitanKind, titanUpgradeLevel, type GameState, type TitanUpgradeId, type Unit,
+  TITAN_UPGRADE_IDS, UNITS, biomassCost, canAfford, carrierFighterCount, empireCivilization,
+  formatFactionCost, installedTitanUpgradeId, isTitanKind, titanUpgradeDefinition, type GameState, type TitanUpgradeId, type Unit,
 } from '../../game';
 import { ShipImage, isSpaceUnit } from '../shared/ShipImage';
 
@@ -17,6 +17,7 @@ export function FleetSelectionHud({ state, ships, onUpgradeTitan }: {
   const controllable = ships.every(ship => ship.faction === 'player');
   const titan = controllable ? ships.find(ship => isTitanKind(ship.kind)) : undefined;
   const civilization = empireCivilization(state);
+  const installedTitanDoctrine = titan ? installedTitanUpgradeId(titan) : undefined;
 
   return <section className={`fleet-selection-hud ${controllable ? '' : 'hostile-inspection'}`} aria-label={controllable ? 'Selected ship status' : 'Inspected hostile ship status'}>
     <header>{controllable ? `${ships.length} SHIP${ships.length === 1 ? '' : 'S'} SELECTED` : `HOSTILE SHIP${ships.length === 1 ? '' : 'S'} INSPECTED`}</header>
@@ -48,21 +49,23 @@ export function FleetSelectionHud({ state, ships, onUpgradeTitan }: {
     {titan && <div className="titan-refit">
       <div className="titan-refit-heading">
         <span><b>{UNITS[titan.kind].label}</b><em>{UNITS[titan.kind].ability?.label ?? 'APEX TITAN'}</em></span>
-        <strong>TITAN UPGRADES</strong>
+        <strong>{installedTitanDoctrine ? 'TITAN SPECIALIZATION · COMMITTED' : 'CHOOSE TITAN SPECIALIZATION'}</strong>
       </div>
-      <div className="titan-upgrades">{(Object.keys(TITAN_UPGRADES) as TitanUpgradeId[]).map(id => {
-        const level = titanUpgradeLevel(titan, id);
-        const upgrade = TITAN_UPGRADES[id];
+      <div className="titan-upgrades">{TITAN_UPGRADE_IDS.map(id => {
+        const upgrade = titanUpgradeDefinition(titan.kind, id)!;
+        const installed = installedTitanDoctrine === id;
         const costLabel = formatFactionCost(upgrade.cost, civilization);
         const affordable = civilization === 'brood'
           ? (state.resources.biomass ?? 0) >= biomassCost(upgrade.cost)
           : canAfford(state.resources, upgrade.cost);
         return <button
           key={id}
-          disabled={!affordable}
+          disabled={!!installedTitanDoctrine || !affordable}
           onClick={() => onUpgradeTitan(titan.id, id)}
-          aria-label={`Purchase ${upgrade.label} level ${level + 1} for ${costLabel}`}
-        ><b>{upgrade.label}</b><span>{upgrade.description} · LEVEL {level}</span><em>{costLabel}</em></button>;
+          aria-label={installed ? `${upgrade.label} installed` : installedTitanDoctrine
+            ? `${upgrade.label} locked by installed specialization`
+            : `Install ${upgrade.label} for ${costLabel}`}
+        ><b>{upgrade.label}</b><span>{upgrade.description}</span><em>{installed ? 'INSTALLED' : installedTitanDoctrine ? 'LOCKED' : costLabel}</em></button>;
       })}</div>
     </div>}
     <small>{controllable ? 'Right-click to maneuver · Right-click any reachable system for the shortest route' : 'HULL INTEGRITY · SHIELD STRENGTH'}</small>

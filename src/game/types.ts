@@ -12,8 +12,8 @@ export type AncientRelicId = 'abundanceEngine' | 'warChoir' | 'chronoforge' | 'f
 export const PRODUCTION_QUANTITIES = [1, 5, 25] as const;
 export type ProductionQuantity = typeof PRODUCTION_QUANTITIES[number];
 
-export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction; mapSeed?: number }
-export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human' };
+export interface GameConfig { mapSize: MapSize; difficulty: EnemyDifficulty; playerFaction?: PlayableFaction; enemyFaction?: PlayableFaction; mapSeed?: number }
+export const DEFAULT_GAME_CONFIG: GameConfig = { mapSize: 'medium', difficulty: 'commander', playerFaction: 'human', enemyFaction: 'human' };
 
 export type SpaceShipTier = 1 | 2 | 3;
 export type SpaceYardKind = 'spaceFactory' | 'advancedSpaceFactory' | 'experimentalSpaceFactory';

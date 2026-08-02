@@ -26,6 +26,7 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
   const [mapSize, setMapSize] = useState<MapSize>('medium');
   const [difficulty, setDifficulty] = useState<EnemyDifficulty>('commander');
   const [playerFaction, setPlayerFaction] = useState<PlayableFaction>('human');
+  const [enemyFaction, setEnemyFaction] = useState<PlayableFaction>('human');
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState('');
   return <main className="campaign-setup" aria-label="New campaign setup">
@@ -35,7 +36,13 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
       <fieldset><legend>Command faction</legend><div className="setup-options faction-options">
         {PLAYABLE_FACTIONS.map(faction => {
           const profile = PLAYABLE_FACTION_DEFINITIONS[faction];
-          return <button type="button" key={faction} className={`faction-${faction} ${playerFaction === faction ? 'selected' : ''}`} aria-pressed={playerFaction === faction} onClick={() => setPlayerFaction(faction)}><b>{profile.label}</b><span>{profile.doctrine} · {profile.strengths}</span><small>{profile.weakness}</small></button>;
+          return <button type="button" key={faction} className={`faction-${faction} ${playerFaction === faction ? 'selected' : ''}`} aria-label={`Command faction: ${profile.label}`} aria-pressed={playerFaction === faction} onClick={() => setPlayerFaction(faction)}><b>{profile.label}</b><span>{profile.doctrine} · {profile.strengths}</span><small>{profile.weakness}</small></button>;
+        })}
+      </div></fieldset>
+      <fieldset><legend>Solo enemy faction</legend><div className="setup-options enemy-faction-options">
+        {PLAYABLE_FACTIONS.map(faction => {
+          const profile = PLAYABLE_FACTION_DEFINITIONS[faction];
+          return <button type="button" key={faction} className={`faction-${faction} ${enemyFaction === faction ? 'selected' : ''}`} aria-label={`Enemy faction: ${profile.label}`} aria-pressed={enemyFaction === faction} onClick={() => setEnemyFaction(faction)}><b>{profile.label}</b><span>{profile.doctrine}</span></button>;
         })}
       </div></fieldset>
       <fieldset><legend>Galaxy size</legend><div className="setup-options map-size-options">
@@ -44,10 +51,10 @@ export function CampaignSetup({ onStart, onHost, onJoin, connecting, connectionE
       <fieldset><legend>Enemy difficulty</legend><div className="setup-options difficulty-options">
         {(Object.keys(DIFFICULTY_DETAILS) as EnemyDifficulty[]).map(level => <button type="button" key={level} className={difficulty === level ? 'selected' : ''} aria-pressed={difficulty === level} onClick={() => setDifficulty(level)}><b>{DIFFICULTY_DETAILS[level].label}</b><span>{DIFFICULTY_DETAILS[level].description}</span></button>)}
       </div></fieldset>
-      <div className="setup-footer"><div className="setup-summary"><span><small>FACTION</small><b>{PLAYABLE_FACTION_DEFINITIONS[playerFaction].shortLabel.toUpperCase()}</b></span><span><small>STAR SYSTEMS</small><b>{mapPlanetCount(mapSize)}</b></span><span><small>THREAT LEVEL</small><b>{DIFFICULTY_DETAILS[difficulty].label.toUpperCase()}</b></span></div>
+      <div className="setup-footer"><div className="setup-summary"><span><small>COMMAND</small><b>{PLAYABLE_FACTION_DEFINITIONS[playerFaction].shortLabel.toUpperCase()}</b></span><span><small>SOLO ENEMY</small><b>{PLAYABLE_FACTION_DEFINITIONS[enemyFaction].shortLabel.toUpperCase()}</b></span><span><small>STAR SYSTEMS</small><b>{mapPlanetCount(mapSize)}</b></span><span><small>THREAT LEVEL</small><b>{DIFFICULTY_DETAILS[difficulty].label.toUpperCase()}</b></span></div>
         <div className="campaign-actions">
-          <button className="launch-campaign" disabled={connecting} onClick={() => onStart({ mapSize, difficulty, playerFaction })}>START SINGLE PLAYER <span>→</span></button>
-          <button className="multiplayer-start" disabled={connecting} onClick={() => onHost({ mapSize, difficulty, playerFaction })}>{connecting ? 'OPENING COMMAND LINK…' : 'START MULTIPLAYER'} <span>◎</span></button>
+          <button className="launch-campaign" disabled={connecting} onClick={() => onStart({ mapSize, difficulty, playerFaction, enemyFaction })}>START SINGLE PLAYER <span>→</span></button>
+          <button className="multiplayer-start" disabled={connecting} onClick={() => onHost({ mapSize, difficulty, playerFaction, enemyFaction })}>{connecting ? 'OPENING COMMAND LINK…' : 'START MULTIPLAYER'} <span>◎</span></button>
           <button className="join-game" disabled={connecting} onClick={() => setJoining(current => !current)}>JOIN GAME <span>＋</span></button>
           {joining && <form className="join-form" onSubmit={event => { event.preventDefault(); onJoin(code, playerFaction); }}><label htmlFor="lobby-code">LOBBY CODE · JOIN AS {PLAYABLE_FACTION_DEFINITIONS[playerFaction].shortLabel.toUpperCase()}</label><div><input id="lobby-code" autoFocus maxLength={6} value={code} onChange={event => setCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ''))} placeholder="ABC234" aria-label="Lobby code" /><button disabled={connecting || code.length !== 6}>CONNECT</button></div></form>}
           {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}

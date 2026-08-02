@@ -727,6 +727,16 @@ describe('starter faction foundations', () => {
 });
 
 describe('campaign configuration', () => {
+  it('starts the solo AI with its selected civilization, economy, and structures', () => {
+    const state = createInitialState({ mapSize: 'small', difficulty: 'commander', playerFaction: 'aegis', enemyFaction: 'brood' });
+    const enemyHome = state.planets.find(planet => planet.owner === 'enemy')!;
+
+    expect(state.config.enemyFaction).toBe('brood');
+    expect(state.empireCivilizations).toMatchObject({ player: 'aegis', enemy: 'brood' });
+    expect(state.enemyResources).toEqual(expect.objectContaining({ biomass: BROOD_STARTING_BIOMASS }));
+    expect(enemyHome.buildings.map(building => building.kind)).toEqual(['groundFactory', 'spaceFactory']);
+  });
+
   it('creates the requested number of worlds for every map size', () => {
     expect(createInitialState({ mapSize: 'small', difficulty: 'commander' }).planets).toHaveLength(7);
     expect(createInitialState({ mapSize: 'medium', difficulty: 'commander' }).planets).toHaveLength(11);
@@ -749,7 +759,7 @@ describe('campaign configuration', () => {
     delete (legacy as Partial<typeof legacy>).config;
     delete (legacy as Partial<typeof legacy>).enemyMissionCount;
     const migrated = migrateGameState(legacy);
-    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander', playerFaction: 'human', mapSeed: 0 });
+    expect(migrated.config).toEqual({ mapSize: 'small', difficulty: 'commander', playerFaction: 'human', enemyFaction: 'human', mapSeed: 0 });
     expect(migrated.enemyMissionCount).toBe(0);
   });
 

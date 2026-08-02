@@ -600,7 +600,8 @@ const starterBuildings = (prefix: string, faction: PlayableFaction): Building[] 
 
 export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CONFIG, mode: GameState['mode'] = 'solo'): GameState {
   const playerFaction = requestedConfig.playerFaction ?? 'human';
-  const config = { ...requestedConfig, playerFaction, mapSeed: requestedConfig.mapSeed ?? 0 };
+  const enemyFaction = requestedConfig.enemyFaction ?? 'human';
+  const config = { ...requestedConfig, playerFaction, enemyFaction, mapSeed: requestedConfig.mapSeed ?? 0 };
   const terra = planet('terra', 'Terra Nova', 22, 56, '#55d6be', null, pool(1, .9, .65), pool(5, 4, 3), 4);
   const cygnus = planet('cygnus', 'Cygnus Reach', 76, 30, '#e86a92', null, pool(.7, 1.2, .9), pool(3, 5, 4));
 
@@ -656,7 +657,7 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
   playerHome.owner = 'player';
   playerHome.buildings = starterBuildings('b', playerFaction);
   enemyHome.owner = 'enemy';
-  enemyHome.buildings = starterBuildings('eb', 'human');
+  enemyHome.buildings = starterBuildings('eb', enemyFaction);
   if (config.mapSeed) {
     const candidates = shuffle(planets.filter(system => !homeSystems.includes(system)), random);
     const namesUsed: Partial<Record<Exclude<SystemKind, 'planet'>, number>> = {};
@@ -677,11 +678,11 @@ export function createInitialState(requestedConfig: GameConfig = DEFAULT_GAME_CO
     mode,
     config,
     resources: startingResources(playerFaction),
-    enemyResources: pool(520, 420, 280),
+    enemyResources: startingResources(enemyFaction),
     planets,
     fleets: [], battles: [], completedResearch: [], enemyCompletedResearch: [], researchQueue: [], enemyResearchQueue: [],
     enemyActionClock: 8, enemyAttackClock: config.difficulty === 'cadet' ? 180 : config.difficulty === 'admiral' ? 100 : 130, enemyMissionCount: 0,
-    empireCivilizations: { player: playerFaction, enemy: 'human', rival2: 'human', rival3: 'human' },
+    empireCivilizations: { player: playerFaction, enemy: enemyFaction, rival2: 'human', rival3: 'human' },
     startingPlanetIds: { player: playerHome.id, enemy: enemyHome.id },
     additionalEmpires: {}, aiFactions: mode === 'solo' ? ['enemy'] : [],
     elapsed: 0, nextId: 100, neutralGarrisonsInitialized: true, homeSystemIds: homeSystems.map(system => system.id),
@@ -722,17 +723,22 @@ export function migrateGameState(input: GameState): GameState {
             : state.planets.length <= 31 ? 'massive' : 'galactic',
     difficulty: 'commander',
     playerFaction: 'human',
+    enemyFaction: 'human',
   };
-  state.config.playerFaction = PLAYABLE_FACTIONS.includes(state.config.playerFaction ?? 'human') ? state.config.playerFaction ?? 'human' : 'human';
-  state.config.mapSeed = Number.isFinite(state.config.mapSeed) ? state.config.mapSeed : 0;
   const savedCivilizations = state.empireCivilizations as Partial<Record<EmpireFaction, PlayableFaction>> | undefined;
+  state.config.playerFaction = PLAYABLE_FACTIONS.includes(state.config.playerFaction ?? 'human') ? state.config.playerFaction ?? 'human' : 'human';
+  state.config.enemyFaction = PLAYABLE_FACTIONS.includes(state.config.enemyFaction ?? savedCivilizations?.enemy ?? 'human')
+    ? state.config.enemyFaction ?? savedCivilizations?.enemy ?? 'human'
+    : 'human';
+  state.config.mapSeed = Number.isFinite(state.config.mapSeed) ? state.config.mapSeed : 0;
   state.empireCivilizations = {
     player: state.config.playerFaction,
-    enemy: 'human', rival2: 'human', rival3: 'human',
+    enemy: state.config.enemyFaction, rival2: 'human', rival3: 'human',
     ...savedCivilizations,
   };
   if (usesBiomass(state) && typeof state.resources.biomass !== 'number') state.resources = startingResources('brood');
-  state.enemyResources ??= pool(520, 420, 280);
+  state.enemyResources ??= startingResources(state.empireCivilizations.enemy);
+  if (state.empireCivilizations.enemy === 'brood' && typeof state.enemyResources.biomass !== 'number') state.enemyResources = startingResources('brood');
   state.enemyActionClock ??= 8;
   state.enemyAttackClock ??= state.config.difficulty === 'cadet' ? 180 : state.config.difficulty === 'admiral' ? 100 : 130;
   state.enemyMissionCount ??= 0;
@@ -1523,9 +1529,11 @@ export function createCompetitiveState(config: GameConfig = DEFAULT_GAME_CONFIG,
     { faction: 'player', controller: 'human' }, { faction: 'enemy', controller: 'human' },
   ] satisfies MatchEmpireSlot[];
   const playerCivilization = slots.find(slot => slot.faction === 'player')?.civilization ?? config.playerFaction ?? 'human';
+  const enemyCivilization = slots.find(slot => slot.faction === 'enemy')?.civilization ?? config.enemyFaction ?? 'human';
   const effectiveConfig = {
     ...config,
     playerFaction: playerCivilization,
+    enemyFaction: enemyCivilization,
     ...(slots.length > 2 && ['small', 'medium', 'large'].includes(config.mapSize) ? { mapSize: 'huge' as const } : {}),
   };
   const state = createInitialState(effectiveConfig, 'competitive');

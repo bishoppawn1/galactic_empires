@@ -189,7 +189,7 @@ export default function App() {
   const changeTab = (nextTab: PlanetTab) => { setTab(nextTab); setProductionFocus(undefined); };
   const alerts = useMemo(() => visibleState ? visibleState.battles.length + visibleState.planets.filter(planet => planet.orbitUnits.some(unit => unit.faction === 'player') && planet.orbitUnits.some(unit => unit.faction !== 'player' && unit.faction !== 'neutral')).length : 0, [visibleState]);
 
-  if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} onAddAi={() => controllerRef.current?.addAi()} onRemoveAi={() => controllerRef.current?.removeAi()} />;
+  if (lobby) return <MultiplayerLobby lobby={lobby} isHost={!!controllerRef.current?.isHost} onStart={startMultiplayer} onLeave={leaveLobby} onAddAi={civilization => controllerRef.current?.addAi(civilization)} onRemoveAi={() => controllerRef.current?.removeAi()} />;
   if (!state) return <CampaignSetup
     onStart={config => { const next = createInitialState({ ...config, mapSeed: config.mapSeed ?? randomMapSeed() }); installState(next); resetInterface(next); }}
     onHost={beginHost}

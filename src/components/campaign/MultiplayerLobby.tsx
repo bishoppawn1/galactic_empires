@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import type { LobbySnapshot } from '../../app/multiplayer';
-import { PLAYABLE_FACTION_DEFINITIONS, mapPlanetCount } from '../../game';
+import { PLAYABLE_FACTIONS, PLAYABLE_FACTION_DEFINITIONS, mapPlanetCount, type PlayableFaction } from '../../game';
 
 export function MultiplayerLobby({ lobby, isHost, onStart, onLeave, onAddAi, onRemoveAi }: {
   lobby: LobbySnapshot;
   isHost: boolean;
   onStart: () => void;
   onLeave: () => void;
-  onAddAi: () => void;
+  onAddAi: (civilization: PlayableFaction) => void;
   onRemoveAi: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [aiFaction, setAiFaction] = useState<PlayableFaction>('human');
   const effectiveMapSize = lobby.players.length > 2 && ['small', 'medium', 'large'].includes(lobby.config.mapSize)
     ? 'huge'
     : lobby.config.mapSize;
@@ -28,7 +29,7 @@ export function MultiplayerLobby({ lobby, isHost, onStart, onLeave, onAddAi, onR
         const profile = PLAYABLE_FACTION_DEFINITIONS[player.civilization];
         return <div className={`lobby-player faction-${player.civilization} ${player.ai ? 'ai' : ''}`} key={player.id}><i style={{ background: profile.color, boxShadow: `0 0 10px ${profile.color}` }} /><span><b>{player.label}</b><small>EMPIRE {['player', 'enemy', 'rival2', 'rival3'].indexOf(player.faction) + 1} · {player.ai ? 'AI' : player.host ? 'HOST' : 'HUMAN'} · {profile.shortLabel.toUpperCase()}</small></span><em>READY</em></div>;
       })}</div>
-      {isHost && <div className="ai-slot-controls"><button disabled={lobby.players.length >= 4} onClick={onAddAi}>ADD AI EMPIRE</button><button disabled={!lobby.players.some(player => player.ai)} onClick={onRemoveAi}>REMOVE AI</button></div>}
+      {isHost && <div className="ai-slot-controls"><label><span>AI FACTION</span><select aria-label="AI faction" value={aiFaction} disabled={lobby.players.length >= 4} onChange={event => setAiFaction(event.target.value as PlayableFaction)}>{PLAYABLE_FACTIONS.map(faction => <option key={faction} value={faction}>{PLAYABLE_FACTION_DEFINITIONS[faction].label}</option>)}</select></label><button disabled={lobby.players.length >= 4} onClick={() => onAddAi(aiFaction)}>ADD AI EMPIRE</button><button disabled={!lobby.players.some(player => player.ai)} onClick={onRemoveAi}>REMOVE AI</button></div>}
       <div className="setup-summary"><span><small>HOST FACTION</small><b>{PLAYABLE_FACTION_DEFINITIONS[lobby.config.playerFaction ?? 'human'].shortLabel.toUpperCase()}</b></span><span><small>STAR SYSTEMS</small><b>{mapPlanetCount(effectiveMapSize)}</b></span><span><small>FORMAT</small><b>FREE-FOR-ALL</b></span></div>
       <div className="lobby-actions">{isHost ? <button className="launch-campaign" disabled={lobby.players.length < 2} onClick={onStart}>{lobby.players.length < 2 ? 'ADD A RIVAL OR AI' : 'START GAME'} <span>→</span></button> : <div className="waiting-pulse"><i /> WAITING FOR HOST</div>}<button className="leave-lobby" onClick={onLeave}>LEAVE LOBBY</button></div>
     </section>

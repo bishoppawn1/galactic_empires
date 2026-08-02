@@ -95,7 +95,7 @@ export interface MultiplayerController {
   start: (state: GameState) => void;
   sendState: (state: GameState) => void;
   sendCommand: (command: GameCommand) => void;
-  addAi: () => void;
+  addAi: (civilization: PlayableFaction) => void;
   removeAi: () => void;
   close: () => void;
 }
@@ -138,7 +138,7 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
   await waitForPeerOpen(peer).catch(error => { peer.destroy(); throw new Error(peerErrorMessage(error)); });
 
   const connections = new Map<string, { connection: DataConnection; faction: EmpireFaction; civilization: PlayableFaction }>();
-  const aiFactions = new Set<EmpireFaction>();
+  const aiFactions = new Map<EmpireFaction, PlayableFaction>();
   let playing = false;
   let closed = false;
   let lastStateSentAt = Number.NEGATIVE_INFINITY;
@@ -148,7 +148,7 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
     players: [
       { id: peer.id, label: 'HOST COMMANDER', host: true, faction: 'player', civilization: normalizeCivilization(config.playerFaction) },
       ...Array.from(connections.entries()).map(([id, participant]) => ({ id, label: `COMMANDER ${EMPIRE_FACTIONS.indexOf(participant.faction) + 1}`, host: false, faction: participant.faction, civilization: participant.civilization })),
-      ...Array.from(aiFactions).map(faction => ({ id: `ai-${faction}`, label: `AI EMPIRE ${EMPIRE_FACTIONS.indexOf(faction) + 1}`, host: false, faction, civilization: 'human' as const, ai: true })),
+      ...Array.from(aiFactions.entries()).map(([faction, civilization]) => ({ id: `ai-${faction}`, label: `AI EMPIRE ${EMPIRE_FACTIONS.indexOf(faction) + 1}`, host: false, faction, civilization, ai: true })),
     ],
   });
   const send = (connection: DataConnection, message: HostMessage) => {
@@ -225,8 +225,8 @@ export async function hostMultiplayer(config: GameConfig, callbacks: Multiplayer
       if (broadcastState('state', state)) lastStateSentAt = now;
     },
     sendCommand() {},
-    addAi() { const faction = availableFaction(); if (!playing && faction) { aiFactions.add(faction); publishLobby(); } },
-    removeAi() { if (!playing && aiFactions.size) { aiFactions.delete(Array.from(aiFactions).at(-1)!); publishLobby(); } },
+    addAi(civilization) { const faction = availableFaction(); if (!playing && faction) { aiFactions.set(faction, normalizeCivilization(civilization)); publishLobby(); } },
+    removeAi() { if (!playing && aiFactions.size) { aiFactions.delete(Array.from(aiFactions.keys()).at(-1)!); publishLobby(); } },
     close() {
       closed = true;
       connections.forEach(participant => participant.connection.close());

@@ -2796,12 +2796,16 @@ function advanceEnemyResearch(state: GameState) {
   if (!state.planets.some(p => p.owner === 'enemy' && p.buildings.some(building => building.kind === 'researchLab'))) return;
   const civilization = empireCivilization(state, 'enemy');
   const tree = researchTreeForCivilization(civilization);
-  const candidates = tree.nodes.filter(node => !isRepeatableResearch(node.id) && !state.enemyCompletedResearch.includes(node.id));
-  const eligible = candidates.filter(node => enemyHasResearch(state, tree.requires[node.id]));
-  const id = eligible.find(node => state.elapsed >= 70 + tree.nodes.indexOf(node) * 13 && canEnemyAfford(state, RESEARCH[node.id].cost))?.id;
+  const candidates = tree.nodes
+    .filter(node => isRepeatableResearch(node.id) || !state.enemyCompletedResearch.includes(node.id))
+    .filter(node => enemyHasResearch(state, tree.requires[node.id]))
+    .filter(node => state.elapsed >= 70 + tree.nodes.indexOf(node) * 13)
+    .sort((a, b) => Number(isRepeatableResearch(a.id)) - Number(isRepeatableResearch(b.id))
+      || (isRepeatableResearch(a.id) ? researchLevel(state.enemyCompletedResearch, a.id) - researchLevel(state.enemyCompletedResearch, b.id) : 0)
+      || tree.nodes.indexOf(a) - tree.nodes.indexOf(b));
+  const id = candidates.find(node => canEnemyAfford(state, researchCost(node.id, state.enemyCompletedResearch)))?.id;
   if (!id) return;
-  const def = RESEARCH[id];
-  spendEnemyResources(state, def.cost);
+  spendEnemyResources(state, researchCost(id, state.enemyCompletedResearch));
   state.enemyCompletedResearch.push(id);
 }
 
@@ -2833,11 +2837,15 @@ function runEnemyStrategicAction(state: GameState) {
     priorities.some(([kind, target]) => enemyBuild(state, p, kind, target));
 
     if (p.groundUnits.length + p.groundQueue.length < forceTarget && p.groundQueue.length < 2) {
+      const localGroundKinds = new Set([...p.groundUnits.map(unit => unit.kind), ...p.groundQueue.map(item => item.kind)]);
+      const missingSpecialists = (['flakRover', 'dragonflyScout', 'falconGunship'] as GroundUnitKind[])
+        .map(groundKind)
+        .filter(kind => !localGroundKinds.has(kind));
       const advancedKind: GroundUnitKind = state.enemyCompletedResearch.includes('heavyArmor')
         ? groundKind(state.nextId % 3 === 0 ? 'railgunTank' : state.nextId % 2 ? 'plasmaTank' : 'siegeWalker')
         : groundKind('shockTrooper');
       const basicKind: GroundUnitKind = groundKind(state.nextId % 3 === 0 ? 'artillery' : state.nextId % 2 ? 'lightTank' : 'infantry');
-      if (!enemyQueueUnit(state, p, advancedKind)) enemyQueueUnit(state, p, basicKind);
+      [...missingSpecialists, advancedKind, basicKind].some(kind => enemyQueueUnit(state, p, kind));
     }
 
     const transportTarget = (state.config.difficulty === 'cadet' ? 2 : state.config.difficulty === 'admiral' ? 4 : 3)

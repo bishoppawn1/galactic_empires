@@ -1544,6 +1544,26 @@ describe('production and research', () => {
 });
 
 describe('enemy strategy', () => {
+  it('continues researching the three repeatable capstones with scaled costs', () => {
+    let state = createInitialState();
+    const enemyHome = state.planets.find(planet => planet.owner === 'enemy')!;
+    enemyHome.buildings.push({ id: 'enemy-repeatable-lab', kind: 'researchLab' });
+    state.enemyCompletedResearch = FACTION_RESEARCH_TREES.human.nodes
+      .map(node => node.id)
+      .filter(id => !isRepeatableResearch(id));
+    state.enemyResources = { metal: 100000, crystal: 100000, gold: 100000 };
+    state.elapsed = 10000;
+    state.enemyAttackClock = 9999;
+
+    for (let step = 0; step < 6; step += 1) {
+      state.enemyActionClock = 0;
+      state = tick(state, 0);
+    }
+
+    expect(REPEATABLE_RESEARCH.map(id => researchLevel(state.enemyCompletedResearch, id))).toEqual([2, 2, 2]);
+    expect(state.enemyResources.metal).toBeLessThan(100000 - REPEATABLE_RESEARCH.reduce((total, id) => total + RESEARCH[id].cost.metal * 2, 0));
+  });
+
   it('uses its own economy to build bases and queue reinforcements', () => {
     const state = createInitialState();
     const initialPlayerResources = { ...state.resources };
@@ -1569,6 +1589,8 @@ describe('enemy strategy', () => {
     expect(invasion.finalDestinationId).toBe('terra');
     expect(invasion.unit.cargo).toHaveLength(2);
     expect(launched.messages[0]).toContain('HOSTILE FLEET LAUNCHED');
+    launched.enemyActionClock = 9999;
+    launched.enemyAttackClock = 9999;
 
     let arrived = launched;
     while (arrived.fleets.some(fleet => fleet.unit.id === 'enemy-transport')) {

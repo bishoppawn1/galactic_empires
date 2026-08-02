@@ -57,6 +57,23 @@ function damageFrom(attackerKind: GroundUnitKind, targetKind: GroundUnitKind) {
 }
 
 describe('ground anti-air roles', () => {
+  it('keeps aircraft durability and firepower below their original tank-like levels', () => {
+    const durability = (kind: GroundUnitKind) => UNITS[kind].hp + UNITS[kind].shields;
+    const damagePerSecond = (kind: GroundUnitKind) => {
+      const weapon = UNITS[kind].weapon;
+      return weapon.damage * weapon.projectiles / weapon.cooldown;
+    };
+
+    expect(SCOUT_AIR.map(durability)).toEqual([130, 90, 265, 140]);
+    expect(BOMBER_AIR.map(durability)).toEqual([325, 280, 575, 445]);
+    expect(BOMBER_AIR.map(damagePerSecond)).toEqual([
+      expect.closeTo(7.47, 1),
+      6,
+      expect.closeTo(9.33, 1),
+      14.4,
+    ]);
+  });
+
   it('gives every faction a producible ground flak unit with dedicated anti-infantry and anti-air fire', () => {
     (Object.entries(FLAK_BY_FACTION) as [PlayableFaction, GroundUnitKind][]).forEach(([faction, flakKind]) => {
       expect(civilizationUnitKind(faction, 'flakRover')).toBe(flakKind);
@@ -100,5 +117,30 @@ describe('ground anti-air roles', () => {
 
     expect(infantryDamage).toBeCloseTo(vehicleDamage * 1.5);
     expect(aircraftDamage).toBeCloseTo(vehicleDamage * 1.5);
+  });
+
+  it('makes every AI civilization establish flak, scout-air, and gunship roles', () => {
+    (Object.keys(FLAK_BY_FACTION) as PlayableFaction[]).forEach(civilization => {
+      let state = createInitialState({ mapSize: 'small', difficulty: 'commander', enemyFaction: civilization });
+      const home = state.planets.find(planet => planet.owner === 'enemy')!;
+      home.buildings.push({ id: 'advanced-ground', kind: 'advancedGroundFactory' });
+      state.enemyCompletedResearch.push('advancedIndustry', 'groundWarfare');
+      state.enemyResources = { metal: 10000, crystal: 10000, gold: 10000, biomass: 10000 };
+      state.enemyActionClock = 0;
+      state.enemyAttackClock = 9999;
+      const expected = [
+        civilizationUnitKind(civilization, 'flakRover'),
+        civilizationUnitKind(civilization, 'dragonflyScout'),
+        civilizationUnitKind(civilization, 'falconGunship'),
+      ];
+
+      for (const kind of expected) {
+        state = tick(state, 0);
+        expect(home.id).toBe(state.planets.find(planet => planet.owner === 'enemy')!.id);
+        expect(state.planets.find(planet => planet.id === home.id)!.groundQueue[0].kind).toBe(kind);
+        state.planets.find(planet => planet.id === home.id)!.groundQueue[0].remaining = 0;
+        state.enemyActionClock = 0;
+      }
+    });
   });
 });

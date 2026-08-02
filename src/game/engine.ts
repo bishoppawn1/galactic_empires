@@ -3021,7 +3021,7 @@ export function tick(input: GameState, seconds: number): GameState {
           fleet.travelTime = phaseTravelTime(origin, waypoint) * phaseTravelMultiplier(empireEconomy(state, fleet.faction).completedResearch)
             * ancientRelicPhaseTravelMultiplier(state, fleet.faction)
             / shipMovementSpeedMultiplier(fleet.unit.kind);
-        } else if (fleet.route?.length) {
+        } else if (fleet.route?.length && !(state.aiFactions?.includes(fleet.faction) && waypoint.owner !== null && waypoint.owner !== fleet.faction)) {
           const nextId = fleet.route.shift()!;
           const next = getPlanet(state, nextId)!;
           const inboundBorder = systemBorderOffset(waypoint, origin, state.config.mapSize);
@@ -3030,6 +3030,8 @@ export function tick(input: GameState, seconds: number): GameState {
           fleet.phaseGateLocked = hasTierTwoPhaseLock(waypoint.orbitUnits, { ...fleet.unit, orbitX: inboundBorder.x, orbitY: inboundBorder.y });
           beginSystemExit(fleet, waypoint, next, inboundBorder.x, inboundBorder.y, state.config.mapSize);
         } else {
+          fleet.route = [];
+          fleet.finalDestinationId = waypoint.id;
           placeAtSystemEdge(origin, waypoint, fleet.unit, state.config.mapSize);
           waypoint.orbitUnits.push(fleet.unit);
           addMessage(state, `${UNITS[fleet.unit.kind].label} emerged at the outer edge of ${waypoint.name}.`);

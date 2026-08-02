@@ -49,7 +49,7 @@ const allShipIds = (state: GameState) => new Set([
   ...state.fleets.map(fleet => fleet.unit.id),
 ]);
 
-export function ShipExplosionLayer({ state }: { state: GameState }) {
+export function ShipExplosionLayer({ state, shipPresenceState = state }: { state: GameState; shipPresenceState?: GameState }) {
   const previousRef = useRef<{ elapsed: number; ships: Map<string, ShipSnapshot> } | undefined>(undefined);
   const nextEffectIdRef = useRef(1);
   const expiryTimersRef = useRef(new Map<number, number>());
@@ -59,7 +59,7 @@ export function ShipExplosionLayer({ state }: { state: GameState }) {
     const ships = visibleShipSnapshots(state);
     const previous = previousRef.current;
     if (previous && state.elapsed > previous.elapsed) {
-      const survivingIds = allShipIds(state);
+      const survivingIds = allShipIds(shipPresenceState);
       const destroyed = [...previous.ships.values()].filter(ship => ship.trackDestruction && !survivingIds.has(ship.id));
       if (destroyed.length) {
         const effects = destroyed.map(ship => ({ ...ship, effectId: nextEffectIdRef.current++ }));
@@ -74,7 +74,7 @@ export function ShipExplosionLayer({ state }: { state: GameState }) {
       }
     }
     previousRef.current = { elapsed: state.elapsed, ships };
-  }, [state]);
+  }, [shipPresenceState, state]);
 
   useEffect(() => () => {
     expiryTimersRef.current.forEach(timer => window.clearTimeout(timer));

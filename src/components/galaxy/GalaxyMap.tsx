@@ -49,8 +49,8 @@ function ShipMapStatusBars({ ship, visible }: { ship: Unit; visible: boolean }) 
 export const wholeMapZoom = (viewportWidth: number, viewportHeight: number, dimensions: GalaxyCanvasDimensions = DEFAULT_GALAXY_CANVAS_DIMENSIONS) => Math.max(MIN_MAP_ZOOM,
   Math.floor(Math.min(viewportWidth / dimensions.width, viewportHeight / dimensions.height) * 1000) / 1000);
 
-export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, movementSmoothingMs = 0, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense, onUpgradeTitan }: {
-  state: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
+export function GalaxyMap({ state, shipPresenceState, selectedId, selectedShipIds, selectedYardIds, zoom: controlledZoom, movementSmoothingMs = 0, onZoomChange, onSelect, onOrderToPlanet, onSelectShip, onSelectSpaceYard, onGroupSelect, onManeuver, onTargetDefense, onUpgradeTitan }: {
+  state: GameState; shipPresenceState?: GameState; selectedId: string; selectedShipIds: string[]; selectedYardIds: string[]; onSelect: (id: string) => void;
   zoom?: number; onZoomChange?: (zoom: number) => void;
   movementSmoothingMs?: number;
   onOrderToPlanet: (id: string) => void;
@@ -283,7 +283,7 @@ export function GalaxyMap({ state, selectedId, selectedShipIds, selectedYardIds,
           }} />
           : [])}
         {!camera3D && <ShipCanvasLayer state={state} bounds={renderBounds} zoom={zoom} selectedShipIds={selectedShipIds} movementSmoothingMs={movementSmoothingMs} />}
-        <ShipExplosionLayer state={state} />
+        <ShipExplosionLayer state={state} shipPresenceState={shipPresenceState} />
         <svg className="orbital-fire" viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} preserveAspectRatio="none" aria-hidden="true">
           {effectPlanets.flatMap(p => {
             if (systemKind(p) === 'nebula' && !p.orbitUnits.some(ship => ship.faction === 'player')) return [];

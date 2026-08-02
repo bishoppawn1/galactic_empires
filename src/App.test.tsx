@@ -1300,7 +1300,7 @@ describe('Galactic Empires interface', () => {
       { ...makeUnit('lost-player-ship', 'escortFrigate', 'player'), orbitX: 120, orbitY: -45 },
       { ...makeUnit('lost-enemy-ship', 'missileFrigate', 'enemy'), orbitX: 180, orbitY: 30 },
     ];
-    const map = (current: GameState) => <GalaxyMap state={current} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />;
+    const map = (current: GameState) => <GalaxyMap state={current} shipPresenceState={current} selectedId="terra" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />;
     const view = render(map(state));
 
     const afterCombat = structuredClone(state);
@@ -1319,6 +1319,29 @@ describe('Galactic Empires interface', () => {
     expect(screen.queryByRole('img', { name: 'Missile Frigate destroyed' })).not.toBeInTheDocument();
     view.unmount();
     vi.useRealTimers();
+  });
+
+  it('does not mistake hostile ships hidden by stale system intel for destroyed ships', () => {
+    const visible = createInitialState();
+    const nyx = visible.planets.find(planet => planet.id === 'nyx')!;
+    nyx.intelStatus = 'current';
+    nyx.orbitUnits = [
+      makeUnit('hidden-enemy-escort', 'escortFrigate', 'enemy'),
+      makeUnit('hidden-enemy-missile', 'missileFrigate', 'enemy'),
+      makeUnit('hidden-enemy-flak', 'flakFrigate', 'enemy'),
+    ];
+    const map = (renderState: GameState, presenceState: GameState) => <GalaxyMap state={renderState} shipPresenceState={presenceState} selectedId="nyx" selectedShipIds={[]} selectedYardIds={[]} onSelect={vi.fn()} onOrderToPlanet={vi.fn()} onSelectShip={vi.fn()} onSelectSpaceYard={vi.fn()} onGroupSelect={vi.fn()} onManeuver={vi.fn()} onTargetDefense={vi.fn()} />;
+    const view = render(map(visible, visible));
+
+    const authoritativeAfterDeparture = structuredClone(visible);
+    authoritativeAfterDeparture.elapsed += .1;
+    const staleView = structuredClone(authoritativeAfterDeparture);
+    const staleNyx = staleView.planets.find(planet => planet.id === 'nyx')!;
+    staleNyx.intelStatus = 'stale';
+    staleNyx.orbitUnits = [];
+    view.rerender(map(staleView, authoritativeAfterDeparture));
+
+    expect(document.querySelectorAll('.ship-explosion')).toHaveLength(0);
   });
 
   it('tracks a player ship into transit without mistaking dispatch for destruction', () => {

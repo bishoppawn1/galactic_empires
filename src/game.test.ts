@@ -1995,6 +1995,36 @@ describe('transport and colonization', () => {
     expect(positionAlongIncomingLane).toBeCloseTo(MAX_SHIP_ORBIT_RADIUS, 1);
   });
 
+  it('stops an AI fleet at the first hostile-controlled system along its route', () => {
+    const state = createInitialState();
+    state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
+    const route = state.planets.flatMap(origin => state.planets.flatMap(destination => {
+      const path = findPlanetPath(state.planets, origin.id, destination.id);
+      return path && path.length >= 3 ? [path] : [];
+    }))[0];
+    const origin = state.planets.find(planet => planet.id === route[0])!;
+    const waypoint = state.planets.find(planet => planet.id === route[1])!;
+    const finalDestination = state.planets.find(planet => planet.id === route.at(-1))!;
+    waypoint.owner = 'player';
+    finalDestination.owner = 'player';
+    waypoint.orbitUnits = [{ ...makeUnit('waypoint-defender', 'escortFrigate', 'player'), orbitX: 0, orbitY: 0 }];
+    const attacker = makeUnit('passing-attacker', 'escortFrigate', 'enemy');
+    state.fleets = [{
+      id: 'passing-fleet', faction: 'enemy', originId: origin.id, destinationId: waypoint.id,
+      finalDestinationId: finalDestination.id, route: route.slice(2), unit: attacker,
+      phase: 'tunnel', progress: 1, travelTime: 1,
+    }];
+
+    const intercepted = tick(state, .01);
+    const arrived = intercepted.planets.find(planet => planet.id === waypoint.id)!.orbitUnits.find(unit => unit.id === attacker.id)!;
+
+    expect(intercepted.fleets.some(fleet => fleet.unit.id === attacker.id)).toBe(false);
+    expect(arrived).toBeDefined();
+    expect(typeof arrived.orbitTargetX).toBe('number');
+    expect(typeof arrived.orbitTargetY).toBe('number');
+    expect(intercepted.planets.find(planet => planet.id === finalDestination.id)!.orbitUnits.some(unit => unit.id === attacker.id)).toBe(false);
+  });
+
   it('maneuvers and docks ships gradually within a gravity well', () => {
     const state = createInitialState(); const transport = seedPlayerForces(state).orbitUnits[0];
     state.enemyActionClock = 9999; state.enemyAttackClock = 9999;
